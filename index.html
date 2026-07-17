@@ -335,7 +335,6 @@
 <div class="toast" id="toast"></div>
 <div id="modalRoot"></div>
 
-
 <script type="application/json" id="credsDataJson">{"usuarios": {}}</script>
 
 <script type="application/json" id="seedDataJson">{"usuarios": [], "clientes": [], "requerimientos": []}</script>
@@ -516,6 +515,7 @@ const DECLARACIONES_JURADAS_DEFAULT = [
   'DJ 1926 – Créditos y determinación (Régimen General 14A)',
   'DJ 1948 – Retiros y distribuciones (Pro Pyme General)',
   'DJ 1907 – Situación tributaria Pro Pyme',
+  'DJ 1929 – Inversiones en el Exterior',
 ];
 
 // Guardado agrupado: cada llamada a saveState() reinicia una ventana de
@@ -914,7 +914,7 @@ const REGIMENES_TRIBUTARIOS = [
   'Régimen Pro Pyme Transparente (14 D N°8)',
   'Régimen General (Semi Integrado, 14 A)',
   'Renta Presunta',
-  'Otro'
+  'Persona Natural'
 ];
 
 function incorporarClienteForm(isAdmin){
@@ -937,16 +937,15 @@ function incorporarClienteForm(isAdmin){
           <input type="text" id="ob_clave" placeholder="Clave de acceso">
         </label>
         <label>Régimen tributario
-          <select id="ob_regimen" onchange="document.getElementById('ob_regimen_otro').style.display = this.value==='Otro' ? 'block' : 'none';">
+          <select id="ob_regimen" onchange="toggleObPersonaNatural(this.value);">
             <option value="">Selecciona un régimen</option>
             ${REGIMENES_TRIBUTARIOS.map(r=>`<option value="${r}">${escapeHtml(r)}</option>`).join('')}
           </select>
-          <input type="text" id="ob_regimen_otro" placeholder="Especifica el régimen" style="display:none;margin-top:8px;">
         </label>
-        <label>Representante(s) legal(es)
+        <label id="ob_rep_wrap">Representante(s) legal(es)
           <input type="text" id="ob_rep" placeholder="Nombre(s) del/los representante(s) legal(es)">
         </label>
-        <label>Actividad económica
+        <label id="ob_actividad_wrap">Actividad económica
           <input type="text" id="ob_actividad" placeholder="Ej: Servicios de asesoría contable">
         </label>
         <label>Valor servicio mensual (UF)
@@ -972,16 +971,23 @@ function incorporarClienteForm(isAdmin){
   `;
 }
 
+function toggleObPersonaNatural(regimen){
+  const esPN = regimen === 'Persona Natural';
+  const repWrap = document.getElementById('ob_rep_wrap');
+  const actWrap = document.getElementById('ob_actividad_wrap');
+  if(repWrap) repWrap.style.display = esPN ? 'none' : 'flex';
+  if(actWrap) actWrap.style.display = esPN ? 'none' : 'flex';
+}
+
 async function submitIncorporarCliente(isAdmin){
   if(!currentUser.isAdmin) return showToast('Solo un administrador puede agregar clientes.');
   const name = document.getElementById('ob_name').value.trim();
   const rut = document.getElementById('ob_rut').value.trim();
   const clave = document.getElementById('ob_clave').value.trim();
-  const regimenSel = document.getElementById('ob_regimen').value;
-  const regimenOtro = document.getElementById('ob_regimen_otro').value.trim();
-  const regimen = regimenSel === 'Otro' ? regimenOtro : regimenSel;
-  const representanteLegal = document.getElementById('ob_rep').value.trim();
-  const actividadEconomica = document.getElementById('ob_actividad').value.trim();
+  const regimen = document.getElementById('ob_regimen').value;
+  const esPersonaNaturalNueva = regimen === 'Persona Natural';
+  const representanteLegal = esPersonaNaturalNueva ? '' : document.getElementById('ob_rep').value.trim();
+  const actividadEconomica = esPersonaNaturalNueva ? '' : document.getElementById('ob_actividad').value.trim();
   const valorInput = document.getElementById('ob_valor_mensual');
   const valorParsed = valorInput ? parseFloat(valorInput.value) : NaN;
   const valorServicioMensual = isNaN(valorParsed) ? null : valorParsed;
@@ -1064,7 +1070,7 @@ function adminMainContent(unassigned){
 // solo su propia cartera, sin esos filtros (no tienen nada que filtrar).
 function confeccionIvaContent(verTodo){
   if(verTodo){
-    const nomina = clientesEnSucursalActiva().filter(c => c.f29Requerido);
+    const nomina = clientesEnSucursalActiva().filter(c => c.f29Requerido || c.f29CasoEspecialMes === mesActualISO());
     const unassignedNomina = nomina.filter(c => !c.encargadoId || !state.usuarios.find(e=>e.id===c.encargadoId));
 
     let list;
@@ -1109,7 +1115,7 @@ function confeccionIvaContent(verTodo){
 
   // Encargado / Asistente: solo su(s) cartera(s) asignada(s).
   const misCarteras = carterasDeUsuario(currentUser);
-  const nomina = state.clientes.filter(c => misCarteras.includes(c.encargadoId) && c.f29Requerido);
+  const nomina = state.clientes.filter(c => misCarteras.includes(c.encargadoId) && (c.f29Requerido || c.f29CasoEspecialMes === mesActualISO()));
   const q = (searchQuery||'').trim().toLowerCase();
   const list = q ? nomina.filter(c => (c.name||'').toLowerCase().includes(q) || (c.rut||'').toLowerCase().includes(q)) : nomina;
   const enviados = list.filter(c => c.f29Estado === 'enviado').length;
@@ -1188,7 +1194,7 @@ function f29Table(list, showEncargado){
             <td class="mono">${escapeHtml(c.rut||'—')}</td>
             <td class="mono">${escapeHtml(c.clave||'—')}</td>
             ${showEncargado ? `<td>${escapeHtml((state.usuarios.find(e=>e.id===c.encargadoId)||{}).name || "Sin asignar")}</td>` : ''}
-            <td>${c.f29Requerido ? '<span class="role-badge admin" style="background:var(--gold);">En nómina</span>' : ''}</td>
+            <td>${c.f29Requerido ? '<span class="role-badge admin" style="background:var(--gold);">En nómina</span>' : (c.f29CasoEspecialMes===mesActualISO() ? '<span class="role-badge encargado">Caso especial</span>' : '')}</td>
             <td>
               <select class="f29-select ${c.f29Estado==='enviado'?'f29-ok':'f29-pending'}" onchange="this.className = 'f29-select ' + (this.value==='enviado'?'f29-ok':'f29-pending'); setF29Status('${c.id}', this.value)">
                 <option value="no_enviado" ${c.f29Estado!=='enviado'?'selected':''}>No enviado</option>
@@ -1443,22 +1449,21 @@ function renderModal(){
             <input type="text" id="dt_clave" value="${escapeAttr(c.clave||'')}">
           </label>
           <label>Régimen tributario
-            <select id="dt_regimen" onchange="document.getElementById('dt_regimen_otro').style.display = this.value==='Otro' ? 'block' : 'none';">
+            <select id="dt_regimen" onchange="toggleDtPersonaNatural(this.value);">
               <option value="">Selecciona un régimen</option>
               ${REGIMENES_TRIBUTARIOS.map(r=>`<option value="${r}" ${c.regimenTributario===r?'selected':''}>${escapeHtml(r)}</option>`).join('')}
             </select>
-            <input type="text" id="dt_regimen_otro" placeholder="Especifica el régimen" value="${escapeAttr(c.regimenTributario && !REGIMENES_TRIBUTARIOS.includes(c.regimenTributario) ? c.regimenTributario : '')}" style="display:${c.regimenTributario && !REGIMENES_TRIBUTARIOS.includes(c.regimenTributario) ? 'block' : 'none'};margin-top:8px;">
           </label>
-          <label>Actividad económica
+          <label id="dt_actividad_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'flex'};">Actividad económica
             <input type="text" id="dt_actividad" placeholder="Sin registrar" value="${escapeAttr(c.actividadEconomica||'')}">
           </label>
-          <label>Código actividad económica
+          <label id="dt_codigo_actividad_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'flex'};">Código actividad económica
             <input type="text" id="dt_codigo_actividad" placeholder="Sin registrar" value="${escapeAttr(c.codigoActividadEconomica||'')}">
           </label>
-          <label>Representante(s) legal(es)
+          <label id="dt_rep_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'flex'};">Representante(s) legal(es)
             <input type="text" id="dt_rep" placeholder="Sin registrar" value="${escapeAttr(c.representanteLegal||'')}">
           </label>
-          <label>Rut representante legal
+          <label id="dt_rep_rut_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'flex'};">Rut representante legal
             <input type="text" id="dt_rep_rut" placeholder="Sin registrar" value="${escapeAttr(c.representanteLegalRut||'')}">
           </label>
           <label>Encargado
@@ -1481,6 +1486,46 @@ function renderModal(){
             <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Requiere Declaración de Renta (nómina)</span>
           </label>` : ''}
         </div>
+        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
+          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;">
+            <input type="checkbox" id="dt_iva_caso_especial" ${c.f29CasoEspecialMes===mesActualISO()?'checked':''} style="width:auto;">
+            <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Incluir en Confección Iva este mes (caso especial)</span>
+          </label>
+          <div style="font-size:12px;color:#8a8879;margin-top:4px;">Útil para clientes "Persona Natural", que por defecto no entran a la nómina de Iva. Se desmarca solo al pasar el mes.</div>
+        </div>
+
+        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
+          <h4 style="margin:0 0 10px;font-size:14px;">Otros datos relevantes</h4>
+
+          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;margin-bottom:8px;">
+            <input type="checkbox" id="dt_previred_activo" onchange="document.getElementById('dt_previred_fields').style.display = this.checked ? 'flex' : 'none';" ${c.datosPrevired && c.datosPrevired.activo ? 'checked' : ''} style="width:auto;">
+            <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Posee trabajadores (datos Previred)</span>
+          </label>
+          <div id="dt_previred_fields" class="form-inline" style="display:${c.datosPrevired && c.datosPrevired.activo ? 'flex':'none'};margin-bottom:14px;">
+            <input type="text" id="dt_previred_rut" placeholder="Rut Previred" value="${escapeAttr((c.datosPrevired||{}).rut||'')}">
+            <input type="text" id="dt_previred_clave" placeholder="Clave Previred" value="${escapeAttr((c.datosPrevired||{}).clave||'')}">
+          </div>
+
+          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;margin-bottom:8px;">
+            <input type="checkbox" id="dt_claveunica_activo" onchange="document.getElementById('dt_claveunica_fields').style.display = this.checked ? 'flex' : 'none';" ${c.claveUnica && c.claveUnica.activo ? 'checked' : ''} style="width:auto;">
+            <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Requiere Clave Única</span>
+          </label>
+          <div id="dt_claveunica_fields" class="form-inline" style="display:${c.claveUnica && c.claveUnica.activo ? 'flex':'none'};margin-bottom:14px;">
+            <input type="text" id="dt_claveunica_rut" placeholder="Rut" value="${escapeAttr((c.claveUnica||{}).rut||'')}">
+            <input type="text" id="dt_claveunica_clave" placeholder="Clave" value="${escapeAttr((c.claveUnica||{}).clave||'')}">
+          </div>
+
+          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;margin-bottom:8px;">
+            <input type="checkbox" id="dt_factura_activo" onchange="document.getElementById('dt_factura_fields').style.display = this.checked ? 'flex' : 'none';" ${c.datosFacturacion && c.datosFacturacion.activo ? 'checked' : ''} style="width:auto;">
+            <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Factura (requiere certificado digital)</span>
+          </label>
+          <div id="dt_factura_fields" class="form-inline" style="display:${c.datosFacturacion && c.datosFacturacion.activo ? 'flex':'none'};flex-wrap:wrap;">
+            <input type="text" id="dt_factura_rut" placeholder="Rut persona que factura" value="${escapeAttr((c.datosFacturacion||{}).rutFacturador||'')}">
+            <input type="text" id="dt_factura_clave" placeholder="Clave persona que factura" value="${escapeAttr((c.datosFacturacion||{}).claveFacturador||'')}">
+            <input type="text" id="dt_factura_clave_cert" placeholder="Clave certificado digital" value="${escapeAttr((c.datosFacturacion||{}).claveCertificado||'')}">
+          </div>
+        </div>
+
         ${isAdmin ? `
         <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
           <h4 style="margin:0 0 10px;font-size:14px;">Servicios extraordinarios</h4>
@@ -1508,19 +1553,48 @@ function renderModal(){
   `;
 }
 
+function toggleDtPersonaNatural(regimen){
+  const esPN = regimen === 'Persona Natural';
+  ['dt_actividad_wrap','dt_codigo_actividad_wrap','dt_rep_wrap','dt_rep_rut_wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = esPN ? 'none' : 'flex';
+  });
+}
+
+function mesActualISO(){
+  return new Date().toISOString().slice(0,7);
+}
+
 async function saveClientDetail(id){
   const c = state.clientes.find(cl => cl.id === id);
   if(!c) return;
-  const regimenSel = document.getElementById('dt_regimen').value;
-  const regimenOtro = document.getElementById('dt_regimen_otro').value.trim();
   c.name = document.getElementById('dt_name').value.trim();
   c.rut = document.getElementById('dt_rut').value.trim();
   c.clave = document.getElementById('dt_clave').value.trim();
-  c.regimenTributario = regimenSel === 'Otro' ? regimenOtro : regimenSel;
-  c.actividadEconomica = document.getElementById('dt_actividad').value.trim();
-  c.codigoActividadEconomica = document.getElementById('dt_codigo_actividad').value.trim();
-  c.representanteLegal = document.getElementById('dt_rep').value.trim();
-  c.representanteLegalRut = document.getElementById('dt_rep_rut').value.trim();
+  c.regimenTributario = document.getElementById('dt_regimen').value;
+  const esPersonaNaturalDetalle = c.regimenTributario === 'Persona Natural';
+  c.actividadEconomica = esPersonaNaturalDetalle ? '' : document.getElementById('dt_actividad').value.trim();
+  c.codigoActividadEconomica = esPersonaNaturalDetalle ? '' : document.getElementById('dt_codigo_actividad').value.trim();
+  c.representanteLegal = esPersonaNaturalDetalle ? '' : document.getElementById('dt_rep').value.trim();
+  c.representanteLegalRut = esPersonaNaturalDetalle ? '' : document.getElementById('dt_rep_rut').value.trim();
+  const casoEspecialCheck = document.getElementById('dt_iva_caso_especial');
+  c.f29CasoEspecialMes = (casoEspecialCheck && casoEspecialCheck.checked) ? mesActualISO() : null;
+  c.datosPrevired = {
+    activo: document.getElementById('dt_previred_activo').checked,
+    rut: document.getElementById('dt_previred_rut').value.trim(),
+    clave: document.getElementById('dt_previred_clave').value.trim()
+  };
+  c.claveUnica = {
+    activo: document.getElementById('dt_claveunica_activo').checked,
+    rut: document.getElementById('dt_claveunica_rut').value.trim(),
+    clave: document.getElementById('dt_claveunica_clave').value.trim()
+  };
+  c.datosFacturacion = {
+    activo: document.getElementById('dt_factura_activo').checked,
+    rutFacturador: document.getElementById('dt_factura_rut').value.trim(),
+    claveFacturador: document.getElementById('dt_factura_clave').value.trim(),
+    claveCertificado: document.getElementById('dt_factura_clave_cert').value.trim()
+  };
   const encSel = document.getElementById('dt_encargado');
   if(currentUser.isAdmin || (encSel && encSel.tagName === 'SELECT')){
     if(encSel) c.encargadoId = encSel.value || null;
@@ -1566,6 +1640,9 @@ function clientMeta(c){
   if(c.representanteLegal) parts.push(`Rep. legal: ${escapeHtml(c.representanteLegal)}`);
   if(c.actividadEconomica) parts.push(`Actividad: ${escapeHtml(c.actividadEconomica)}`);
   if(c.codigoActividadEconomica) parts.push(`Cód. actividad: ${escapeHtml(c.codigoActividadEconomica)}`);
+  if(c.datosPrevired && c.datosPrevired.activo) parts.push('Previred');
+  if(c.claveUnica && c.claveUnica.activo) parts.push('Clave Única');
+  if(c.datosFacturacion && c.datosFacturacion.activo) parts.push('Factura');
   if(c.notas) parts.push(escapeHtml(c.notas));
   return parts.length ? `<div class="client-notes">${parts.join(' · ')}</div>` : '';
 }
@@ -2043,7 +2120,7 @@ function inicioContent(){
   // Confección Iva (F-29) es una sección exclusiva del Administrador ahora;
   // igual se calcula por si se necesita, pero solo se muestra la tarjeta si
   // currentUser.isAdmin.
-  const f29Pendientes = misClientes.filter(c => c.f29Requerido && c.f29Estado !== 'enviado');
+  const f29Pendientes = misClientes.filter(c => (c.f29Requerido || c.f29CasoEspecialMes === mesActualISO()) && c.f29Estado !== 'enviado');
 
   const obScopeIds = new Set(obligacionesScope(verTodo).map(c => c.id));
   const obPendientes = state.obligaciones.filter(o => obScopeIds.has(o.clienteId) && o.estado !== 'Presentado');
@@ -2064,9 +2141,9 @@ function inicioContent(){
       return f.estado === 'Pendiente';
     });
     facturacionCard = `
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('facturacion')">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('facturacion')">
         <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Facturación pendiente · ${mesLabel(mesActual)}</div>
-        <div class="text-3xl font-bold text-gray-800">${facPendientes.length}</div>
+        <div class="text-2xl font-bold text-gray-800">${facPendientes.length}</div>
         <div class="text-xs text-gray-400 mt-1">clientes sin marcar como facturados este mes</div>
       </div>
     `;
@@ -2075,9 +2152,9 @@ function inicioContent(){
   // tarjeta de respaldo cambia de etiqueta para no decir "Tu cartera" cuando
   // en realidad son los clientes de todo el sistema.
   const carteraCard = facturacionCard || `
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('cartera')">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('cartera')">
       <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">${verTodo ? 'Clientes en seguimiento' : 'Tu cartera'}</div>
-      <div class="text-3xl font-bold text-gray-800">${misClientes.length}</div>
+      <div class="text-2xl font-bold text-gray-800">${misClientes.length}</div>
       <div class="text-xs text-gray-400 mt-1">${verTodo ? 'total en el sistema' : 'clientes asignados'}</div>
     </div>`;
 
@@ -2087,26 +2164,26 @@ function inicioContent(){
       <p class="text-sm text-gray-500 mb-6">Esto es lo que tienes pendiente hoy.</p>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('requerimientos')">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('requerimientos')">
           <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Requerimientos pendientes</div>
-          <div class="text-3xl font-bold text-gray-800">${reqPendientes.length}</div>
+          <div class="text-2xl font-bold text-gray-800">${reqPendientes.length}</div>
           <div class="text-xs mt-1 ${reqVencidos.length ? 'text-red-500 font-semibold' : 'text-gray-400'}">${reqVencidos.length ? `${reqVencidos.length} vencido${reqVencidos.length===1?'':'s'}` : 'ninguno vencido'}</div>
         </div>
         ${currentUser.isAdmin ? `
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:border-blue-400 transition-colors" onclick="irAConfeccionIva()">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="irAConfeccionIva()">
           <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">IVA (F-29) sin enviar</div>
-          <div class="text-3xl font-bold text-gray-800">${f29Pendientes.length}</div>
+          <div class="text-2xl font-bold text-gray-800">${f29Pendientes.length}</div>
           <div class="text-xs text-gray-400 mt-1">de la nómina vigente en tu cartera</div>
         </div>` : ''}
         ${carteraCard}
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('obligaciones')">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('obligaciones')">
           <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Obligaciones Tributarias</div>
-          <div class="text-3xl font-bold text-gray-800">${obPendientes.length}</div>
+          <div class="text-2xl font-bold text-gray-800">${obPendientes.length}</div>
           <div class="text-xs mt-1 ${obVencidas.length ? 'text-red-500 font-semibold' : 'text-gray-400'}">${obVencidas.length ? `${obVencidas.length} vencida${obVencidas.length===1?'':'s'}` : 'ninguna vencida'}</div>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('tareas')">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('tareas')">
           <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Tareas mensuales incompletas</div>
-          <div class="text-3xl font-bold text-gray-800">${tareasIncompletas}</div>
+          <div class="text-2xl font-bold text-gray-800">${tareasIncompletas}</div>
           <div class="text-xs text-gray-400 mt-1">de ${misClientes.length} clientes, este mes</div>
         </div>
       </div>
@@ -2415,7 +2492,7 @@ function dashboardContent(){
   const total = clientes.length;
   const porSucursal = { Concepcion: clientes.filter(c=>c.sucursal==='Concepcion').length, Temuco: clientes.filter(c=>c.sucursal==='Temuco').length };
 
-  const nomina = clientes.filter(c => c.f29Requerido);
+  const nomina = clientes.filter(c => c.f29Requerido || c.f29CasoEspecialMes === mesActualISO());
   const enviados = nomina.filter(c => c.f29Estado === 'enviado').length;
   const pctEnviado = nomina.length ? Math.round((enviados/nomina.length)*100) : 0;
 
@@ -2835,10 +2912,10 @@ function setObligacionesSubTab(tab){
 }
 
 // Declaraciones juradas de renta más comunes por año tributario. Roster fijo:
-// todas las empresas con régimen tributario definido y distinto de "Otro".
+// todas las empresas con régimen tributario definido y distinto de "Persona Natural".
 function empresasParaDeclaracionesJuradas(verTodo){
   const base = verTodo ? clientesEnSucursalActiva() : state.clientes.filter(c => carterasDeUsuario(currentUser).includes(c.encargadoId));
-  return base.filter(c => c.regimenTributario && c.regimenTributario !== 'Otro');
+  return base.filter(c => c.regimenTributario && c.regimenTributario !== 'Persona Natural');
 }
 
 let declaracionesJuradasAnio = null;
@@ -2862,7 +2939,7 @@ function declaracionesJuradasContent(verTodo){
 
   return `
     <div class="flex items-center justify-between mb-1 flex-wrap gap-3">
-      <p class="text-sm text-gray-500">Empresas con régimen tributario definido (excluye sin régimen y "Otro"). Declaraciones juradas de renta más comunes por año tributario.</p>
+      <p class="text-sm text-gray-500">Empresas con régimen tributario definido (excluye sin régimen y "Persona Natural"). Declaraciones juradas de renta más comunes por año tributario.</p>
       <select onchange="flushPendingSaves(); declaracionesJuradasAnio=this.value; tablePage=1; renderApp();" class="rounded-xl border border-gray-300 px-4 py-2 text-sm">
         ${anios.map(a => `<option value="${a}" ${a===anio?'selected':''}>${a}</option>`).join('')}
       </select>
