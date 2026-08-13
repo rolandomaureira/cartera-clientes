@@ -483,12 +483,18 @@ function seedData(){
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyWbEqfgc_dRyUZsqVg4Gle1Qq3HwMBdfKRhIvzOR2kQmLUPl6NmYLpNZvi0ZGwiYvzKw/exec';
 const API_TOKEN = '4612fb0489acc4364a4ec8fdbbc2c1b3a81d4781116827274056e2ff5f7df096'; // debe coincidir con API_TOKEN en Code.gs
 
+const MARCADOR_LIMITE_TASA = '{"__rateLimited__":true}';
+
 async function kvGet(key){
   if(!BACKEND_URL) return null; // sin backend configurado: se usa el respaldo de más abajo
   try{
     const res = await fetch(`${BACKEND_URL}?key=${encodeURIComponent(key)}&token=${encodeURIComponent(API_TOKEN)}`, { cache: 'no-store' });
     const text = await res.text();
     if(!text || text === 'null') return null;
+    if(text === MARCADOR_LIMITE_TASA){
+      showToast('Demasiadas solicitudes seguidas. Espera un momento y reintenta.');
+      return null;
+    }
     return { value: text };
   }catch(e){
     console.error('No se pudo leer del backend:', e);
@@ -499,14 +505,40 @@ async function kvGet(key){
 async function kvSet(key, value){
   if(!BACKEND_URL) return false;
   try{
-    await fetch(BACKEND_URL, {
+    const res = await fetch(BACKEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS en Apps Script
       body: JSON.stringify({ key, value, token: API_TOKEN })
     });
-    return true;
+    const data = await res.json().catch(() => null);
+    if(data && data.error === 'rate_limited'){
+      showToast('Demasiadas solicitudes seguidas. Espera un momento; tu cambio se reintentará.');
+      return false;
+    }
+    return !!(data && data.ok);
   }catch(e){
     console.error('No se pudo guardar en el backend:', e);
+    return false;
+  }
+}
+
+// Verifica usuario+clave contra el backend: el backend compara el hash y
+// responde solo ok/no-ok, sin exponer nunca el mapa completo de claves al
+// navegador (antes checkLogin() comparaba localmente contra `creds`, que se
+// descargaba completo a CUALQUIER visitante desde el primer momento). Ver
+// la acción "login" en Code.gs.
+async function verificarLoginBackend(usuarioId, hash){
+  if(!BACKEND_URL) return false;
+  try{
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ accion: 'login', usuarioId, hash, token: API_TOKEN })
+    });
+    const data = await res.json().catch(() => null);
+    return !!(data && data.ok);
+  }catch(e){
+    console.error('No se pudo verificar el login:', e);
     return false;
   }
 }
@@ -540,7 +572,7 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // requeriría filas individuales por registro, un cambio más grande), pero
 // el caso que causó problemas — un cambio en usuarios pisado por un
 // cambio de clientes, o viceversa — queda resuelto.
-const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales'];
+const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria'];
 
 function valorPorDefectoColeccion(nombre){
   if(nombre === 'usuarios') return [];
@@ -549,6 +581,7 @@ function valorPorDefectoColeccion(nombre){
   if(nombre === 'obligaciones') return [];
   if(nombre === 'reuniones') return [];
   if(nombre === 'trabajosEspeciales') return [];
+  if(nombre === 'auditoria') return [];
   return [];
 }
 
@@ -613,14 +646,25 @@ const obligacionesSaveDebouncer = crearGuardadoColeccion('obligaciones', () => s
 const reunionesSaveDebouncer = crearGuardadoColeccion('reuniones', () => state.reuniones, 'No se pudo guardar la reunión. Intenta de nuevo.');
 const trabajosEspecialesSaveDebouncer = crearGuardadoColeccion('trabajosEspeciales', () => state.trabajosEspeciales, 'No se pudo guardar el trabajo especial. Intenta de nuevo.');
 const configSaveDebouncer = crearGuardadoColeccion('config', () => ({ tareasPlantilla: state.tareasPlantilla, declaracionesJuradasPlantilla: state.declaracionesJuradasPlantilla }), 'No se pudo guardar la configuración. Intenta de nuevo.');
+const auditoriaSaveDebouncer = crearGuardadoColeccion('auditoria', () => state.auditoria, 'No se pudo guardar el registro de actividad.');
 
-async function saveUsuarios(){ usuariosSaveDebouncer.run(); }
-async function saveClientes(){ clientesSaveDebouncer.run(); }
-async function saveRequerimientos(){ requerimientosSaveDebouncer.run(); }
-async function saveObligaciones(){ obligacionesSaveDebouncer.run(); }
-async function saveReuniones(){ reunionesSaveDebouncer.run(); }
-async function saveTrabajosEspeciales(){ trabajosEspecialesSaveDebouncer.run(); }
-async function saveConfig(){ configSaveDebouncer.run(); }
+// Registro simple de "quién guardó qué colección y cuándo" (no el detalle de
+// qué cambió). currentUser puede ser null muy al principio (auto-login
+// todavía verificándose): en ese caso no hay nada que registrar.
+function registrarAuditoria(coleccion){
+  if(!currentUser || !state.auditoria) return;
+  state.auditoria.push({ t: Date.now(), usuario: currentUser.name, usuarioId: currentUser.id, coleccion });
+  if(state.auditoria.length > 500) state.auditoria.splice(0, state.auditoria.length - 500);
+  auditoriaSaveDebouncer.run();
+}
+
+async function saveUsuarios(){ registrarAuditoria('usuarios'); usuariosSaveDebouncer.run(); }
+async function saveClientes(){ registrarAuditoria('clientes'); clientesSaveDebouncer.run(); }
+async function saveRequerimientos(){ registrarAuditoria('requerimientos'); requerimientosSaveDebouncer.run(); }
+async function saveObligaciones(){ registrarAuditoria('obligaciones'); obligacionesSaveDebouncer.run(); }
+async function saveReuniones(){ registrarAuditoria('reuniones'); reunionesSaveDebouncer.run(); }
+async function saveTrabajosEspeciales(){ registrarAuditoria('trabajosEspeciales'); trabajosEspecialesSaveDebouncer.run(); }
+async function saveConfig(){ registrarAuditoria('config'); configSaveDebouncer.run(); }
 
 let creds = null; // { usuarios: { id: hash } }
 const CREDS_KEY = 'credenciales';
@@ -644,6 +688,14 @@ async function loadCreds(){
   if(!creds.usuarios) creds.usuarios = {};
 }
 
+// El login normal ya no necesita creds (se verifica en el backend, ver
+// verificarLoginBackend()). Esto solo se usa para las pantallas de admin que
+// de verdad necesitan leer/escribir claves (crear usuario, cambiar clave,
+// eliminar usuario) — se carga recién ahí, no en cada visita a la página.
+async function ensureCredsLoaded(){
+  if(!creds) await loadCreds();
+}
+
 const credsSaveDebouncer = makeDebouncer(async () => {
   try{
     const ok = await kvSet(CREDS_KEY, JSON.stringify(creds));
@@ -654,6 +706,7 @@ const credsSaveDebouncer = makeDebouncer(async () => {
 }, 1750);
 
 async function saveCreds(){
+  registrarAuditoria('credenciales');
   credsSaveDebouncer.run();
 }
 
@@ -668,6 +721,7 @@ function flushPendingSaves(){
   reunionesSaveDebouncer.flush();
   trabajosEspecialesSaveDebouncer.flush();
   configSaveDebouncer.flush();
+  auditoriaSaveDebouncer.flush();
   credsSaveDebouncer.flush();
 }
 
@@ -758,15 +812,53 @@ function goToGate(){
   activeFolder = 'todos';
   activeTab = 'inicio';
   tablePage = 1;
+  // Cerrar sesión también olvida el dispositivo: si alguien marcó "mantener
+  // la sesión iniciada" pero después cierra sesión a propósito (p.ej. en un
+  // computador compartido), no debe quedar reingresando solo al recargar.
+  try{ localStorage.removeItem(RECORDAR_LOGIN_KEY); }catch(e){}
   document.getElementById('whoamiBox').style.display = 'none';
   renderGate();
 }
 
 /* ---------------- GATE SCREEN (login BPO 1) ---------------- */
+// Guarda { usuario, hash } -- el hash SHA-256 de la clave, NUNCA la clave en
+// texto plano (antes sí se guardaba en texto plano acá). Con el hash guardado,
+// intentarAutoLogin() puede reingresar a la persona sin volver a pedirle la
+// clave, verificando contra el backend igual que un login manual — pero si
+// alguien abre el almacenamiento local del navegador ya no encuentra la
+// clave real.
 const RECORDAR_LOGIN_KEY = 'bpo1_recordar_login';
 
 function leerLoginRecordado(){
   try{ return JSON.parse(localStorage.getItem(RECORDAR_LOGIN_KEY) || 'null'); }catch(e){ return null; }
+}
+
+function guardarLoginRecordado(usuarioVal, hash){
+  const recordarCheck = document.getElementById('loginRecordar');
+  try{
+    if(recordarCheck && recordarCheck.checked){
+      localStorage.setItem(RECORDAR_LOGIN_KEY, JSON.stringify({ usuario: usuarioVal, hash }));
+    }else{
+      localStorage.removeItem(RECORDAR_LOGIN_KEY);
+    }
+  }catch(e){ /* localStorage no disponible: se ignora, no bloquea el login */ }
+}
+
+// Se intenta una sola vez, al cargar la página (ver init()). Si hay una
+// sesión recordada y el backend la valida, entra directo sin mostrar el
+// formulario. Si el hash guardado ya no sirve (p.ej. se cambió la clave), se
+// olvida el dispositivo y se muestra el login normal.
+async function intentarAutoLogin(){
+  const recordado = leerLoginRecordado();
+  if(!recordado) return false;
+  const u = state.usuarios.find(u => (u.usuario||'').toLowerCase() === recordado.usuario);
+  const ok = u && await verificarLoginBackend(u.id, recordado.hash);
+  if(!ok){
+    try{ localStorage.removeItem(RECORDAR_LOGIN_KEY); }catch(e){}
+    return false;
+  }
+  enterAsUsuario(u.id);
+  return true;
 }
 
 function renderGate(){
@@ -779,10 +871,10 @@ function renderGate(){
         <div class="tg-heading" style="margin-top:4px;">ACCESO AL SISTEMA</div>
         <div id="loginError" class="tg-error"></div>
         <input type="text" id="loginUsuario" class="tg-input" placeholder="Usuario" autocomplete="username" value="${escapeAttr(recordado?recordado.usuario:'')}">
-        <input type="password" id="loginClave" class="tg-input" placeholder="Clave" autocomplete="current-password" value="${escapeAttr(recordado?recordado.clave:'')}">
+        <input type="password" id="loginClave" class="tg-input" placeholder="Clave" autocomplete="current-password">
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#5b6b93;margin:-6px 0 18px;">
           <input type="checkbox" id="loginRecordar" ${recordado?'checked':''} style="width:auto;">
-          Recordar mi usuario y clave en este dispositivo
+          Mantener la sesión iniciada en este dispositivo
         </label>
         <button class="tg-button" onclick="checkLogin()">Ingresar</button>
       </div>
@@ -790,7 +882,7 @@ function renderGate(){
   `;
   const uInput = document.getElementById('loginUsuario');
   const pInput = document.getElementById('loginClave');
-  uInput.focus();
+  (recordado ? pInput : uInput).focus();
   uInput.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') pInput.focus(); });
   pInput.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') checkLogin(); });
 }
@@ -800,21 +892,19 @@ async function checkLogin(){
   const claveVal = document.getElementById('loginClave').value;
   const errBox = document.getElementById('loginError');
   const u = state.usuarios.find(u => (u.usuario||'').toLowerCase() === usuarioVal);
-  const hash = await sha256(claveVal);
-  const expected = u ? creds.usuarios[u.id] : null;
-  if(!u || !expected || hash !== expected){
+  if(!u){
     errBox.textContent = 'Usuario o clave incorrectos.';
     document.getElementById('loginClave').value = '';
     return;
   }
-  const recordarCheck = document.getElementById('loginRecordar');
-  try{
-    if(recordarCheck && recordarCheck.checked){
-      localStorage.setItem(RECORDAR_LOGIN_KEY, JSON.stringify({ usuario: usuarioVal, clave: claveVal }));
-    }else{
-      localStorage.removeItem(RECORDAR_LOGIN_KEY);
-    }
-  }catch(e){ /* localStorage no disponible: se ignora, no bloquea el login */ }
+  const hash = await sha256(claveVal);
+  const ok = await verificarLoginBackend(u.id, hash);
+  if(!ok){
+    errBox.textContent = 'Usuario o clave incorrectos.';
+    document.getElementById('loginClave').value = '';
+    return;
+  }
+  guardarLoginRecordado(usuarioVal, hash);
   enterAsUsuario(u.id);
 }
 
@@ -919,6 +1009,9 @@ function sectionNav(){
     </div>
     <div class="folder-tab ${activeTab==='usuarios'?'active':''}" onclick="setTab('usuarios')">
       <span>Usuarios y Roles</span>
+    </div>
+    <div class="folder-tab ${activeTab==='actividad'?'active':''}" onclick="setTab('actividad')">
+      <span>Actividad</span>
     </div>
   `;
 }
@@ -1029,6 +1122,8 @@ function adminLayout(){
           ? tareasContent(true, true)
           : activeTab === 'trabajos-especiales'
           ? trabajosEspecialesContent()
+          : activeTab === 'actividad'
+          ? actividadContent()
           : adminMainContent(unassigned)}
       </div>
     </div>
@@ -4047,6 +4142,41 @@ async function derivarCarteraMasiva(){
     : `${clientesOrigen.length} clientes derivados de ${origen.name} a ${destino.name}.`);
 }
 
+const ETIQUETA_COLECCION = {
+  usuarios: 'Usuarios',
+  clientes: 'Clientes',
+  requerimientos: 'Requerimientos',
+  obligaciones: 'Obligaciones Tributarias',
+  reuniones: 'Reuniones',
+  trabajosEspeciales: 'Trabajos Especiales',
+  config: 'Configuración (plantillas)',
+  credenciales: 'Credenciales (clave de un usuario)',
+};
+
+function actividadContent(){
+  const entradas = [...(state.auditoria||[])].sort((a,b) => b.t - a.t).slice(0, 200);
+  return `
+    <div class="main-head">
+      <div>
+        <h2 class="display">Actividad</h2>
+        <div class="meta">Últimos ${entradas.length} guardados, más reciente primero. Registra quién guardó cada colección de datos y cuándo (no el detalle de qué cambió).</div>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Qué se guardó</th></tr></thead>
+      <tbody>
+        ${entradas.length ? entradas.map(a => `
+          <tr>
+            <td class="mono">${escapeHtml(new Date(a.t).toLocaleString('es-CL'))}</td>
+            <td>${escapeHtml(a.usuario||'—')}</td>
+            <td>${escapeHtml(ETIQUETA_COLECCION[a.coleccion] || a.coleccion)}</td>
+          </tr>
+        `).join('') : '<tr><td colspan="3" style="color:#8a8879;">Todavía no hay actividad registrada.</td></tr>'}
+      </tbody>
+    </table>
+  `;
+}
+
 function usuariosContent(){
   const usuariosOrdenados = [...state.usuarios].sort((a,b) => a.name.localeCompare(b.name, 'es'));
   const avisoBackend = !BACKEND_URL ? `
@@ -4140,6 +4270,7 @@ async function changePassword(id, label){
   const nueva = prompt(`Nueva clave para ${label}:`, generatePassword());
   if(!nueva) return;
   const hash = await sha256(nueva.trim());
+  await ensureCredsLoaded();
   creds.usuarios[id] = hash;
   await saveCreds();
   alert(`Clave actualizada para ${label}:\n\n${nueva}\n\nCompártela por un canal seguro. No se mostrará de nuevo.`);
@@ -4214,6 +4345,7 @@ async function addUsuario(){
     nuevoUsuario.carterasVisibles = [];
   }
   state.usuarios.push(nuevoUsuario);
+  await ensureCredsLoaded();
   creds.usuarios[id] = hash;
   await saveUsuarios();
   await saveCreds();
@@ -4256,6 +4388,7 @@ async function removeUsuario(id){
   if(!confirm(`¿Eliminar a "${u.name}" (${u.rol})? Perderá su acceso y sus clientes quedarán sin asignar. Esta acción no se puede deshacer.`)) return;
   state.usuarios = state.usuarios.filter(u => u.id !== id);
   state.clientes.forEach(c => { if(c.encargadoId === id) c.encargadoId = null; });
+  await ensureCredsLoaded();
   delete creds.usuarios[id];
   if(activeFolder === id) activeFolder = 'todos';
   await saveUsuarios();
@@ -4351,13 +4484,18 @@ window.addEventListener('pagehide', flushPendingSaves);
 window.addEventListener('beforeunload', flushPendingSaves);
 
 /* ---------------- INIT ---------------- */
+// Ya no se llama a loadCreds() acá: antes se descargaba el mapa completo de
+// hashes de clave a CUALQUIER visitante apenas abría la página, incluso
+// antes de loguearse. Ahora el login se verifica en el backend (ver
+// verificarLoginBackend()/Code.gs) y creds solo se carga bajo demanda, cuando
+// un administrador entra a gestionar usuarios/claves (ensureCredsLoaded()).
 (async function init(){
   document.getElementById('app').innerHTML = `<div class="gate"><div style="color:#8a8879;">Cargando…</div></div>`;
   await loadState();
-  await loadCreds();
   loadUF(); // no bloquea el render inicial; se muestra apenas esté lista
   loadDolar();
-  renderGate();
+  const autoLogueado = await intentarAutoLogin();
+  if(!autoLogueado) renderGate();
 })();
 </script>
 </body>
