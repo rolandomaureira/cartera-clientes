@@ -262,10 +262,12 @@
   .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
   .modal-head h3{margin:0;font-size:22px;}
 
-  /* Login BPO 1 */
+  /* Login BPO 1 — paleta café/dorada (mismos tonos que la insignia de
+     Administrador #B8892B, el selector "No enviado" #D9B36C/#7A5A19 y el
+     aviso de backend #8A3A22/#E0846B, usados en el resto de la app) */
   .tg-login-bg{
     position:fixed;inset:0;z-index:50;
-    background:radial-gradient(ellipse at top, #16204a 0%, #0a1030 70%);
+    background:radial-gradient(ellipse at top, #8A3A22 0%, #2E1508 70%);
     display:flex;align-items:center;justify-content:center;padding:20px;
     font-family:'IBM Plex Sans',sans-serif;
   }
@@ -275,26 +277,37 @@
   }
   .tg-brand{display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:28px;}
   .tg-logo{width:46px;height:40px;flex-shrink:0;}
-  .tg-title{font-size:22px;font-weight:800;color:#111a33;letter-spacing:0.3px;line-height:1.1;}
-  .tg-subtitle{font-size:11px;font-weight:600;color:#8a93a8;letter-spacing:2px;margin-top:2px;}
+  .tg-title{font-size:22px;font-weight:800;color:#3a2411;letter-spacing:0.3px;line-height:1.1;}
+  .tg-subtitle{font-size:11px;font-weight:600;color:#9a8060;letter-spacing:2px;margin-top:2px;}
   .tg-heading{
     text-align:center;font-size:14px;font-weight:700;letter-spacing:2px;
-    color:#5b6b93;margin-bottom:24px;
+    color:#7A5A19;margin-bottom:24px;
   }
   .tg-error{color:var(--danger);font-size:13px;min-height:18px;text-align:center;margin-bottom:6px;}
   .tg-input{
-    width:100%;padding:15px 18px;border-radius:14px;border:1.5px solid #e3e6ef;
-    font-size:15px;color:#1a1a2e;margin-bottom:16px;font-family:'IBM Plex Sans',sans-serif;
-    background:#fafbff;
+    display:block;box-sizing:border-box;
+    width:100%;height:52px;padding:0 18px;border-radius:14px;border:1.5px solid #E4D3B8;
+    font-size:15px;color:#3a2411;margin-bottom:16px;font-family:'IBM Plex Sans',sans-serif;
+    background:#FBF6EC;-webkit-appearance:none;appearance:none;
   }
-  .tg-input::placeholder{color:#9aa3b8;}
-  .tg-input:focus{outline:none;border-color:#3e6ff0;background:#fff;}
+  .tg-input::placeholder{color:#b4987a;}
+  .tg-input:focus{outline:none;border-color:#B8892B;background:#fff;}
+  /* El campo de clave, al ser type="password", trae por defecto el ícono de
+     "guardar contraseña" de Chrome/Edge (llave) y el indicador de Bloq Mayús,
+     que lo hacían ver más "pesado"/grande que el de usuario. Se ocultan para
+     que ambos campos queden visualmente simétricos. */
+  .tg-input::-webkit-credentials-auto-fill-button,
+  .tg-input::-webkit-caps-lock-indicator{
+    visibility:hidden;display:none !important;pointer-events:none;position:absolute;right:0;
+  }
+  .tg-input::-ms-reveal,
+  .tg-input::-ms-clear{ display:none; }
   .tg-button{
     width:100%;padding:16px;border:none;border-radius:14px;
-    background:#2a52d6;color:#fff;font-size:15px;font-weight:700;
+    background:#B8892B;color:#fff;font-size:15px;font-weight:700;
     cursor:pointer;font-family:'IBM Plex Sans',sans-serif;
   }
-  .tg-button:hover{background:#2044bd;}
+  .tg-button:hover{background:#8A3A22;}
   .encargado-chip{
     display:inline-flex;align-items:center;gap:8px;background:var(--white);
     border:1px solid var(--line);padding:6px 6px 6px 12px;border-radius:20px;
@@ -310,6 +323,14 @@
     .folders{width:100%;border-right:none;border-bottom:2px solid var(--ink);}
     .main{padding:24px 18px;}
   }
+
+  /* ---------- Impresión (usada por "Descargar PDF" del Reporte Semanal) ---------- */
+  @media print{
+    .topbar, .folders, .no-print, .toast{ display:none !important; }
+    .layout{ display:block !important; }
+    .main{ padding:0 !important; }
+    body{ background:#fff !important; }
+  }
 </style>
 </head>
 <body>
@@ -324,10 +345,9 @@
   </div>
   <div class="whoami" id="whoamiBox" style="display:none;position:relative;">
     <span id="ufBox"></span>
+    <span id="dolarBox"></span>
     <span id="roleBadge"></span>
-    <button class="switch-btn" onclick="toggleCalendarioDropdown()" title="Calendario tributario">📅 Calendario</button>
     <button class="switch-btn" onclick="goToGate()">Cambiar usuario</button>
-    <div id="calendarioDropdownRoot"></div>
   </div>
 </div>
 
@@ -366,7 +386,7 @@ function esRolContabilidad(rol){ return rol === 'Contabilidad'; }
 // Administrador, Contabilidad y TAX ven todas las carteras (de todos los
 // encargados, ambas sucursales) en vez de estar acotados a la suya propia.
 function puedeVerTodasLasCarteras(u){
-  return !!u.isAdmin || esRolContabilidad(u.rol) || u.rol === 'TAX';
+  return !!u.isAdmin || esRolContabilidad(u.rol) || u.rol === 'TAX' || !!u.verTodasLasCarteras;
 }
 
 // Devuelve los IDs de encargados cuya cartera puede ver un usuario.
@@ -504,6 +524,7 @@ async function loadState(){
   if(!state.reuniones) state.reuniones = [];
   if(!state.tareasPlantilla) state.tareasPlantilla = ['Revisar libro de compras', 'Revisar libro de ventas', 'Conciliación bancaria', 'Declarar IVA (F-29)'];
   if(!state.declaracionesJuradasPlantilla) state.declaracionesJuradasPlantilla = DECLARACIONES_JURADAS_DEFAULT.slice();
+  if(!state.trabajosEspeciales) state.trabajosEspeciales = [];
 }
 
 // Declaraciones juradas de renta más comunes para pymes (fuente: SII / Operación
@@ -618,6 +639,38 @@ function renderUFBadge(){
     : `<span class="uf-badge uf-error">UF no disponible <button class="switch-btn" style="padding:2px 8px;font-size:11px;margin-left:4px;" onclick="loadUF()">Reintentar</button></span>`;
 }
 
+let dolarInfo = null; // { valor, fecha }
+let dolarLoading = false;
+async function loadDolar(){
+  dolarLoading = true;
+  renderDolarBadge();
+  try{
+    const res = await fetch('https://mindicador.cl/api/dolar', { cache: 'no-store' });
+    const data = await res.json();
+    const last = data.serie.reduce((max, item) => (!max || item.fecha > max.fecha) ? item : max, null);
+    const [y,m,d] = last.fecha.split('T')[0].split('-');
+    const valorFmt = last.valor.toLocaleString('es-CL', {minimumFractionDigits:2, maximumFractionDigits:2});
+    dolarInfo = { valor: valorFmt, fecha: `${d}-${m}-${y}` };
+  }catch(e){
+    dolarInfo = null;
+    console.error('No se pudo obtener el dólar:', e);
+  }
+  dolarLoading = false;
+  renderDolarBadge();
+}
+
+function renderDolarBadge(){
+  const dolarSpan = document.getElementById('dolarBox');
+  if(!dolarSpan) return;
+  if(dolarLoading){
+    dolarSpan.innerHTML = `<span class="uf-badge">Cargando dólar…</span>`;
+    return;
+  }
+  dolarSpan.innerHTML = dolarInfo
+    ? `<span class="uf-badge">Dólar hoy $${dolarInfo.valor} <span class="uf-date">(${dolarInfo.fecha})</span></span>`
+    : `<span class="uf-badge uf-error">Dólar no disponible <button class="switch-btn" style="padding:2px 8px;font-size:11px;margin-left:4px;" onclick="loadDolar()">Reintentar</button></span>`;
+}
+
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -634,23 +687,32 @@ function goToGate(){
   activeFolder = 'todos';
   activeTab = 'inicio';
   tablePage = 1;
-  calendarioDropdownAbierto = false;
-  document.getElementById('calendarioDropdownRoot').innerHTML = '';
   document.getElementById('whoamiBox').style.display = 'none';
   renderGate();
 }
 
 /* ---------------- GATE SCREEN (login BPO 1) ---------------- */
+const RECORDAR_LOGIN_KEY = 'bpo1_recordar_login';
+
+function leerLoginRecordado(){
+  try{ return JSON.parse(localStorage.getItem(RECORDAR_LOGIN_KEY) || 'null'); }catch(e){ return null; }
+}
+
 function renderGate(){
   document.getElementById('topbar').style.display = 'none';
   const app = document.getElementById('app');
+  const recordado = leerLoginRecordado();
   app.innerHTML = `
     <div class="tg-login-bg">
       <div class="tg-card">
         <div class="tg-heading" style="margin-top:4px;">ACCESO AL SISTEMA</div>
         <div id="loginError" class="tg-error"></div>
-        <input type="text" id="loginUsuario" class="tg-input" placeholder="Usuario" autocomplete="username">
-        <input type="password" id="loginClave" class="tg-input" placeholder="Clave" autocomplete="current-password">
+        <input type="text" id="loginUsuario" class="tg-input" placeholder="Usuario" autocomplete="username" value="${escapeAttr(recordado?recordado.usuario:'')}">
+        <input type="password" id="loginClave" class="tg-input" placeholder="Clave" autocomplete="current-password" value="${escapeAttr(recordado?recordado.clave:'')}">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#5b6b93;margin:-6px 0 18px;">
+          <input type="checkbox" id="loginRecordar" ${recordado?'checked':''} style="width:auto;">
+          Recordar mi usuario y clave en este dispositivo
+        </label>
         <button class="tg-button" onclick="checkLogin()">Ingresar</button>
       </div>
     </div>
@@ -674,6 +736,14 @@ async function checkLogin(){
     document.getElementById('loginClave').value = '';
     return;
   }
+  const recordarCheck = document.getElementById('loginRecordar');
+  try{
+    if(recordarCheck && recordarCheck.checked){
+      localStorage.setItem(RECORDAR_LOGIN_KEY, JSON.stringify({ usuario: usuarioVal, clave: claveVal }));
+    }else{
+      localStorage.removeItem(RECORDAR_LOGIN_KEY);
+    }
+  }catch(e){ /* localStorage no disponible: se ignora, no bloquea el login */ }
   enterAsUsuario(u.id);
 }
 
@@ -683,7 +753,7 @@ function enterAsUsuario(id){
   // sucursal y carterasVisibles se copian del registro completo: sin esto,
   // carterasDeUsuario(currentUser) siempre devolvía [] para los Asistentes
   // (veían su cartera vacía sin importar lo que tuvieran asignado).
-  currentUser = { id: u.id, name: u.name, rol: u.rol, isAdmin: esRolAdmin(u.rol), sucursal: u.sucursal, carterasVisibles: u.carterasVisibles };
+  currentUser = { id: u.id, name: u.name, rol: u.rol, isAdmin: esRolAdmin(u.rol), sucursal: u.sucursal, carterasVisibles: u.carterasVisibles, verTodasLasCarteras: u.verTodasLasCarteras };
   activeFolder = 'todos';
   showWhoami();
   renderApp();
@@ -698,6 +768,7 @@ function showWhoami(){
     ? `<span class="role-badge admin">${escapeHtml(currentUser.name)} · ${escapeHtml(currentUser.rol)}</span>`
     : `<span class="role-badge encargado">${escapeHtml(currentUser.name)} · ${escapeHtml(currentUser.rol)}</span>`;
   renderUFBadge();
+  renderDolarBadge();
 }
 
 /* ---------------- MAIN APP ---------------- */
@@ -727,6 +798,8 @@ function sectionNav(){
     // siempre en este orden, y solo estas 5 secciones — el resto (Facturación,
     // Incorporar Clientes, Dashboard, Usuarios y Roles) no está disponible
     // para estos roles. Confección Iva vive dentro de Obligaciones Tributarias.
+    // Trabajos Especiales es la única excepción: la ven TAX y Contabilidad
+    // (además del Administrador), pero no Encargado ni Asistente.
     const item = (tab, label) => `
       <div class="folder-tab ${activeTab===tab?'active':''}" onclick="setTab('${tab}')">
         <span>${label}</span>
@@ -738,6 +811,9 @@ function sectionNav(){
       ${item('cartera', 'Cartera de Clientes')}
       ${item('obligaciones', 'Obligaciones Tributarias')}
       ${item('tareas', 'Tareas')}
+      ${puedeVerTodasLasCarteras(currentUser) ? item('trabajos-especiales', 'Trabajos Especiales') : ''}
+      ${esRolContabilidad(currentUser.rol) ? item('reporte-semanal', 'Reporte Semanal') : ''}
+      ${esRolContabilidad(currentUser.rol) ? item('derivar-cartera', 'Derivar Cartera') : ''}
     `;
   }
   return `
@@ -764,6 +840,9 @@ function sectionNav(){
     <div class="folder-tab ${activeTab==='requerimientos'?'active':''}" onclick="setTab('requerimientos')">
       <span>Requerimientos</span>
     </div>
+    <div class="folder-tab ${activeTab==='trabajos-especiales'?'active':''}" onclick="setTab('trabajos-especiales')">
+      <span>Trabajos Especiales</span>
+    </div>
     <div class="folder-tab ${activeTab==='dashboard'?'active':''}" onclick="setTab('dashboard')">
       <span>Dashboard</span>
     </div>
@@ -781,6 +860,7 @@ function setTab(tab){
   searchQuery = '';
   tablePage = 1;
   inicioReqExpandido = false;
+  if(tab === 'requerimientos') marcarRequerimientosLeidos();
   renderApp();
 }
 
@@ -876,6 +956,8 @@ function adminLayout(){
           ? obligacionesContent(true)
           : activeTab === 'tareas'
           ? tareasContent(true, true)
+          : activeTab === 'trabajos-especiales'
+          ? trabajosEspecialesContent()
           : adminMainContent(unassigned)}
       </div>
     </div>
@@ -903,6 +985,12 @@ function contabilidadLayout(){
           ? obligacionesContent(true)
           : activeTab === 'tareas'
           ? tareasContent(true, false)
+          : activeTab === 'trabajos-especiales'
+          ? trabajosEspecialesContent()
+          : activeTab === 'reporte-semanal'
+          ? reporteSemanalContent()
+          : activeTab === 'derivar-cartera'
+          ? derivarCarteraTabContent()
           : adminMainContent(unassigned)}
       </div>
     </div>
@@ -1276,12 +1364,13 @@ async function aplicarAccionMasivaRenta(estado){
 }
 
 function rentaTable(list, showEncargado){
+  const sumaUF = list.reduce((s,c) => s + (c.rentaMontoUF||0), 0);
   return `
     ${rentaBulkBar()}
     <table>
       <thead><tr>
         <th style="width:34px;"><input type="checkbox" onchange="toggleSelectAllRenta(this.checked)" title="Seleccionar todos en esta página"></th>
-        <th>Razón social</th><th>Rut</th><th>Clave</th>${showEncargado?'<th>Encargado</th>':''}<th>Nómina</th><th>Estado</th>
+        <th>Razón social</th><th>Rut</th><th>Clave</th>${showEncargado?'<th>Encargado</th>':''}<th>Nómina</th><th>Monto (UF)</th><th>Estado</th>
       </tr></thead>
       <tbody>
         ${list.map(c => `
@@ -1292,6 +1381,7 @@ function rentaTable(list, showEncargado){
             <td class="mono">${escapeHtml(c.clave||'—')}</td>
             ${showEncargado ? `<td>${escapeHtml((state.usuarios.find(e=>e.id===c.encargadoId)||{}).name || "Sin asignar")}</td>` : ''}
             <td>${c.rentaRequerido ? '<span class="role-badge admin" style="background:var(--gold);">En nómina</span>' : ''}</td>
+            <td><input type="number" min="0" step="0.1" value="${c.rentaMontoUF!=null?c.rentaMontoUF:''}" placeholder="UF" style="width:80px;" onchange="setRentaMontoUF('${c.id}', this.value)"></td>
             <td>
               <select class="f29-select ${c.rentaEstado==='enviado'?'f29-ok':'f29-pending'}" onchange="this.className = 'f29-select ' + (this.value==='enviado'?'f29-ok':'f29-pending'); setRentaStatus('${c.id}', this.value)">
                 <option value="no_enviado" ${c.rentaEstado!=='enviado'?'selected':''}>No enviado</option>
@@ -1302,6 +1392,7 @@ function rentaTable(list, showEncargado){
         `).join('')}
       </tbody>
     </table>
+    <div style="margin-top:10px;font-size:13px;color:#6b6a5f;text-align:right;">Total: <span class="mono" id="rentaTotalUF">${sumaUF.toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})} UF</span></div>
   `;
 }
 
@@ -1318,6 +1409,25 @@ async function setRentaStatus(clientId, value){
       metaEl.textContent = metaEl.textContent.replace(/(\d+)( de \d+ enviado)/,
         (m, num, resto) => (parseInt(num, 10) + (nowEnviado ? 1 : -1)) + resto);
     }
+  }
+}
+
+async function setRentaMontoUF(clientId, value){
+  const c = state.clientes.find(c => c.id === clientId);
+  if(!c) return;
+  const v = parseFloat(value);
+  c.rentaMontoUF = isNaN(v) ? null : v;
+  await saveState();
+  // Re-render parcial: solo se recalcula el total, sin reconstruir la tabla.
+  const totalEl = document.getElementById('rentaTotalUF');
+  if(totalEl){
+    const filas = document.querySelectorAll('.renta-check');
+    let suma = 0;
+    filas.forEach(cb => {
+      const cli = state.clientes.find(x => x.id === cb.dataset.id);
+      if(cli) suma += (cli.rentaMontoUF||0);
+    });
+    totalEl.textContent = suma.toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1}) + ' UF';
   }
 }
 
@@ -1526,6 +1636,24 @@ function renderModal(){
           </div>
         </div>
 
+        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
+          <h4 style="margin:0 0 10px;font-size:14px;">Archivos</h4>
+          <div style="margin-bottom:10px;">
+            ${(c.archivos||[]).map((a,i) => `
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px solid var(--line);">
+                <a href="${escapeAttr(a.url)}" target="_blank" rel="noopener" style="color:var(--teal-dark);text-decoration:underline;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(a.nombre)}</a>
+                <span style="color:#8a8879;font-size:11px;white-space:nowrap;">${escapeHtml(a.fecha||'')}${a.subidoPor?` · ${escapeHtml(a.subidoPor)}`:''}</span>
+                <button onclick="quitarArchivoCliente('${c.id}', ${i})" title="Quitar de la lista" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:15px;">×</button>
+              </div>
+            `).join('') || '<span style="font-size:13px;color:#8a8879;">Sin archivos.</span>'}
+          </div>
+          <div class="form-inline">
+            <input type="file" id="dt_archivo_input" style="flex:1;">
+            <button class="btn secondary small" id="dt_archivo_btn" onclick="subirArchivoCliente('${c.id}')">Subir archivo</button>
+          </div>
+          <div style="font-size:11px;color:#8a8879;margin-top:6px;">Máximo 5 MB por archivo. Se guarda en Google Drive y queda visible para todos los roles.</div>
+        </div>
+
         ${isAdmin ? `
         <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
           <h4 style="margin:0 0 10px;font-size:14px;">Servicios extraordinarios</h4>
@@ -1612,6 +1740,67 @@ async function saveClientDetail(id){
   renderApp();
 }
 
+// Convierte un File del input a base64 puro (sin el prefijo data:...;base64,).
+function leerArchivoComoBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function subirArchivoCliente(clienteId){
+  const input = document.getElementById('dt_archivo_input');
+  const file = input && input.files && input.files[0];
+  if(!file){ showToast('Elige un archivo primero.'); return; }
+  const LIMITE_BYTES = 5 * 1024 * 1024;
+  if(file.size > LIMITE_BYTES){ showToast('El archivo es muy grande (máx. 5 MB).'); return; }
+
+  const c = state.clientes.find(cl => cl.id === clienteId);
+  if(!c) return;
+
+  const boton = document.getElementById('dt_archivo_btn');
+  if(boton){ boton.disabled = true; boton.textContent = 'Subiendo…'; }
+  try{
+    const contenidoBase64 = await leerArchivoComoBase64(file);
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        accion: 'subirArchivo',
+        token: API_TOKEN,
+        clienteId,
+        clienteNombre: c.name,
+        nombreArchivo: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        contenidoBase64
+      })
+    });
+    const data = await res.json();
+    if(!data || !data.ok){ showToast('No se pudo subir el archivo.'); return; }
+
+    if(!c.archivos) c.archivos = [];
+    c.archivos.push({ nombre: data.nombre || file.name, url: data.url, fecha: todayISO(), subidoPor: currentUser.name });
+    await saveState();
+    renderModal();
+    showToast('Archivo subido.');
+  }catch(err){
+    console.error('Error al subir archivo:', err);
+    showToast('Error al subir el archivo.');
+  }finally{
+    if(boton){ boton.disabled = false; boton.textContent = 'Subir archivo'; }
+  }
+}
+
+async function quitarArchivoCliente(clienteId, index){
+  const c = state.clientes.find(cl => cl.id === clienteId);
+  if(!c || !c.archivos) return;
+  c.archivos.splice(index, 1);
+  await saveState();
+  renderModal();
+}
+
 async function agregarServicioExtra(clienteId){
   const c = state.clientes.find(c => c.id === clienteId);
   if(!c) return;
@@ -1678,6 +1867,82 @@ function clientTable(list, permitirEliminar){
 
 /* ---------------- REQUERIMIENTOS (Tailwind) ---------------- */
 const REQ_TIPOS = ['Contable', 'Impuestos (TAX)', 'Administrativo'];
+// ---------------- REPORTE SEMANAL (solo rol Contabilidad) ----------------
+let reporteSemanaLunes = null; // ISO del lunes de la semana que se está viendo
+
+function semanaActualLunes(){
+  const hoy = todayISO();
+  const dow = new Date(hoy + 'T00:00:00Z').getUTCDay(); // 0=domingo
+  const offsetLunes = (dow + 6) % 7;
+  return sumarDias(hoy, -offsetLunes);
+}
+
+function cambiarSemanaReporte(delta){
+  if(!reporteSemanaLunes) reporteSemanaLunes = semanaActualLunes();
+  reporteSemanaLunes = sumarDias(reporteSemanaLunes, delta * 7);
+  renderApp();
+}
+
+// Resume la semana para Contabilidad: requerimientos resueltos esa semana +
+// requerimientos creados esa semana que todavía siguen pendientes. Botón
+// "Descargar PDF" usa window.print() (el usuario elige "Guardar como PDF"
+// en el diálogo de impresión) — no depende de ninguna librería externa.
+function reporteSemanalContent(){
+  if(!esRolContabilidad(currentUser.rol)){
+    return `<div class="empty-state"><div class="display">No disponible</div><div>Esta sección es exclusiva del rol Contabilidad.</div></div>`;
+  }
+  if(!reporteSemanaLunes) reporteSemanaLunes = semanaActualLunes();
+  const lunes = reporteSemanaLunes;
+  const domingo = sumarDias(lunes, 6);
+
+  const resueltos = state.requerimientos.filter(r => r.fechaResolucion && r.fechaResolucion >= lunes && r.fechaResolucion <= domingo);
+  const creadosPendientes = state.requerimientos.filter(r => r.fechaCreacion && r.fechaCreacion >= lunes && r.fechaCreacion <= domingo && r.estado !== 'Resuelto');
+
+  const filaReq = r => `
+    <tr class="border-t border-gray-100">
+      <td class="px-4 py-2 text-gray-800">${escapeHtml(r.tipo)}${r.descripcion ? `<div style="font-size:12px;color:#9ca3af;">${escapeHtml(r.descripcion)}</div>` : ''}</td>
+      <td class="px-4 py-2 text-gray-500">${escapeHtml(nombresDirigidoA(r))}</td>
+      <td class="px-4 py-2 text-gray-500">${escapeHtml(nombreCreador(r) || '—')}</td>
+      <td class="px-4 py-2 text-gray-500">${escapeHtml(r.fechaCreacion || '—')}</td>
+    </tr>
+  `;
+
+  const tabla = (titulo, lista) => `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden my-6">
+      <div class="p-4 border-b border-gray-100"><h3 class="text-sm font-bold text-gray-700">${titulo} (${lista.length})</h3></div>
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50"><tr>
+          <th class="text-left px-4 py-2 font-semibold text-gray-600">Tipo</th>
+          <th class="text-left px-4 py-2 font-semibold text-gray-600">Dirigido a</th>
+          <th class="text-left px-4 py-2 font-semibold text-gray-600">Creado por</th>
+          <th class="text-left px-4 py-2 font-semibold text-gray-600">Creación</th>
+        </tr></thead>
+        <tbody>
+          ${lista.length ? lista.map(filaReq).join('') : `<tr><td colspan="4" class="px-4 py-6 text-center text-gray-400">Sin registros esta semana.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  return `
+    <div class="max-w-4xl">
+      <div class="flex items-center justify-between mb-1 flex-wrap gap-3">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800 mb-1">Reporte Semanal</h2>
+          <p class="text-sm text-gray-500">Semana del ${lunes} al ${domingo}.</p>
+        </div>
+        <div class="flex items-center gap-2 no-print">
+          <button onclick="cambiarSemanaReporte(-1)" class="btn secondary small">← Semana anterior</button>
+          <button onclick="cambiarSemanaReporte(1)" class="btn secondary small">Semana siguiente →</button>
+          <button onclick="window.print()" class="btn small">Descargar PDF</button>
+        </div>
+      </div>
+      ${tabla('Requerimientos resueltos', resueltos)}
+      ${tabla('Creados esta semana, aún pendientes', creadosPendientes)}
+    </div>
+  `;
+}
+
 const REQ_ESTADOS = ['Pendiente', 'En trámite', 'Resuelto'];
 const REQ_ESTADO_BASE_CLASS = 'rounded-full text-xs font-semibold px-3 py-1.5 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1';
 const REQ_ESTADO_COLOR_CLASS = {
@@ -1699,30 +1964,109 @@ function buscarUsuarioPorNombre(nombre){
   return state.usuarios.find(u => u.name === nombre);
 }
 
-function renderDirigidoAField(tipo){
-  if(tipo === 'Contable'){
-    const opciones = ['Maria Fernanda Doyhamberry','Kevin Varela','Rolando Maureira']
-      .map(buscarUsuarioPorNombre).filter(Boolean);
-    return `<select id="reqDirigidoA" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400">
-      ${opciones.map(o=>`<option value="${o.id}">${escapeHtml(o.name)}</option>`).join('')}
-    </select>`;
-  }
-  if(tipo === 'Impuestos (TAX)'){
-    const maria = buscarUsuarioPorNombre('Maria Fernanda Doyhamberry');
-    return `<input type="text" value="${maria?escapeAttr(maria.name):'Sin asignar'}" disabled class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-500 bg-gray-50">
-      <input type="hidden" id="reqDirigidoA" value="${maria?maria.id:''}">`;
-  }
-  if(tipo === 'Administrativo'){
-    const nombres = ['Kevin Varela','Eduardo Llanos'].map(buscarUsuarioPorNombre).filter(Boolean);
-    return `<input type="text" value="${escapeAttr(nombres.map(u=>u.name).join(' y ') || 'Sin asignar')}" disabled class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-500 bg-gray-50">
-      <input type="hidden" id="reqDirigidoA" value="${nombres.map(u=>u.id).join(',')}">`;
-  }
-  return `<input type="text" value="Sin asignar" disabled class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-500 bg-gray-50"><input type="hidden" id="reqDirigidoA" value="">`;
+// Lista completa: cualquier usuario (encargado, asistente, admin, TAX,
+// Contabilidad, etc.) puede ser destinatario de un requerimiento, sin
+// importar el "Tipo" elegido. Selección múltiple por checkboxes.
+function renderDirigidoAField(tipo, seleccionPrevia){
+  const seleccionados = new Set(seleccionPrevia || []);
+  const opciones = [...state.usuarios].sort((a,b) => a.name.localeCompare(b.name, 'es'));
+  return `
+    <input type="hidden" id="reqDirigidoA" value="${opciones.filter(o=>seleccionados.has(o.id)).map(o=>o.id).join(',')}">
+    <div style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;border:1px solid #d1d5db;border-radius:12px;padding:10px 14px;background:#fff;">
+      ${opciones.length ? opciones.map(o => `
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400;text-transform:none;letter-spacing:normal;color:#374151;">
+          <input type="checkbox" class="reqDirigidoACheck" value="${o.id}" ${seleccionados.has(o.id)?'checked':''} onchange="actualizarReqDirigidoA()">
+          ${escapeHtml(o.name)}${o.rol ? ` <span style="color:#9ca3af;">· ${escapeHtml(o.rol)}</span>` : ''}
+        </label>
+      `).join('') : `<span style="font-size:13px;color:#9ca3af;">No hay usuarios registrados.</span>`}
+    </div>
+  `;
+}
+
+function actualizarReqDirigidoA(){
+  const seleccionados = Array.from(document.querySelectorAll('.reqDirigidoACheck:checked')).map(cb => cb.value);
+  const hidden = document.getElementById('reqDirigidoA');
+  if(hidden) hidden.value = seleccionados.join(',');
 }
 
 function dirigidoAIds(r){
   if(Array.isArray(r.dirigidoA)) return r.dirigidoA;
   return r.dirigidoA ? [r.dirigidoA] : [];
+}
+
+// "Nuevo": el requerimiento está dirigido al usuario actual y todavía no lo
+// ha visto (no aparece en r.leidoPor). Se marca como leído al entrar a la
+// pestaña "Requerimientos" (ver setTab).
+function diasFaltantes(fechaISO){
+  if(!fechaISO) return null;
+  const objetivo = new Date(fechaISO + 'T00:00:00Z').getTime();
+  const hoy = new Date(todayISO() + 'T00:00:00Z').getTime();
+  return Math.round((objetivo - hoy) / 86400000);
+}
+
+// Insignia con los días transcurridos desde la creación, mientras el
+// requerimiento siga sin resolver. Se pone en rojo/ámbar/azul según qué tan
+// atrasado esté.
+// Insignia con los días que faltan hasta la fecha de vencimiento
+// (fechaRespuesta), mientras el requerimiento siga sin resolver. Negativo
+// significa que ya venció.
+function badgeDiasFaltantes(r){
+  if(r.estado === 'Resuelto') return '';
+  const dias = diasFaltantes(r.fechaRespuesta);
+  if(dias === null) return '';
+  if(dias < 0){
+    return `<span style="display:inline-block;font-size:11px;font-weight:600;border-radius:9999px;padding:2px 8px;white-space:nowrap;background:#FEE2E2;color:#B91C1C;">Vencido hace ${-dias} día${-dias===1?'':'s'}</span>`;
+  }
+  const estilo = dias <= 2 ? 'background:#FEE2E2;color:#B91C1C;' : dias <= 7 ? 'background:#FEF3C7;color:#92400E;' : 'background:#E0E7FF;color:#3730A3;';
+  const texto = dias === 0 ? 'Vence hoy' : `${dias} día${dias===1?'':'s'} restante${dias===1?'':'s'}`;
+  return `<span style="display:inline-block;font-size:11px;font-weight:600;border-radius:9999px;padding:2px 8px;white-space:nowrap;${estilo}">${texto}</span>`;
+}
+
+// Dado el id de un destinatario de un requerimiento, devuelve los ids de
+// las personas que también deben poder verlo por la relación
+// encargado<->asistente: si el destinatario es un asistente, sus
+// encargados (carterasVisibles); si es un encargado, los asistentes que
+// lo tengan asignado en su carterasVisibles.
+function relacionadosParaVisibilidad(usuarioId){
+  const u = state.usuarios.find(x => x.id === usuarioId);
+  if(!u) return [];
+  if(esRolAsistente(u.rol)) return u.carterasVisibles || [];
+  return state.usuarios.filter(a => esRolAsistente(a.rol) && (a.carterasVisibles||[]).includes(usuarioId)).map(a => a.id);
+}
+
+// Administrador, TAX y Contabilidad ven todos los requerimientos; cualquiera
+// ve los que creó y los dirigidos a él; y, por la relación encargado<->
+// asistente, también ve los dirigidos a su contraparte.
+function puedeVerRequerimiento(r, u){
+  if(puedeVerTodasLasCarteras(u)) return true;
+  if(r.creadoPor === u.id) return true;
+  const directos = dirigidoAIds(r);
+  if(directos.includes(u.id)) return true;
+  return directos.some(id => relacionadosParaVisibilidad(id).includes(u.id));
+}
+
+function esNoLeidoParaMi(r){
+  return dirigidoAIds(r).includes(currentUser.id) && !(r.leidoPor||[]).includes(currentUser.id);
+}
+
+async function marcarRequerimientosLeidos(){
+  let cambio = false;
+  state.requerimientos.forEach(r => {
+    if(dirigidoAIds(r).includes(currentUser.id)){
+      if(!r.leidoPor) r.leidoPor = [];
+      if(!r.leidoPor.includes(currentUser.id)){
+        r.leidoPor.push(currentUser.id);
+        cambio = true;
+      }
+    }
+  });
+  if(cambio) await saveState();
+}
+
+function nombreCreador(r){
+  if(!r.creadoPor) return '';
+  const u = state.usuarios.find(u => u.id === r.creadoPor);
+  return u ? u.name : '';
 }
 
 function nombresDirigidoA(r){
@@ -1819,7 +2163,7 @@ function cambiarMesCalendario(delta){
   let ny = y, nm = m + delta;
   if(nm < 1){ nm = 12; ny--; } else if(nm > 12){ nm = 1; ny++; }
   calendarioMes = `${ny}-${String(nm).padStart(2,'0')}`;
-  renderCalendarioDropdown();
+  renderApp();
 }
 
 const DIAS_SEMANA_CORTO = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
@@ -1829,6 +2173,7 @@ const CALENDARIO_COLOR_TIPO = {
   cotizaciones: 'background:#3E6FF0;color:#fff;',
   renta: 'background:#8B5CF6;color:#fff;',
   reunion: 'background:var(--ink);color:var(--white);',
+  requerimiento: 'background:var(--danger);color:#fff;',
 };
 const CALENDARIO_LEYENDA = [
   ['f29', 'Pago F-29'],
@@ -1836,7 +2181,14 @@ const CALENDARIO_LEYENDA = [
   ['cotizaciones', 'Cotizaciones'],
   ['renta', 'Declaración Renta'],
   ['reunion', 'Reunión'],
+  ['requerimiento', 'Respuesta de requerimiento'],
 ];
+
+// Requerimientos pendientes (no Resuelto) que el usuario actual puede ver,
+// con fecha de respuesta, listos para pintarse en el calendario.
+function requerimientosParaCalendario(){
+  return state.requerimientos.filter(r => r.fechaRespuesta && r.estado !== 'Resuelto' && puedeVerRequerimiento(r, currentUser));
+}
 
 // Eventos (fijos + reuniones) que caen en la semana calendario (lunes a
 // domingo) que contiene la fecha de hoy — independiente del mes que se esté
@@ -1860,33 +2212,17 @@ function eventosDeLaSemanaActual(){
     .filter(r => r.fecha && r.fecha >= lunes && r.fecha <= domingo)
     .map(r => ({ fecha: r.fecha, hora: r.hora, tipo: 'reunion', label: r.lugar, id: r.id, esReunion: true }));
 
-  const eventos = [...fijos, ...reuniones].sort((a,b) => a.fecha.localeCompare(b.fecha) || (a.hora||'').localeCompare(b.hora||''));
+  const requerimientos = requerimientosParaCalendario()
+    .filter(r => r.fechaRespuesta >= lunes && r.fechaRespuesta <= domingo)
+    .map(r => ({ fecha: r.fechaRespuesta, tipo: 'requerimiento', label: `${r.tipo}${r.descripcion ? ' — ' + r.descripcion : ''}`, id: r.id, esReunion: false, esRequerimiento: true }));
+
+  const eventos = [...fijos, ...reuniones, ...requerimientos].sort((a,b) => a.fecha.localeCompare(b.fecha) || (a.hora||'').localeCompare(b.hora||''));
   return { lunes, domingo, eventos };
 }
 
-let calendarioDropdownAbierto = false;
-
-function toggleCalendarioDropdown(){
-  calendarioDropdownAbierto = !calendarioDropdownAbierto;
-  renderCalendarioDropdown();
-}
-
-function renderCalendarioDropdown(){
-  const root = document.getElementById('calendarioDropdownRoot');
-  if(!root) return;
-  if(!calendarioDropdownAbierto){ root.innerHTML = ''; return; }
-  root.innerHTML = `
-    <div style="position:fixed;inset:0;z-index:39;" onclick="toggleCalendarioDropdown()"></div>
-    <div style="position:absolute;top:calc(100% + 8px);right:0;z-index:40;background:var(--white);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(22,27,34,0.18);padding:16px;text-align:left;">
-      ${calendarioDropdownContent()}
-    </div>
-  `;
-}
-
-// Panel compacto: mini calendario del mes navegable + tareas de la semana
-// actual debajo. Se ancla bajo el nombre/rol del usuario en la barra
-// superior (ver #calendarioDropdownRoot).
-function calendarioDropdownContent(){
+// Grilla del mini calendario tributario (mes navegable + eventos por día).
+// Usada por el panel "Calendario tributario" de Inicio.
+function calendarioMiniGrid(){
   if(!calendarioMes) calendarioMes = new Date().toISOString().slice(0,7);
   const [year, mesStr] = calendarioMes.split('-');
   const y = Number(year), m = Number(mesStr);
@@ -1903,6 +2239,12 @@ function calendarioDropdownContent(){
     const dia = Number(r.fecha.split('-')[2]);
     (porDia[dia] = porDia[dia] || []).push({ tipo: 'reunion', label: r.lugar, hora: r.hora, id: r.id, esReunion: true });
   });
+  requerimientosParaCalendario()
+    .filter(r => r.fechaRespuesta.startsWith(calendarioMes))
+    .forEach(r => {
+      const dia = Number(r.fechaRespuesta.split('-')[2]);
+      (porDia[dia] = porDia[dia] || []).push({ tipo: 'requerimiento', label: `${r.tipo}${r.descripcion ? ' — ' + r.descripcion : ''}`, id: r.id, esReunion: false, esRequerimiento: true });
+    });
 
   const diasEnMes = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const primerDow = new Date(Date.UTC(y, m-1, 1)).getUTCDay(); // 0=domingo
@@ -1913,57 +2255,70 @@ function calendarioDropdownContent(){
   for(let d=1; d<=diasEnMes; d++) celdas.push(d);
   while(celdas.length % 7 !== 0) celdas.push(null);
 
-  const { eventos: eventosSemana } = eventosDeLaSemanaActual();
-
   return `
-    <div style="width:300px;max-height:78vh;overflow-y:auto;font-family:'IBM Plex Sans',sans-serif;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <span class="display" style="font-size:15px;">Calendario tributario</span>
-        <button class="switch-btn" style="padding:2px 8px;font-size:11px;" onclick="toggleCalendarioDropdown()">Cerrar</button>
-      </div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;">
+      <button onclick="cambiarMesCalendario(-1)" style="border:none;background:none;cursor:pointer;color:#6b6a5f;font-size:15px;padding:2px 6px;">←</button>
+      <span style="font-size:12px;font-weight:600;min-width:92px;text-align:center;">${mesLabel(calendarioMes)}</span>
+      <button onclick="cambiarMesCalendario(1)" style="border:none;background:none;cursor:pointer;color:#6b6a5f;font-size:15px;padding:2px 6px;">→</button>
+    </div>
 
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;">
-        <button onclick="cambiarMesCalendario(-1)" style="border:none;background:none;cursor:pointer;color:#6b6a5f;font-size:15px;padding:2px 6px;">←</button>
-        <span style="font-size:12px;font-weight:600;min-width:92px;text-align:center;">${mesLabel(calendarioMes)}</span>
-        <button onclick="cambiarMesCalendario(1)" style="border:none;background:none;cursor:pointer;color:#6b6a5f;font-size:15px;padding:2px 6px;">→</button>
-      </div>
-
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:9px;color:#9a9689;margin-bottom:3px;">
-        ${DIAS_SEMANA_CORTO.map(d=>`<div>${d[0]}</div>`).join('')}
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:10px;">
-        ${celdas.map(d => {
-          if(!d) return `<div></div>`;
-          const fechaISO = `${calendarioMes}-${String(d).padStart(2,'0')}`;
-          const esHoy = fechaISO === todayISO();
-          const eventosDia = porDia[d] || [];
-          return `
-            <div style="min-height:30px;border-radius:5px;padding:2px 0 3px;cursor:pointer;${esHoy?'box-shadow:inset 0 0 0 1.5px #60A5FA;':''}" onclick="abrirReunionModal('${fechaISO}')" title="Agregar reunión el ${fechaISO}">
-              <div style="font-size:10px;color:#8a8879;text-align:center;">${d}</div>
-              <div style="display:flex;justify-content:center;gap:2px;margin-top:2px;">
-                ${eventosDia.slice(0,3).map(e => `<span onclick="event.stopPropagation(); ${e.esReunion ? `verReunion('${e.id}')` : ''}" style="display:inline-block;width:5px;height:5px;border-radius:50%;${CALENDARIO_COLOR_TIPO[e.tipo]||''}" title="${escapeAttr(e.esReunion ? `${e.hora} · ${e.label}` : e.label)}"></span>`).join('')}
-              </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:9px;color:#9a9689;margin-bottom:3px;">
+      ${DIAS_SEMANA_CORTO.map(d=>`<div>${d[0]}</div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:10px;">
+      ${celdas.map(d => {
+        if(!d) return `<div></div>`;
+        const fechaISO = `${calendarioMes}-${String(d).padStart(2,'0')}`;
+        const esHoy = fechaISO === todayISO();
+        const eventosDia = porDia[d] || [];
+        return `
+          <div style="min-height:30px;border-radius:5px;padding:2px 0 3px;cursor:pointer;${esHoy?'box-shadow:inset 0 0 0 1.5px #60A5FA;':''}" onclick="abrirReunionModal('${fechaISO}')" title="Agregar reunión el ${fechaISO}">
+            <div style="font-size:10px;color:#8a8879;text-align:center;">${d}</div>
+            <div style="display:flex;justify-content:center;gap:2px;margin-top:2px;">
+              ${eventosDia.slice(0,3).map(e => `<span onclick="event.stopPropagation(); ${e.esReunion ? `verReunion('${e.id}')` : e.esRequerimiento ? `setTab('requerimientos')` : ''}" style="display:inline-block;width:5px;height:5px;border-radius:50%;${CALENDARIO_COLOR_TIPO[e.tipo]||''}" title="${escapeAttr(e.esReunion ? `${e.hora} · ${e.label}` : e.label)}"></span>`).join('')}
             </div>
-          `;
-        }).join('')}
-      </div>
-
-      <div style="display:flex;flex-wrap:wrap;gap:7px;font-size:9px;color:#8a8879;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line);">
-        ${CALENDARIO_LEYENDA.map(([tipo,label]) => `<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;${CALENDARIO_COLOR_TIPO[tipo]}"></span>${label}</span>`).join('')}
-      </div>
-
-      <div style="font-size:12px;font-weight:700;color:var(--ink);margin-bottom:8px;">Tareas de la semana</div>
-      <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:12px;">
-        ${eventosSemana.length ? eventosSemana.map(e => `
-          <div onclick="${e.esReunion ? `verReunion('${e.id}')` : ''}" style="display:flex;align-items:center;gap:8px;padding:5px 4px;font-size:12px;border-radius:6px;${e.esReunion?'cursor:pointer;':''}" ${e.esReunion?'onmouseover="this.style.background=\'var(--paper-2)\'" onmouseout="this.style.background=\'transparent\'"':''}>
-            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;${CALENDARIO_COLOR_TIPO[e.tipo]||''}"></span>
-            <span class="mono" style="color:#8a8879;font-size:11px;min-width:36px;">${e.fecha.slice(8,10)}/${e.fecha.slice(5,7)}</span>
-            <span style="color:var(--ink);">${escapeHtml(e.esReunion ? `${e.hora} · ${e.label}` : e.label)}</span>
           </div>
-        `).join('') : `<div style="font-size:12px;color:#8a8879;">Sin eventos esta semana.</div>`}
-      </div>
+        `;
+      }).join('')}
+    </div>
 
-      <button class="btn small" style="width:100%;" onclick="abrirReunionModal(null)">+ Agendar reunión</button>
+    <div style="display:flex;flex-wrap:wrap;gap:7px;font-size:9px;color:#8a8879;">
+      ${CALENDARIO_LEYENDA.map(([tipo,label]) => `<span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;${CALENDARIO_COLOR_TIPO[tipo]}"></span>${label}</span>`).join('')}
+    </div>
+  `;
+}
+
+// Lista de eventos (plazos fijos + reuniones) de la semana calendario actual.
+// Compartida por el dropdown de la barra superior y el panel de Inicio.
+function tareasSemanaLista(){
+  const { eventos: eventosSemana } = eventosDeLaSemanaActual();
+  return `
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      ${eventosSemana.length ? eventosSemana.map(e => `
+        <div onclick="${e.esReunion ? `verReunion('${e.id}')` : e.esRequerimiento ? `setTab('requerimientos')` : ''}" style="display:flex;align-items:center;gap:8px;padding:5px 4px;font-size:12px;border-radius:6px;${(e.esReunion||e.esRequerimiento)?'cursor:pointer;':''}" ${(e.esReunion||e.esRequerimiento)?'onmouseover="this.style.background=\'var(--paper-2)\'" onmouseout="this.style.background=\'transparent\'"':''}>
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;${CALENDARIO_COLOR_TIPO[e.tipo]||''}"></span>
+          <span class="mono" style="color:#8a8879;font-size:11px;min-width:36px;">${e.fecha.slice(8,10)}/${e.fecha.slice(5,7)}</span>
+          <span style="color:var(--ink);">${escapeHtml(e.esReunion ? `${e.hora} · ${e.label}` : e.label)}</span>
+        </div>
+      `).join('') : `<div style="font-size:12px;color:#8a8879;">Sin eventos esta semana.</div>`}
+    </div>
+  `;
+}
+
+// Panel de Inicio: calendario tributario + tareas de la semana, embebidos
+// como dos tarjetas en la columna derecha.
+function calendarioInicioSidebar(){
+  return `
+    <div style="width:300px;flex-shrink:0;display:flex;flex-direction:column;gap:16px;">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+        <div class="text-sm font-bold text-gray-700 mb-3">Calendario tributario</div>
+        ${calendarioMiniGrid()}
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+        <div class="text-sm font-bold text-gray-700 mb-3">Tareas de la semana</div>
+        ${tareasSemanaLista()}
+        <button class="btn small" style="width:100%;margin-top:12px;" onclick="abrirReunionModal(null)">+ Agendar reunión</button>
+      </div>
     </div>
   `;
 }
@@ -2093,7 +2448,7 @@ async function submitReunion(){
   await saveState();
   cerrarReunionModal();
   showToast('Reunión agendada.');
-  renderCalendarioDropdown();
+  renderApp();
 }
 
 async function eliminarReunion(id){
@@ -2101,7 +2456,7 @@ async function eliminarReunion(id){
   state.reuniones = (state.reuniones||[]).filter(r => r.id !== id);
   await saveState();
   cerrarReunionModal();
-  renderCalendarioDropdown();
+  renderApp();
   showToast('Reunión eliminada.');
 }
 
@@ -2112,10 +2467,11 @@ function inicioContent(){
   const verTodo = puedeVerTodasLasCarteras(currentUser);
   const misClientes = verTodo ? state.clientes : state.clientes.filter(c => carterasDeUsuario(currentUser).includes(c.encargadoId));
 
-  const misRequerimientos = state.requerimientos.filter(r => currentUser.isAdmin || dirigidoAIds(r).includes(currentUser.id));
+  const misRequerimientos = state.requerimientos.filter(r => puedeVerRequerimiento(r, currentUser));
   const reqPendientes = misRequerimientos.filter(r => r.estado !== 'Resuelto');
   const hoy = todayISO();
   const reqVencidos = reqPendientes.filter(r => r.fechaRespuesta && r.fechaRespuesta < hoy);
+  const reqNuevos = reqPendientes.filter(esNoLeidoParaMi);
 
   // Confección Iva (F-29) es una sección exclusiva del Administrador ahora;
   // igual se calcula por si se necesita, pero solo se muestra la tarjeta si
@@ -2159,13 +2515,14 @@ function inicioContent(){
     </div>`;
 
   return `
-    <div class="max-w-4xl">
+    <div class="flex gap-6" style="align-items:flex-start;flex-wrap:wrap;">
+    <div class="max-w-4xl flex-1">
       <h2 class="text-2xl font-bold text-gray-800 mb-1">Hola, ${escapeHtml(currentUser.name.split(' ')[0])}</h2>
       <p class="text-sm text-gray-500 mb-6">Esto es lo que tienes pendiente hoy.</p>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('requerimientos')">
-          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Requerimientos pendientes</div>
+          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Requerimientos pendientes ${reqNuevos.length ? `<span class="inline-flex items-center justify-center bg-blue-600 text-white rounded-full" style="min-width:16px;height:16px;font-size:10px;padding:0 4px;">${reqNuevos.length}</span>` : ''}</div>
           <div class="text-2xl font-bold text-gray-800">${reqPendientes.length}</div>
           <div class="text-xs mt-1 ${reqVencidos.length ? 'text-red-500 font-semibold' : 'text-gray-400'}">${reqVencidos.length ? `${reqVencidos.length} vencido${reqVencidos.length===1?'':'s'}` : 'ninguno vencido'}</div>
         </div>
@@ -2195,11 +2552,13 @@ function inicioContent(){
           ${(inicioReqExpandido ? reqPendientes : reqPendientes.slice(0,6)).map(r => `
             <div class="flex items-center justify-between text-sm border-b border-gray-100 pb-2">
               <div>
+                ${esNoLeidoParaMi(r) ? `<span class="bg-blue-600 text-white font-semibold" style="font-size:10px;letter-spacing:0.5px;text-transform:uppercase;border-radius:9999px;padding:2px 7px;margin-right:6px;">Nuevo</span>` : ''}
                 <span class="font-medium text-gray-800">${escapeHtml(r.tipo)}</span>
                 <span class="text-gray-400 ml-2">creado ${escapeHtml(r.fechaCreacion||'—')}</span>
+                ${r.descripcion ? `<div style="font-size:12px;color:#9ca3af;margin-top:2px;">${escapeHtml(r.descripcion)}</div>` : ''}
               </div>
               <div class="flex items-center gap-2">
-                ${r.fechaRespuesta && r.fechaRespuesta < hoy ? `<span class="text-red-500 text-xs font-semibold">Vencido ${escapeHtml(r.fechaRespuesta)}</span>` : ''}
+                ${badgeDiasFaltantes(r)}
                 <select onchange="this.className = reqEstadoClass(this.value); updateRequerimientoEstado('${r.id}', this.value)" class="${reqEstadoClass(r.estado)}">
                   ${REQ_ESTADOS.map(e=>`<option value="${e}" ${r.estado===e?'selected':''}>${e}</option>`).join('')}
                 </select>
@@ -2215,6 +2574,8 @@ function inicioContent(){
       </div>
       `}
     </div>
+    ${calendarioInicioSidebar()}
+    </div>
   `;
 }
 
@@ -2224,20 +2585,200 @@ function toggleInicioReqExpandido(){
   renderApp();
 }
 
+/* ---------------- TRABAJOS ESPECIALES ---------------- */
+// Sección visible solo para Administrador, TAX y Contabilidad (mismos roles
+// que puedeVerTodasLasCarteras). Permite asignar un trabajo puntual (fuera
+// de la checklist mensual de Tareas) a cualquier persona del equipo; la
+// persona asignada lo ve reflejado en su propia pestaña Tareas.
+const TRABAJO_ESTADOS = ['Pendiente', 'En proceso', 'Completado'];
+const TRABAJO_ESTADO_CLASS = {
+  'Completado': 'bg-green-100 text-green-700 border-green-300 focus:ring-green-300',
+  'En proceso': 'bg-yellow-100 text-yellow-800 border-yellow-300 focus:ring-yellow-300',
+  'Pendiente': 'bg-red-100 text-red-700 border-red-300 focus:ring-red-300',
+};
+function trabajoEstadoClass(estado){
+  const base = 'rounded-full text-xs font-semibold px-3 py-1.5 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1';
+  return `${base} ${TRABAJO_ESTADO_CLASS[estado] || TRABAJO_ESTADO_CLASS['Pendiente']}`;
+}
+
+function trabajosEspecialesContent(){
+  const lista = [...state.trabajosEspeciales].sort((a,b) => (a.fechaLimite||'').localeCompare(b.fechaLimite||''));
+  const hoy = todayISO();
+  const usuariosOrdenados = [...state.usuarios].sort((a,b) => a.name.localeCompare(b.name, 'es'));
+
+  return `
+    <div class="max-w-5xl">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
+        <h2 class="text-2xl font-bold text-gray-800 mb-1">Trabajos Especiales</h2>
+        <p class="text-sm text-gray-500 mb-6">Asigna trabajos puntuales (fuera de la checklist mensual) a cualquier persona del equipo. La persona asignada lo ve reflejado en su pestaña Tareas.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Título</label>
+            <input type="text" id="teTitulo" placeholder="Ej: Regularizar RUT ante SII" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Descripción</label>
+            <textarea id="teDescripcion" rows="2" placeholder="Detalle breve del trabajo" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Cliente (opcional)</label>
+            <select id="teCliente" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
+              <option value="">Sin cliente asociado</option>
+              ${state.clientes.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Asignado a</label>
+            <select id="teAsignado" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
+              ${usuariosOrdenados.map(u=>`<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.rol)})</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Fecha límite</label>
+            <input type="date" id="teFechaLimite" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Monto (UF)</label>
+            <input type="number" id="teMontoUF" min="0" step="0.1" placeholder="Ej: 3.5" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
+          </div>
+          <div class="md:col-span-2">
+            <button onclick="submitTrabajoEspecial()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Asignar trabajo</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="text-left px-5 py-3 font-semibold text-gray-600">Título</th>
+              <th class="text-left px-5 py-3 font-semibold text-gray-600">Cliente</th>
+              <th class="text-left px-5 py-3 font-semibold text-gray-600">Asignado a</th>
+              <th class="text-left px-5 py-3 font-semibold text-gray-600">Fecha límite</th>
+              <th class="text-right px-5 py-3 font-semibold text-gray-600">Monto (UF)</th>
+              <th class="text-left px-5 py-3 font-semibold text-gray-600">Estado</th>
+              <th class="px-5 py-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lista.length ? lista.map(t => {
+              const asignado = state.usuarios.find(u=>u.id===t.asignadoA);
+              const cli = state.clientes.find(c=>c.id===t.clienteId);
+              const vencido = t.fechaLimite && t.fechaLimite < hoy && t.estado !== 'Completado';
+              return `
+                <tr class="border-t border-gray-100">
+                  <td class="px-5 py-3 text-gray-800">${escapeHtml(t.titulo)}${t.descripcion?`<div class="text-xs text-gray-400 mt-0.5">${escapeHtml(t.descripcion)}</div>`:''}</td>
+                  <td class="px-5 py-3 text-gray-600">${cli?escapeHtml(cli.name):'—'}</td>
+                  <td class="px-5 py-3 text-gray-600">${asignado?escapeHtml(asignado.name):'—'}</td>
+                  <td class="px-5 py-3 ${vencido?'text-red-600 font-semibold':'text-gray-500'}">${escapeHtml(t.fechaLimite||'—')}${vencido?' (vencido)':''}</td>
+                  <td class="px-5 py-3 text-right mono">${t.montoUF!=null ? t.montoUF.toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1}) : '—'}</td>
+                  <td class="px-5 py-3">
+                    <select onchange="this.className = trabajoEstadoClass(this.value); setTrabajoEspecialEstado('${t.id}', this.value)" class="${trabajoEstadoClass(t.estado)}">
+                      ${TRABAJO_ESTADOS.map(e=>`<option value="${e}" ${t.estado===e?'selected':''}>${e}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td class="px-5 py-3 text-right">
+                    <button onclick="removeTrabajoEspecial('${t.id}')" class="text-red-500 hover:text-red-700 text-xs font-semibold">Eliminar</button>
+                  </td>
+                </tr>
+              `;
+            }).join('') : `<tr><td colspan="7" class="px-5 py-8 text-center text-gray-400">Sin trabajos especiales asignados.</td></tr>`}
+          </tbody>
+        </table>
+        ${lista.length ? `<div style="padding:10px 20px;font-size:13px;color:#6b6a5f;text-align:right;border-top:1px solid #f0f0f0;">Total: <span class="mono">${lista.reduce((s,t)=>s+(t.montoUF||0),0).toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})} UF</span></div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+async function submitTrabajoEspecial(){
+  const titulo = document.getElementById('teTitulo').value.trim();
+  const descripcion = document.getElementById('teDescripcion').value.trim();
+  const clienteId = document.getElementById('teCliente').value || null;
+  const asignadoA = document.getElementById('teAsignado').value;
+  const fechaLimite = document.getElementById('teFechaLimite').value;
+  const montoParsed = parseFloat(document.getElementById('teMontoUF').value);
+  const montoUF = isNaN(montoParsed) ? null : montoParsed;
+  if(!titulo) return showToast('Escribe un título para el trabajo.');
+  if(!asignadoA) return showToast('Selecciona a quién se asigna.');
+  state.trabajosEspeciales.push({
+    id: uid('te'), titulo, descripcion, clienteId, asignadoA, montoUF,
+    asignadoPor: currentUser.id, fechaCreacion: todayISO(), fechaLimite, estado: 'Pendiente'
+  });
+  await saveState();
+  showToast('Trabajo especial asignado.');
+  renderApp();
+}
+
+async function setTrabajoEspecialEstado(id, estado){
+  const t = state.trabajosEspeciales.find(t => t.id === id);
+  if(!t) return;
+  t.estado = estado;
+  await saveState();
+}
+
+async function removeTrabajoEspecial(id){
+  if(!confirm('¿Eliminar este trabajo especial? Esta acción no se puede deshacer.')) return;
+  state.trabajosEspeciales = state.trabajosEspeciales.filter(t => t.id !== id);
+  await saveState();
+  renderApp();
+  showToast('Trabajo especial eliminado.');
+}
+
+// Bloque que se inserta dentro de la pestaña Tareas de la persona asignada
+// (cualquier rol) para reflejar sus trabajos especiales pendientes. Quien
+// crea/elimina trabajos especiales solo son Administrador/TAX/Contabilidad,
+// pero cualquiera puede tener uno asignado y actualizar su propio estado.
+function misTrabajosEspecialesContent(){
+  const propios = (state.trabajosEspeciales||[]).filter(t => t.asignadoA === currentUser.id)
+    .sort((a,b) => (a.fechaLimite||'').localeCompare(b.fechaLimite||''));
+  if(!propios.length) return '';
+  const hoy = todayISO();
+  return `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 my-6">
+      <h3 class="text-sm font-bold text-gray-700 mb-3">Trabajos especiales asignados a ti</h3>
+      <div class="space-y-2">
+        ${propios.map(t => {
+          const cli = state.clientes.find(c=>c.id===t.clienteId);
+          const asignadoPor = state.usuarios.find(u=>u.id===t.asignadoPor);
+          const vencido = t.fechaLimite && t.fechaLimite < hoy && t.estado !== 'Completado';
+          return `
+            <div class="flex items-center justify-between text-sm border-b border-gray-100 pb-2 flex-wrap gap-2">
+              <div>
+                <span class="font-medium text-gray-800">${escapeHtml(t.titulo)}</span>
+                ${cli ? `<span class="text-gray-400 ml-2">· ${escapeHtml(cli.name)}</span>` : ''}
+                ${asignadoPor ? `<span class="text-gray-400 ml-2">· de ${escapeHtml(asignadoPor.name)}</span>` : ''}
+                ${t.montoUF!=null ? `<span class="text-gray-400 ml-2 mono">· ${t.montoUF.toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})} UF</span>` : ''}
+                ${t.descripcion ? `<div class="text-xs text-gray-400 mt-0.5">${escapeHtml(t.descripcion)}</div>` : ''}
+              </div>
+              <div class="flex items-center gap-2">
+                ${t.fechaLimite ? `<span class="text-xs ${vencido?'text-red-500 font-semibold':'text-gray-400'}">${vencido?'Vencido ':''}${escapeHtml(t.fechaLimite)}</span>` : ''}
+                <select onchange="this.className = trabajoEstadoClass(this.value); setTrabajoEspecialEstado('${t.id}', this.value)" class="${trabajoEstadoClass(t.estado)}">
+                  ${TRABAJO_ESTADOS.map(e=>`<option value="${e}" ${t.estado===e?'selected':''}>${e}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
 function requerimientosContent(){
   const todos = [...state.requerimientos].sort((a,b) => (b.fechaCreacion||'').localeCompare(a.fechaCreacion||''));
-  const rows = currentUser.isAdmin ? todos : todos.filter(r => dirigidoAIds(r).includes(currentUser.id));
+  const rows = todos.filter(r => puedeVerRequerimiento(r, currentUser));
 
   return `
     <div class="max-w-4xl">
       <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
         <h2 class="text-2xl font-bold text-gray-800 mb-1">Requerimientos</h2>
-        <p class="text-sm text-gray-500 mb-6">Crea y da seguimiento a solicitudes internas (contables, tributarias o administrativas). ${currentUser.isAdmin ? 'Como administrador ves todos los requerimientos.' : 'Solo ves los requerimientos dirigidos a ti.'}</p>
+        <p class="text-sm text-gray-500 mb-6">Crea y da seguimiento a solicitudes internas (contables, tributarias o administrativas). ${puedeVerTodasLasCarteras(currentUser) ? 'Ves todos los requerimientos del sistema.' : 'Ves los que creaste, los dirigidos a ti, y los de tu encargado/asistente relacionado.'}</p>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Tipo de Requerimiento</label>
-            <select id="reqTipo" onchange="onReqTipoChange()" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <select id="reqTipo" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400">
               ${REQ_TIPOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
             </select>
           </div>
@@ -2252,6 +2793,10 @@ function requerimientosContent(){
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Fecha de Respuesta</label>
             <input type="date" id="reqFechaRespuesta" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Descripción de lo solicitado</label>
+            <textarea id="reqDescripcion" rows="3" placeholder="Detalla qué se necesita…" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400" style="resize:vertical;"></textarea>
           </div>
           <div class="md:col-span-2">
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Estado del Requisito</label>
@@ -2272,16 +2817,23 @@ function requerimientosContent(){
               <th class="text-left px-5 py-3 font-semibold text-gray-600">Tipo</th>
               <th class="text-left px-5 py-3 font-semibold text-gray-600">Creación</th>
               <th class="text-left px-5 py-3 font-semibold text-gray-600">Dirigido a</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Respuesta</th>
+              <th class="text-left px-5 py-3 font-semibold text-gray-600">Vencimiento</th>
               <th class="text-left px-5 py-3 font-semibold text-gray-600">Estado</th>
+              <th class="text-left px-5 py-3 font-semibold text-gray-600">Días restantes</th>
               <th class="px-5 py-3"></th>
             </tr>
           </thead>
           <tbody>
             ${rows.length ? rows.map(r => `
                 <tr class="border-t border-gray-100">
-                  <td class="px-5 py-3 text-gray-800">${escapeHtml(r.tipo)}</td>
-                  <td class="px-5 py-3 text-gray-500">${escapeHtml(r.fechaCreacion || '—')}</td>
+                  <td class="px-5 py-3 text-gray-800">
+                    ${esNoLeidoParaMi(r) ? `<span class="bg-blue-600 text-white font-semibold" style="font-size:10px;letter-spacing:0.5px;text-transform:uppercase;border-radius:9999px;padding:2px 7px;margin-right:6px;">Nuevo</span>` : ''}${escapeHtml(r.tipo)}
+                    ${r.descripcion ? `<div style="font-size:12px;color:#9ca3af;margin-top:3px;max-width:220px;white-space:normal;">${escapeHtml(r.descripcion)}</div>` : ''}
+                  </td>
+                  <td class="px-5 py-3 text-gray-500">
+                    ${escapeHtml(r.fechaCreacion || '—')}
+                    ${nombreCreador(r) ? `<div style="font-size:11px;color:#9ca3af;margin-top:2px;">por ${escapeHtml(nombreCreador(r))}</div>` : ''}
+                  </td>
                   <td class="px-5 py-3 text-gray-800">${escapeHtml(nombresDirigidoA(r))}</td>
                   <td class="px-5 py-3 text-gray-500">${escapeHtml(r.fechaRespuesta || '—')}</td>
                   <td class="px-5 py-3">
@@ -2289,6 +2841,7 @@ function requerimientosContent(){
                       ${REQ_ESTADOS.map(e=>`<option value="${e}" ${r.estado===e?'selected':''}>${e}</option>`).join('')}
                     </select>
                   </td>
+                  <td class="px-5 py-3">${badgeDiasFaltantes(r)}</td>
                   <td class="px-5 py-3 text-right whitespace-nowrap">
                     ${puedeDerivarTax(r) ? `
                       <select id="derivarSel_${r.id}" class="text-xs rounded-lg border border-gray-300 px-2 py-1 mr-1">
@@ -2300,7 +2853,7 @@ function requerimientosContent(){
                     <button onclick="removeRequerimiento('${r.id}')" class="text-red-500 hover:text-red-700 text-xs font-semibold">Eliminar</button>
                   </td>
                 </tr>
-              `).join('') : `<tr><td colspan="6" class="px-5 py-8 text-center text-gray-400">${currentUser.isAdmin ? 'Aún no hay requerimientos creados.' : 'No tienes requerimientos dirigidos a ti por el momento.'}</td></tr>`}
+              `).join('') : `<tr><td colspan="7" class="px-5 py-8 text-center text-gray-400">${currentUser.isAdmin ? 'Aún no hay requerimientos creados.' : 'No tienes requerimientos dirigidos a ti por el momento.'}</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -2309,9 +2862,9 @@ function requerimientosContent(){
 }
 
 function onReqTipoChange(){
-  const tipo = document.getElementById('reqTipo').value;
-  const wrap = document.getElementById('reqDirigidoAWrap');
-  wrap.innerHTML = `<label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Dirigido a</label>${renderDirigidoAField(tipo)}`;
+  // El "Tipo" ya no acota la lista de destinatarios (ver renderDirigidoAField),
+  // así que solo se re-renderiza si hiciera falta en el futuro; la selección
+  // actual se conserva.
 }
 
 async function submitRequerimiento(){
@@ -2321,11 +2874,16 @@ async function submitRequerimiento(){
   const dirigidoA = dirigidoARaw ? dirigidoARaw.split(',').filter(Boolean) : [];
   const fechaRespuesta = document.getElementById('reqFechaRespuesta').value || '';
   const estado = document.getElementById('reqEstado').value;
+  const descripcion = document.getElementById('reqDescripcion').value.trim();
+
+  if(!dirigidoA.length){ showToast('Selecciona al menos una persona en "Dirigido a".'); return; }
 
   state.requerimientos.push({
     id: uid('r'),
-    tipo, fechaCreacion, dirigidoA, fechaRespuesta, estado
+    tipo, fechaCreacion, dirigidoA, fechaRespuesta, estado, descripcion,
+    creadoPor: currentUser.id
   });
+  document.getElementById('reqDescripcion').value = '';
   await saveState();
   showToast('Requerimiento creado.');
   renderApp();
@@ -2335,6 +2893,9 @@ async function updateRequerimientoEstado(id, estado){
   const r = state.requerimientos.find(r => r.id === id);
   if(!r) return;
   r.estado = estado;
+  // Fecha en que se marcó Resuelto, para el Reporte Semanal de Contabilidad.
+  // Si se revierte el estado, se limpia (ya no cuenta como resuelto).
+  r.fechaResolucion = estado === 'Resuelto' ? todayISO() : null;
   await saveState();
 }
 
@@ -2379,7 +2940,22 @@ async function cargarUFAnual(year){
     ufAnualCache[year] = [];
   }
   ufAnualLoading[year] = false;
-  if(activeTab === 'dashboard') renderApp();
+  if(activeTab === 'dashboard' || activeTab === 'facturacion') renderApp();
+}
+
+// UF del último día disponible del mes (día calendario final si el mes ya
+// terminó; el último día informado hasta ahora si el mes está en curso).
+// Dispara en segundo plano la carga del año si aún no está en caché.
+// Devuelve { valor, cargando } para poder distinguir "aún cargando el año"
+// de "ya cargó, pero no hay dato de UF para ese mes" (ej. meses muy futuros).
+function ufDelUltimoDiaDeMes(mes){
+  const year = Number(mes.slice(0,4));
+  if(!ufAnualCache[year]){
+    if(!ufAnualLoading[year]) cargarUFAnual(year);
+    return { valor: null, cargando: true };
+  }
+  const dato = ufPorMes(ufAnualCache[year])[mes];
+  return { valor: dato ? dato.valor : null, cargando: false };
 }
 
 // Para cada mes del año, se queda con el valor de UF del ÚLTIMO día disponible en ese mes
@@ -2647,9 +3223,13 @@ function refreshFacturacionSummary(mes){
   const elEsperado = document.getElementById('facEsperado');
   const elFacturado = document.getElementById('facFacturado');
   const elPct = document.getElementById('facPct');
+  const elFacturadoCLP = document.getElementById('facFacturadoCLP');
+  const elFacturadoCLPNota = document.getElementById('facFacturadoCLPNota');
   if(elEsperado) elEsperado.textContent = `${resumenGlobal.esperado.toFixed(1)} UF`;
   if(elFacturado) elFacturado.textContent = `${resumenGlobal.facturado.toFixed(1)} UF`;
   if(elPct) elPct.textContent = `${resumenGlobal.pct}%`;
+  if(elFacturadoCLP) elFacturadoCLP.textContent = resumenGlobal.ufMes ? '$'+formatoCLP(resumenGlobal.facturadoCLP) : (resumenGlobal.ufCargando ? 'Cargando UF…' : '—');
+  if(elFacturadoCLPNota) elFacturadoCLPNota.textContent = resumenGlobal.ufMes ? `UF del ${mesLabel(mes)}: $${formatoCLP(resumenGlobal.ufMes)}` : (resumenGlobal.ufCargando ? 'Obteniendo UF del mes…' : 'UF no disponible para este mes');
 
   if(!isAdmin) return;
   state.usuarios.forEach(u => {
@@ -2672,15 +3252,21 @@ function clientesDeSucursal(sucursal){
 }
 
 function resumenFacturacion(listaClientes, mes){
-  let esperado = 0, facturado = 0;
+  let esperado = 0, facturado = 0, facturadoCLP = 0;
+  // UF del último día disponible del mes facturado, usada solo para expresar
+  // en pesos lo que ya está marcado como "Facturado" (no lo "Esperado").
+  const { valor: ufMes, cargando: ufCargando } = ufDelUltimoDiaDeMes(mes);
   listaClientes.forEach(c => {
     const f = facturaDisplay(c, mes);
     if(f.estado === 'No Aplica') return;
     esperado += (f.montoUF || 0);
-    if(f.estado === 'Facturado') facturado += (f.montoUF || 0);
+    if(f.estado === 'Facturado'){
+      facturado += (f.montoUF || 0);
+      if(ufMes) facturadoCLP += (f.montoUF || 0) * ufMes;
+    }
   });
   const pct = esperado > 0 ? Math.round((facturado/esperado)*100) : 0;
-  return { esperado, facturado, pct };
+  return { esperado, facturado, pct, facturadoCLP, ufMes, ufCargando };
 }
 
 function facturacionContent(){
@@ -2724,7 +3310,7 @@ function facturacionContent(){
 
       ${isAdmin ? sucursalFilterBar() : ''}
 
-      <div class="grid grid-cols-2 md:grid-cols-3 gap-4 my-6">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 my-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
           <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Esperado (UF) · ${mesLabel(mes)}</div>
           <div class="text-2xl font-bold text-gray-800" id="facEsperado">${resumenGlobal.esperado.toFixed(1)} UF</div>
@@ -2736,6 +3322,11 @@ function facturacionContent(){
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
           <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">% Facturado</div>
           <div class="text-2xl font-bold text-gray-800" id="facPct">${resumenGlobal.pct}%</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Facturado (CLP)</div>
+          <div class="text-2xl font-bold text-gray-800" id="facFacturadoCLP">${resumenGlobal.ufMes ? '$'+formatoCLP(resumenGlobal.facturadoCLP) : (resumenGlobal.ufCargando ? 'Cargando UF…' : '—')}</div>
+          <div class="text-xs text-gray-400 mt-1" id="facFacturadoCLPNota">${resumenGlobal.ufMes ? `UF del ${mesLabel(mes)}: $${formatoCLP(resumenGlobal.ufMes)}` : (resumenGlobal.ufCargando ? 'Obteniendo UF del mes…' : 'UF no disponible para este mes')}</div>
         </div>
       </div>
 
@@ -3140,12 +3731,18 @@ async function removeObligacion(id){
 }
 
 /* ---------------- TAREAS MENSUALES (checklist recurrente) ---------------- */
-let tareasMes = null;
+let tareasAnio = null;
+
+// Los 12 meses ('YYYY-MM') del año dado, para la vista anual de Tareas.
+function mesesDelAnio(anio){
+  return Array.from({length:12}, (_, i) => `${anio}-${String(i+1).padStart(2,'0')}`);
+}
 
 function tareasContent(verTodo, puedeEditarPlantilla){
-  if(!tareasMes) tareasMes = new Date().toISOString().slice(0,7);
-  const mes = tareasMes;
-  const meses = mesesDesdeEnero2026();
+  if(!tareasAnio) tareasAnio = String(Math.max(new Date().getFullYear(), 2026));
+  const anio = tareasAnio;
+  const anios = aniosDeclaracionesJuradas();
+  const meses = mesesDelAnio(anio);
   const scope = verTodo ? clientesEnSucursalActiva() : state.clientes.filter(c => carterasDeUsuario(currentUser).includes(c.encargadoId));
   const q = (searchQuery||'').trim().toLowerCase();
   const list = q ? scope.filter(c => (c.name||'').toLowerCase().includes(q) || (c.rut||'').toLowerCase().includes(q)) : scope;
@@ -3157,12 +3754,14 @@ function tareasContent(verTodo, puedeEditarPlantilla){
       <div class="flex items-center justify-between mb-1 flex-wrap gap-3">
         <div>
           <h2 class="text-2xl font-bold text-gray-800">Tareas mensuales</h2>
-          <p class="text-sm text-gray-500">Checklist recurrente por cliente (libros, conciliaciones, etc.), distinto de los tickets de Requerimientos.</p>
+          <p class="text-sm text-gray-500">Checklist recurrente por cliente (libros, conciliaciones, etc.). Vista anual: marca cualquier mes sin tener que cambiar de página.</p>
         </div>
-        <select onchange="flushPendingSaves(); tareasMes=this.value; tablePage=1; renderApp();" class="rounded-xl border border-gray-300 px-4 py-2 text-sm">
-          ${meses.map(m => `<option value="${m}" ${m===mes?'selected':''}>${mesLabel(m)}</option>`).join('')}
+        <select onchange="flushPendingSaves(); tareasAnio=this.value; tablePage=1; renderApp();" class="rounded-xl border border-gray-300 px-4 py-2 text-sm">
+          ${anios.map(a => `<option value="${a}" ${a===anio?'selected':''}>${a}</option>`).join('')}
         </select>
       </div>
+
+      ${misTrabajosEspecialesContent()}
 
       ${puedeEditarPlantilla ? `
       <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 my-6">
@@ -3177,41 +3776,45 @@ function tareasContent(verTodo, puedeEditarPlantilla){
       </div>
       ` : `<div class="my-6"></div>`}
 
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="p-4 border-b border-gray-100">
-          <input type="text" id="searchBox" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" class="w-full max-w-sm rounded-xl border border-gray-300 px-4 py-2 text-sm">
-        </div>
-        <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600 whitespace-nowrap">Cliente</th>
-              ${plantilla.map(t=>`<th class="text-center px-2 py-3 font-semibold text-gray-600 align-bottom" style="max-width:110px;font-size:11px;line-height:1.3;overflow-wrap:break-word;text-transform:none;" title="${escapeAttr(t)}">${escapeHtml(t)}</th>`).join('')}
-              <th class="text-center px-3 py-3 font-semibold text-gray-600">%</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${pageItems.length ? pageItems.map(c => {
-              const registro = (c.tareas||{})[mes] || {};
-              const hechas = plantilla.filter(t => registro[t]).length;
-              const pct = plantilla.length ? Math.round((hechas/plantilla.length)*100) : 0;
-              return `
-                <tr class="border-t border-gray-100">
-                  <td class="px-5 py-3 text-gray-800 whitespace-nowrap">${escapeHtml(c.name)}</td>
-                  ${plantilla.map((t, idx) => `
-                    <td class="text-center px-2 py-3" style="max-width:100px;">
-                      <input type="checkbox" ${registro[t]?'checked':''} onchange="toggleTarea('${c.id}','${mes}', ${idx}, this.checked)" class="w-4 h-4">
-                    </td>
-                  `).join('')}
-                  <td class="text-center px-3 py-3 font-semibold ${pct===100?'text-green-600':'text-gray-500'}" id="tareaPct_${c.id}_${mes}">${pct}%</td>
-                </tr>
-              `;
-            }).join('') : `<tr><td colspan="${plantilla.length+2}" class="px-5 py-8 text-center text-gray-400">Sin clientes en esta vista.</td></tr>`}
-          </tbody>
-        </table>
-        </div>
-        ${list.length ? `<div class="px-4 pb-4">${paginationControls(page, totalPages)}</div>` : ''}
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 mb-6">
+        <input type="text" id="searchBox" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" class="w-full max-w-sm rounded-xl border border-gray-300 px-4 py-2 text-sm">
       </div>
+
+      ${plantilla.map((tarea, tareaIdx) => `
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+          <div class="px-5 py-3 border-b border-gray-100 font-semibold text-gray-700 text-sm">${escapeHtml(tarea)}</div>
+          <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="text-left px-5 py-3 font-semibold text-gray-600 whitespace-nowrap">Cliente</th>
+                ${MESES_NOMBRE.map(m=>`<th class="text-center px-2 py-3 font-semibold text-gray-600" style="font-size:11px;">${m.slice(0,3)}</th>`).join('')}
+                <th class="text-center px-3 py-3 font-semibold text-gray-600">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pageItems.length ? pageItems.map(c => {
+                const hechos = meses.filter(m => ((c.tareas||{})[m]||{})[tarea]).length;
+                const pct = Math.round((hechos/12)*100);
+                return `
+                  <tr class="border-t border-gray-100">
+                    <td class="px-5 py-3 text-gray-800 whitespace-nowrap">${escapeHtml(c.name)}</td>
+                    ${meses.map(m => `
+                      <td class="text-center px-2 py-2">
+                        <input type="checkbox" ${((c.tareas||{})[m]||{})[tarea]?'checked':''} onchange="toggleTarea('${c.id}','${m}', ${tareaIdx}, this.checked)" class="w-4 h-4">
+                      </td>
+                    `).join('')}
+                    <td class="text-center px-3 py-3 font-semibold ${pct===100?'text-green-600':'text-gray-500'}" id="tareaPct_${c.id}_${tareaIdx}">${pct}%</td>
+                  </tr>
+                `;
+              }).join('') : `<tr><td colspan="14" class="px-5 py-8 text-center text-gray-400">Sin clientes en esta vista.</td></tr>`}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      `).join('')}
+
+      ${list.length ? paginationControls(page, totalPages) : ''}
     </div>
   `;
 }
@@ -3225,12 +3828,13 @@ async function toggleTarea(clienteId, mes, idx, checked){
   if(!c.tareas[mes]) c.tareas[mes] = {};
   c.tareas[mes][tarea] = checked;
   await saveState();
-  // Re-render parcial: solo se actualiza el % de esta fila, no toda la tabla.
-  const plantilla = state.tareasPlantilla;
-  const registro = c.tareas[mes];
-  const hechas = plantilla.filter(t => registro[t]).length;
-  const pct = plantilla.length ? Math.round((hechas/plantilla.length)*100) : 0;
-  const pctCell = document.getElementById(`tareaPct_${clienteId}_${mes}`);
+  // Re-render parcial: solo se actualiza el % anual de esta fila (cliente +
+  // tarea), no toda la tabla.
+  const anio = mes.slice(0,4);
+  const meses = mesesDelAnio(anio);
+  const hechos = meses.filter(m => ((c.tareas||{})[m]||{})[tarea]).length;
+  const pct = Math.round((hechos/12)*100);
+  const pctCell = document.getElementById(`tareaPct_${clienteId}_${idx}`);
   if(pctCell){
     pctCell.textContent = pct + '%';
     pctCell.className = `text-center px-3 py-3 font-semibold ${pct===100?'text-green-600':'text-gray-500'}`;
@@ -3293,6 +3897,84 @@ function exportarFacturacionCSV(mes){
   descargarCSV(`facturacion_${mes}.csv`, rows);
 }
 
+function derivarCarteraForm(){
+  return `
+    <div class="manage-section">
+      <h3 class="display">Derivar cartera completa</h3>
+      <p style="font-size:13px;color:#6b6a5f;margin-bottom:14px;">Traspasa de una sola vez todos los clientes de un encargado a otra persona. Si el destino es un Asistente, se le da acceso de visualización a esa cartera (el encargado original la conserva); si es cualquier otro rol, los clientes cambian de encargado.</p>
+      <div class="form-inline">
+        <select id="derivarCarteraOrigen">
+          <option value="">De (encargado actual)</option>
+          ${origenesConCartera().map(u => `<option value="${u.id}">${escapeHtml(u.name)} (${state.clientes.filter(c=>c.encargadoId===u.id).length})</option>`).join('')}
+        </select>
+        <select id="derivarCarteraDestino">
+          <option value="">Para (nuevo responsable)</option>
+          ${[...state.usuarios].sort((a,b)=>a.name.localeCompare(b.name,'es')).map(u => `<option value="${u.id}">${escapeHtml(u.name)} — ${escapeHtml(u.rol)}</option>`).join('')}
+        </select>
+        <button class="btn" onclick="derivarCarteraMasiva()">Derivar cartera</button>
+      </div>
+    </div>
+  `;
+}
+
+// Pestaña independiente para el rol Contabilidad (que no tiene acceso a
+// "Usuarios y Roles", pero sí puede derivar carteras completas).
+function derivarCarteraTabContent(){
+  return `
+    <div class="main-head">
+      <div>
+        <h2 class="display">Derivar Cartera</h2>
+        <div class="meta">Traspasa de una sola vez todos los clientes de un encargado a otra persona.</div>
+      </div>
+    </div>
+    ${derivarCarteraForm()}
+  `;
+}
+
+// Usuarios que hoy tienen al menos un cliente bajo su propio id (candidatos
+// como "origen" para derivar una cartera completa).
+function origenesConCartera(){
+  const ids = new Set(state.clientes.map(c => c.encargadoId).filter(Boolean));
+  return [...state.usuarios].filter(u => ids.has(u.id)).sort((a,b) => a.name.localeCompare(b.name, 'es'));
+}
+
+// Deriva de una sola vez toda la cartera de "origen" hacia "destino". Si el
+// destino es Asistente (no puede ser "dueño" de cartera en este modelo), se
+// le agrega acceso de visualización vía carterasVisibles, sin tocarle el
+// encargadoId a los clientes. Para cualquier otro rol, los clientes pasan a
+// tener a destino como nuevo encargado.
+async function derivarCarteraMasiva(){
+  const origenId = document.getElementById('derivarCarteraOrigen').value;
+  const destinoId = document.getElementById('derivarCarteraDestino').value;
+  if(!origenId || !destinoId){ showToast('Selecciona quién entrega y quién recibe la cartera.'); return; }
+  if(origenId === destinoId){ showToast('Elige dos personas distintas.'); return; }
+
+  const origen = state.usuarios.find(u => u.id === origenId);
+  const destino = state.usuarios.find(u => u.id === destinoId);
+  if(!origen || !destino) return;
+  const clientesOrigen = state.clientes.filter(c => c.encargadoId === origenId);
+  if(!clientesOrigen.length){ showToast('Ese usuario no tiene clientes en su cartera.'); return; }
+
+  const destinoEsAsistente = esRolAsistente(destino.rol);
+  const mensajeConfirm = destinoEsAsistente
+    ? `¿Dar a ${destino.name} (Asistente) acceso de visualización a los ${clientesOrigen.length} clientes de ${origen.name}?`
+    : `¿Reasignar los ${clientesOrigen.length} clientes de ${origen.name} a ${destino.name}?`;
+  if(!confirm(mensajeConfirm)) return;
+
+  if(destinoEsAsistente){
+    if(!destino.carterasVisibles) destino.carterasVisibles = [];
+    if(!destino.carterasVisibles.includes(origenId)) destino.carterasVisibles.push(origenId);
+  }else{
+    clientesOrigen.forEach(c => { c.encargadoId = destinoId; });
+  }
+
+  await saveState();
+  renderApp();
+  showToast(destinoEsAsistente
+    ? `${destino.name} ahora ve la cartera de ${origen.name}.`
+    : `${clientesOrigen.length} clientes derivados de ${origen.name} a ${destino.name}.`);
+}
+
 function usuariosContent(){
   const usuariosOrdenados = [...state.usuarios].sort((a,b) => a.name.localeCompare(b.name, 'es'));
   const avisoBackend = !BACKEND_URL ? `
@@ -3326,6 +4008,8 @@ function usuariosContent(){
         `).join('')}
       </tbody>
     </table>
+
+    ${derivarCarteraForm()}
 
     <div class="manage-section">
       <h3 class="display">Accesos a cartera (roles Asistente)</h3>
@@ -3516,7 +4200,7 @@ function bindAdminEvents(){ /* reserved for future event delegation */ }
 // estos roles tiene Confección Iva ni Facturación (solo Administrador y,
 // para lo demás, Contabilidad — ver contabilidadLayout).
 function encargadoLayout(){
-  const verTodo = currentUser.rol === 'TAX';
+  const verTodo = puedeVerTodasLasCarteras(currentUser);
   const misCarteras = carterasDeUsuario(currentUser);
   const baseList = verTodo ? state.clientes : state.clientes.filter(c => misCarteras.includes(c.encargadoId));
   const q = (searchQuery||'').trim().toLowerCase();
@@ -3526,7 +4210,8 @@ function encargadoLayout(){
   const content = activeTab === 'inicio' ? inicioContent()
     : activeTab === 'requerimientos' ? requerimientosContent()
     : activeTab === 'obligaciones' ? obligacionesContent(verTodo)
-    : activeTab === 'tareas' ? tareasContent(verTodo, false) : `
+    : activeTab === 'tareas' ? tareasContent(verTodo, false)
+    : activeTab === 'trabajos-especiales' ? trabajosEspecialesContent() : `
       <div class="main-head">
         <div>
           <h2 class="display">${verTodo ? 'Cartera de Clientes' : 'Tu cartera'}</h2>
@@ -3598,6 +4283,7 @@ window.addEventListener('beforeunload', flushPendingSaves);
   await loadState();
   await loadCreds();
   loadUF(); // no bloquea el render inicial; se muestra apenas esté lista
+  loadDolar();
   renderGate();
 })();
 </script>
