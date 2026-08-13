@@ -2062,7 +2062,15 @@ function reporteSemanalContent(){
   const domingo = sumarDias(lunes, 6);
 
   const resueltos = state.requerimientos.filter(r => r.fechaResolucion && r.fechaResolucion >= lunes && r.fechaResolucion <= domingo);
-  const creadosPendientes = state.requerimientos.filter(r => r.fechaCreacion && r.fechaCreacion >= lunes && r.fechaCreacion <= domingo && r.estado !== 'Resuelto');
+  // Un pendiente no desaparece del reporte al pasar de semana: sigue
+  // apareciendo en cada semana siguiente (mientras haya existido para esa
+  // fecha) hasta que se resuelva. Por eso no se filtra por fechaCreacion
+  // dentro de la semana — solo que ya existiera para el domingo de esa
+  // semana y que, a esa fecha, todavía siguiera sin resolver.
+  const pendientes = state.requerimientos.filter(r =>
+    r.fechaCreacion && r.fechaCreacion <= domingo &&
+    (r.estado !== 'Resuelto' || (r.fechaResolucion && r.fechaResolucion > domingo))
+  );
 
   const filaReq = r => `
     <tr class="border-t border-gray-100">
@@ -2104,7 +2112,7 @@ function reporteSemanalContent(){
         </div>
       </div>
       ${tabla('Requerimientos resueltos', resueltos)}
-      ${tabla('Creados esta semana, aún pendientes', creadosPendientes)}
+      ${tabla('Pendientes al cierre de esta semana', pendientes)}
     </div>
   `;
 }
