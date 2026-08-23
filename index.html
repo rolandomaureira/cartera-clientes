@@ -365,6 +365,7 @@ let currentUser = null;   // { id, name, rol, isAdmin }
 let activeFolder = 'todos';
 let activeTab = 'inicio';
 let activeSucursal = 'todos'; // 'todos' | 'Concepcion' | 'Temuco' (solo relevante para Administrador)
+let archivosFiltroTipo = 'todos'; // 'todos' | 'permanente' | 'temporal' | 'vencido' (pestaña Archivos)
 let facturacionMes = null; // 'YYYY-MM', se inicializa al mes actual la primera vez que se abre la pestaña
 let calendarioMes = null; // 'YYYY-MM' del calendario tributario en Inicio
 let tablePage = 1; // página actual de la tabla grande visible (Cartera, F-29, Facturación o Tareas)
@@ -453,6 +454,12 @@ function paginate(list, page){
 function setTablePage(p){
   clearBulkSelections();
   tablePage = p;
+  renderApp();
+}
+
+function setArchivosFiltroTipo(tipo){
+  archivosFiltroTipo = tipo;
+  tablePage = 1;
   renderApp();
 }
 
@@ -970,6 +977,7 @@ function sectionNav(){
       ${item('cartera', 'Cartera de Clientes')}
       ${item('obligaciones', 'Obligaciones Tributarias')}
       ${item('tareas', 'Tareas')}
+      ${item('archivos', 'Archivos')}
       ${puedeVerTodasLasCarteras(currentUser) ? item('trabajos-especiales', 'Trabajos Especiales') : ''}
       ${esRolContabilidad(currentUser.rol) ? item('reporte-semanal', 'Reporte Semanal') : ''}
       ${esRolContabilidad(currentUser.rol) ? item('derivar-cartera', 'Derivar Cartera') : ''}
@@ -985,6 +993,9 @@ function sectionNav(){
     </div>
     <div class="folder-tab ${activeTab==='tareas'?'active':''}" onclick="setTab('tareas')">
       <span>Tareas</span>
+    </div>
+    <div class="folder-tab ${activeTab==='archivos'?'active':''}" onclick="setTab('archivos')">
+      <span>Archivos</span>
     </div>
     <div class="folder-tab ${activeTab==='facturacion'?'active':''}" onclick="setTab('facturacion')">
       <span>Facturación</span>
@@ -1120,6 +1131,8 @@ function adminLayout(){
           ? tareasContent(true, true)
           : activeTab === 'trabajos-especiales'
           ? trabajosEspecialesContent()
+          : activeTab === 'archivos'
+          ? archivosContent()
           : activeTab === 'actividad'
           ? actividadContent()
           : adminMainContent(unassigned)}
@@ -1151,6 +1164,8 @@ function contabilidadLayout(){
           ? tareasContent(true, false)
           : activeTab === 'trabajos-especiales'
           ? trabajosEspecialesContent()
+          : activeTab === 'archivos'
+          ? archivosContent()
           : activeTab === 'reporte-semanal'
           ? reporteSemanalContent()
           : activeTab === 'derivar-cartera'
@@ -1928,6 +1943,72 @@ function badgeTipoArchivo(a){
   const vencido = a.fechaVencimiento && a.fechaVencimiento < todayISO();
   const estilo = vencido ? 'background:#FBE9E7;color:#A3402F;' : 'background:#FFF4D6;color:#8a6d1d;';
   return `<span style="font-size:10px;font-weight:600;padding:1px 7px;border-radius:9999px;white-space:nowrap;${estilo}">${vencido ? 'Vencido' : `Vence ${escapeHtml(a.fechaVencimiento)}`}</span>`;
+}
+
+// Vista consolidada: un renglón por archivo, de todos los clientes que el
+// usuario actual puede ver (misma regla de alcance que "Cartera de
+// Clientes" — todo si puedeVerTodasLasCarteras, si no solo su(s) cartera(s)).
+// No es una colección propia: cada archivo sigue viviendo dentro de
+// c.archivos, esto solo los junta para no tener que entrar cliente por
+// cliente a revisarlos.
+function archivosContent(){
+  const verTodo = puedeVerTodasLasCarteras(currentUser);
+  const misCarteras = carterasDeUsuario(currentUser);
+  const clientesVisibles = verTodo ? state.clientes : state.clientes.filter(c => misCarteras.includes(c.encargadoId));
+
+  let filas = [];
+  clientesVisibles.forEach(c => {
+    (c.archivos||[]).forEach((archivo, index) => filas.push({ cliente: c, archivo, index }));
+  });
+
+  const q = (searchQuery||'').trim().toLowerCase();
+  if(q){
+    filas = filas.filter(({cliente, archivo}) =>
+      (cliente.name||'').toLowerCase().includes(q) || (archivo.nombre||'').toLowerCase().includes(q)
+    );
+  }
+  const hoy = todayISO();
+  if(archivosFiltroTipo === 'permanente') filas = filas.filter(({archivo}) => archivo.tipo !== 'temporal');
+  else if(archivosFiltroTipo === 'temporal') filas = filas.filter(({archivo}) => archivo.tipo === 'temporal');
+  else if(archivosFiltroTipo === 'vencido') filas = filas.filter(({archivo}) => archivo.tipo === 'temporal' && archivo.fechaVencimiento && archivo.fechaVencimiento < hoy);
+
+  filas.sort((a,b) => (b.archivo.fecha||'').localeCompare(a.archivo.fecha||''));
+
+  const { pageItems, totalPages, page } = paginate(filas, tablePage);
+  const totalSinFiltrar = clientesVisibles.reduce((n, c) => n + (c.archivos ? c.archivos.length : 0), 0);
+
+  const chip = (tipo, label) => `<div class="filter-chip ${archivosFiltroTipo===tipo?'active':''}" onclick="setArchivosFiltroTipo('${tipo}')">${label}</div>`;
+
+  return `
+    <div class="main-head">
+      <div>
+        <h2 class="display">Archivos</h2>
+        <div class="meta">${filas.length} de ${totalSinFiltrar} archivo${totalSinFiltrar===1?'':'s'} · ${verTodo ? 'de todos los clientes' : 'de tu cartera'}</div>
+      </div>
+      <input type="text" id="searchBox" placeholder="Buscar por cliente o nombre de archivo…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" style="min-width:240px;">
+    </div>
+    <div class="filter-bar" style="margin-bottom:14px;">
+      ${chip('todos', 'Todos')}
+      ${chip('permanente', 'Permanentes')}
+      ${chip('temporal', 'Temporales')}
+      ${chip('vencido', 'Vencidos')}
+    </div>
+    <table>
+      <thead><tr><th>Cliente</th><th>Archivo</th><th></th><th>Subido</th><th></th></tr></thead>
+      <tbody>
+        ${pageItems.length ? pageItems.map(({cliente, archivo, index}) => `
+          <tr>
+            <td class="client-name">${escapeHtml(cliente.name)}</td>
+            <td><a href="${escapeAttr(archivo.url)}" target="_blank" rel="noopener" style="color:var(--teal-dark);text-decoration:underline;">${escapeHtml(archivo.nombre)}</a></td>
+            <td>${badgeTipoArchivo(archivo)}</td>
+            <td style="color:#8a8879;font-size:12px;white-space:nowrap;">${escapeHtml(archivo.fecha||'')}${archivo.subidoPor?` · ${escapeHtml(archivo.subidoPor)}`:''}</td>
+            <td class="row-actions"><button class="btn danger small" onclick="quitarArchivoCliente('${cliente.id}', ${index})">Quitar</button></td>
+          </tr>
+        `).join('') : `<tr><td colspan="5" style="padding:32px;text-align:center;color:#8a8879;">${q || archivosFiltroTipo!=='todos' ? 'No hay archivos que coincidan con el filtro.' : 'Todavía no se ha subido ningún archivo.'}</td></tr>`}
+      </tbody>
+    </table>
+    ${paginationControls(page, totalPages)}
+  `;
 }
 
 async function subirArchivoCliente(clienteId){
@@ -4481,6 +4562,7 @@ function encargadoLayout(){
     : activeTab === 'requerimientos' ? requerimientosContent()
     : activeTab === 'obligaciones' ? obligacionesContent(verTodo)
     : activeTab === 'tareas' ? tareasContent(verTodo, false)
+    : activeTab === 'archivos' ? archivosContent()
     : activeTab === 'trabajos-especiales' ? trabajosEspecialesContent() : `
       <div class="main-head">
         <div>
