@@ -355,11 +355,9 @@
 <div class="toast" id="toast"></div>
 <div id="modalRoot"></div>
 
-<script type="application/json" id="credsDataJson">
-{"usuarios": {}}
-</script>
+<script type="application/json" id="credsDataJson">{"usuarios": {}}</script>
 
-<script type="application/json" id="seedDataJson">{"usuarios": [], "clientes": [], "requerimientos": []}</script>
+<script type="application/json" id="seedDataJson">{"usuarios": [], "clientes": [], "requerimientos": [], "obligaciones": [], "reuniones": [], "trabajosEspeciales": []}</script>
 
 <script>
 let state = null;         // { usuarios: [{id,name,rol}], clientes: [{id,name,...,encargadoId,notas}] }
@@ -1808,6 +1806,7 @@ function renderModal(){
             ${(c.archivos||[]).map((a,i) => `
               <div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;border-bottom:1px solid var(--line);">
                 <a href="${escapeAttr(a.url)}" target="_blank" rel="noopener" style="color:var(--teal-dark);text-decoration:underline;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(a.nombre)}</a>
+                ${badgeTipoArchivo(a)}
                 <span style="color:#8a8879;font-size:11px;white-space:nowrap;">${escapeHtml(a.fecha||'')}${a.subidoPor?` · ${escapeHtml(a.subidoPor)}`:''}</span>
                 <button onclick="quitarArchivoCliente('${c.id}', ${i})" title="Quitar de la lista" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:15px;">×</button>
               </div>
@@ -1815,9 +1814,13 @@ function renderModal(){
           </div>
           <div class="form-inline">
             <input type="file" id="dt_archivo_input" style="flex:1;">
+            <select id="dt_archivo_tipo" style="max-width:170px;">
+              <option value="permanente">Permanente</option>
+              <option value="temporal">Temporal (1 mes)</option>
+            </select>
             <button class="btn secondary small" id="dt_archivo_btn" onclick="subirArchivoCliente('${c.id}')">Subir archivo</button>
           </div>
-          <div style="font-size:11px;color:#8a8879;margin-top:6px;">Máximo 5 MB por archivo. Se guarda en Google Drive y queda visible para todos los roles.</div>
+          <div style="font-size:11px;color:#8a8879;margin-top:6px;">Máximo 5 MB por archivo. Se guarda en Google Drive y queda visible para todos los roles. Los temporales se eliminan solos al mes de subidos.</div>
         </div>
 
         ${isAdmin ? `
@@ -1916,6 +1919,17 @@ function leerArchivoComoBase64(file){
   });
 }
 
+// Insignia junto al nombre del archivo: nada para "permanente"; para
+// "temporal" muestra la fecha de vencimiento, o "Vencido" en rojo si ya
+// pasó (el archivo desaparece solo la próxima vez que alguien abra la app,
+// ver limpiarArchivosVencidos()).
+function badgeTipoArchivo(a){
+  if(a.tipo !== 'temporal') return '';
+  const vencido = a.fechaVencimiento && a.fechaVencimiento < todayISO();
+  const estilo = vencido ? 'background:#FBE9E7;color:#A3402F;' : 'background:#FFF4D6;color:#8a6d1d;';
+  return `<span style="font-size:10px;font-weight:600;padding:1px 7px;border-radius:9999px;white-space:nowrap;${estilo}">${vencido ? 'Vencido' : `Vence ${escapeHtml(a.fechaVencimiento)}`}</span>`;
+}
+
 async function subirArchivoCliente(clienteId){
   const input = document.getElementById('dt_archivo_input');
   const file = input && input.files && input.files[0];
@@ -1946,8 +1960,15 @@ async function subirArchivoCliente(clienteId){
     const data = await res.json();
     if(!data || !data.ok){ showToast('No se pudo subir el archivo.'); return; }
 
+    const tipoSel = document.getElementById('dt_archivo_tipo');
+    const tipoArchivo = (tipoSel && tipoSel.value === 'temporal') ? 'temporal' : 'permanente';
+    const fechaSubida = todayISO();
     if(!c.archivos) c.archivos = [];
-    c.archivos.push({ nombre: data.nombre || file.name, url: data.url, fecha: todayISO(), subidoPor: currentUser.name });
+    c.archivos.push({
+      nombre: data.nombre || file.name, url: data.url, driveFileId: data.id,
+      fecha: fechaSubida, subidoPor: currentUser.name,
+      tipo: tipoArchivo, fechaVencimiento: tipoArchivo === 'temporal' ? sumarDias(fechaSubida, 30) : null
+    });
     await saveClientes();
     renderModal();
     showToast('Archivo subido.');
@@ -1965,6 +1986,41 @@ async function quitarArchivoCliente(clienteId, index){
   c.archivos.splice(index, 1);
   await saveClientes();
   renderModal();
+}
+
+async function eliminarArchivoBackend(driveFileId){
+  if(!BACKEND_URL) return;
+  try{
+    await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ accion: 'eliminarArchivo', token: API_TOKEN, driveFileId })
+    });
+  }catch(e){
+    console.error('No se pudo eliminar en Drive un archivo temporal vencido:', e);
+  }
+}
+
+// Se corre una vez al cargar la app (ver init()): saca de cada cliente los
+// archivos "temporal" cuya fechaVencimiento ya pasó, guarda el cambio, y de
+// paso intenta borrar el archivo real en Drive (best-effort — si falla, el
+// archivo ya salió de la lista igual, y solo queda huérfano en Drive, sin
+// romper nada en la app). Los archivos "permanente" nunca se tocan acá.
+async function limpiarArchivosVencidos(){
+  const hoy = todayISO();
+  const vencidos = [];
+  state.clientes.forEach(c => {
+    if(!c.archivos || !c.archivos.length) return;
+    const conservados = c.archivos.filter(a => {
+      const yaVencio = a.tipo === 'temporal' && a.fechaVencimiento && a.fechaVencimiento < hoy;
+      if(yaVencio) vencidos.push(a);
+      return !yaVencio;
+    });
+    if(conservados.length !== c.archivos.length) c.archivos = conservados;
+  });
+  if(!vencidos.length) return;
+  await saveClientes();
+  vencidos.forEach(a => { if(a.driveFileId) eliminarArchivoBackend(a.driveFileId); });
 }
 
 async function agregarServicioExtra(clienteId){
@@ -4500,6 +4556,7 @@ window.addEventListener('beforeunload', flushPendingSaves);
 (async function init(){
   document.getElementById('app').innerHTML = `<div class="gate"><div style="color:#8a8879;">Cargando…</div></div>`;
   await loadState();
+  await limpiarArchivosVencidos();
   loadUF(); // no bloquea el render inicial; se muestra apenas esté lista
   loadDolar();
   const autoLogueado = await intentarAutoLogin();
