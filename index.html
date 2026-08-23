@@ -83,6 +83,52 @@
   }
   .switch-btn:hover{background:var(--ink);color:var(--white);}
 
+  /* ---------- Notificaciones (campana estilo Facebook) ---------- */
+  .notif-wrap{position:relative;}
+  .notif-bell{
+    background:none;border:none;cursor:pointer;position:relative;
+    padding:6px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink);
+  }
+  .notif-bell:hover{background:var(--paper-2);}
+  .notif-badge{
+    position:absolute;top:0;right:0;
+    background:var(--danger);color:var(--white);
+    font-family:'IBM Plex Sans',sans-serif;font-size:10px;font-weight:700;
+    min-width:16px;height:16px;line-height:16px;
+    border-radius:9999px;text-align:center;padding:0 3px;
+    border:2px solid var(--paper);
+  }
+  .notif-panel{
+    position:absolute;top:calc(100% + 10px);right:0;
+    width:340px;max-height:420px;overflow-y:auto;
+    background:var(--white);border:1px solid var(--line);
+    border-radius:12px;box-shadow:0 12px 32px rgba(22,27,34,0.22);
+    z-index:80;text-align:left;
+  }
+  .notif-panel-head{
+    padding:14px 16px;border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Sans',sans-serif;font-weight:700;font-size:15px;
+  }
+  .notif-item{
+    display:flex;gap:10px;padding:12px 16px;
+    border-bottom:1px solid var(--line);cursor:pointer;
+    background:#EAF3F0;
+  }
+  .notif-item:last-child{border-bottom:none;}
+  .notif-item:hover{background:#DCEAE5;}
+  .notif-avatar{
+    width:36px;height:36px;border-radius:50%;flex-shrink:0;
+    background:var(--teal);color:var(--white);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Sans',sans-serif;font-weight:700;font-size:13px;
+  }
+  .notif-text{font-family:'IBM Plex Sans',sans-serif;font-size:13px;color:var(--ink);line-height:1.4;}
+  .notif-time{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a8879;margin-top:4px;}
+  .notif-dot{width:8px;height:8px;border-radius:50%;background:var(--teal-dark);flex-shrink:0;margin-top:5px;}
+  .notif-empty{padding:30px 16px;text-align:center;color:#8a8879;font-family:'IBM Plex Sans',sans-serif;font-size:13px;}
+
   /* ---------- Gate screen ---------- */
   .gate{
     min-height:calc(100vh - 80px);
@@ -346,6 +392,7 @@
   <div class="whoami" id="whoamiBox" style="display:none;position:relative;">
     <span id="ufBox"></span>
     <span id="dolarBox"></span>
+    <span id="notifBox"></span>
     <span id="roleBadge"></span>
     <button class="switch-btn" onclick="goToGate()">Cambiar usuario</button>
   </div>
@@ -817,6 +864,7 @@ function goToGate(){
   activeFolder = 'todos';
   activeTab = 'inicio';
   tablePage = 1;
+  notifPanelOpen = false;
   // Cerrar sesión también olvida el dispositivo: si alguien marcó "mantener
   // la sesión iniciada" pero después cierra sesión a propósito (p.ej. en un
   // computador compartido), no debe quedar reingresando solo al recargar.
@@ -935,6 +983,7 @@ function showWhoami(){
     : `<span class="role-badge encargado">${escapeHtml(currentUser.name)} · ${escapeHtml(currentUser.rol)}</span>`;
   renderUFBadge();
   renderDolarBadge();
+  renderNotifBell();
 }
 
 /* ---------------- MAIN APP ---------------- */
@@ -951,6 +1000,7 @@ function renderApp(){
   if(activeTab === 'requerimientos' && document.getElementById('reqTipo')){
     onReqTipoChange();
   }
+  renderNotifBell();
 }
 
 function clientsFor(encargadoId){
@@ -2373,6 +2423,84 @@ async function marcarRequerimientosLeidos(){
   });
   if(cambio) await saveRequerimientos();
 }
+
+/* ---------------- Campana de notificaciones ---------------- */
+// Reutiliza esNoLeidoParaMi(): un requerimiento recién dirigido a
+// currentUser y que todavía no marcó como leído es, ni más ni menos, una
+// notificación pendiente. No hay una colección separada que mantener en
+// sync — se deriva de state.requerimientos en cada render.
+let notifPanelOpen = false;
+
+function misNotificacionesRequerimientos(){
+  return state.requerimientos
+    .filter(esNoLeidoParaMi)
+    .sort((a,b) => (b.fechaCreacion||'').localeCompare(a.fechaCreacion||''));
+}
+
+function inicialesUsuario(nombre){
+  if(!nombre) return '?';
+  const partes = nombre.trim().split(/\s+/);
+  return ((partes[0]||'')[0] + (partes[1]?partes[1][0]:'')).toUpperCase();
+}
+
+function toggleNotifPanel(){
+  notifPanelOpen = !notifPanelOpen;
+  renderNotifBell();
+}
+
+function cerrarNotifPanel(){
+  if(notifPanelOpen){ notifPanelOpen = false; renderNotifBell(); }
+}
+
+// Al abrir una notificación se va a Requerimientos, que ya marca todo lo
+// dirigido a mí como leído (ver setTab) — mismo efecto de "abrir y que se
+// limpien las notificaciones" que se espera de una campana tipo Facebook.
+function irANotificacion(){
+  notifPanelOpen = false;
+  setTab('requerimientos');
+}
+
+function renderNotifBell(){
+  const box = document.getElementById('notifBox');
+  if(!box || !currentUser) return;
+  const notifs = misNotificacionesRequerimientos();
+  const count = notifs.length;
+  box.innerHTML = `
+    <div class="notif-wrap" id="notifWrap">
+      <button class="notif-bell" onclick="toggleNotifPanel()" title="Notificaciones" aria-label="Notificaciones">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        ${count > 0 ? `<span class="notif-badge">${count > 9 ? '9+' : count}</span>` : ''}
+      </button>
+      ${notifPanelOpen ? `
+        <div class="notif-panel">
+          <div class="notif-panel-head">Notificaciones</div>
+          ${notifs.length ? notifs.map(r => `
+            <div class="notif-item" onclick="irANotificacion()">
+              <div class="notif-avatar">${escapeHtml(inicialesUsuario(nombreCreador(r)))}</div>
+              <div style="flex:1;">
+                <div class="notif-text"><b>${escapeHtml(nombreCreador(r) || 'Alguien')}</b> te asignó un requerimiento solicitado: <b>${escapeHtml(r.tipo)}</b></div>
+                <div class="notif-time">${escapeHtml(r.fechaCreacion || '')}</div>
+              </div>
+              <div class="notif-dot"></div>
+            </div>
+          `).join('') : `<div class="notif-empty">No tienes notificaciones nuevas.</div>`}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Clic afuera del panel = se cierra (comportamiento estándar de dropdown
+// de notificaciones). El clic sobre la campana en sí queda adentro de
+// #notifWrap, así que no interfiere con toggleNotifPanel().
+document.addEventListener('click', (ev) => {
+  if(!notifPanelOpen) return;
+  const wrap = document.getElementById('notifWrap');
+  if(wrap && !wrap.contains(ev.target)) cerrarNotifPanel();
+});
 
 function nombreCreador(r){
   if(!r.creadoPor) return '';
