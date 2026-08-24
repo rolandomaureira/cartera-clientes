@@ -4484,7 +4484,7 @@ function configuracionContent(){
     <div class="main-head">
       <div>
         <h2 class="display">Configuración</h2>
-        <div class="meta">${state.usuarios.length} usuario${state.usuarios.length===1?'':'s'} · crea perfiles nuevos y asígnales un rol</div>
+        <div class="meta">${state.usuarios.length} usuario${state.usuarios.length===1?'':'s'} · crea perfiles nuevos, asígnales un rol y modifica los existentes</div>
       </div>
     </div>
 
@@ -4493,10 +4493,21 @@ function configuracionContent(){
       <tbody>
         ${usuariosOrdenados.map(u => `
           <tr>
-            <td class="client-name">${escapeHtml(u.name)}</td>
+            <td><input type="text" value="${escapeAttr(u.name)}" onchange="actualizarPerfilNombre('${u.id}', this.value)" style="min-width:160px;"></td>
             <td class="mono">${escapeHtml(u.usuario||'—')}</td>
-            <td><span class="role-badge ${esRolAdmin(u.rol)?'admin':'encargado'}">${escapeHtml(u.rol)}</span></td>
-            <td>${escapeHtml(u.sucursal||'—')}</td>
+            <td>
+              <select onchange="actualizarPerfilRol('${u.id}', this.value)">
+                ${ROLES_DISPONIBLES.map(r=>`<option value="${r}" ${u.rol===r?'selected':''}>${escapeHtml(r)}</option>`).join('')}
+              </select>
+            </td>
+            <td>
+              ${(esRolAdmin(u.rol) || esRolContabilidad(u.rol))
+                ? '<span class="mono" style="color:#8a8879;">Ambas</span>'
+                : `<select onchange="actualizarPerfilSucursal('${u.id}', this.value)">
+                     <option value="Concepcion" ${u.sucursal==='Concepcion'?'selected':''}>Concepción</option>
+                     <option value="Temuco" ${u.sucursal==='Temuco'?'selected':''}>Temuco</option>
+                   </select>`}
+            </td>
           </tr>
         `).join('')}
       </tbody>
@@ -4694,6 +4705,58 @@ async function addUsuario(){
   nameInput.value = '';
   renderApp();
   alert(`Acceso creado para ${name} (${rol} · ${sucursal}):\n\nUsuario: ${usuarioLogin}\nClave: ${pass}\n\nCompártelos por un canal seguro. No se mostrarán de nuevo.`);
+}
+
+/* ---- Edición de perfiles desde "Configuración" (Contabilidad) ---- */
+// No toca usuario (login) ni clave — eso sigue siendo exclusivo de
+// "Usuarios y Roles" (Administrador). Solo nombre, rol y sucursal.
+
+async function actualizarPerfilNombre(id, nombre){
+  const nombreLimpio = nombre.trim();
+  if(!nombreLimpio) return showToast('El nombre no puede quedar vacío.');
+  const u = state.usuarios.find(u => u.id === id);
+  if(!u) return;
+  u.name = nombreLimpio;
+  await saveUsuarios();
+  renderApp();
+  showToast('Nombre actualizado.');
+}
+
+async function actualizarPerfilRol(id, rol){
+  const u = state.usuarios.find(u => u.id === id);
+  if(!u) return;
+  // Mismo resguardo que removeUsuario(): no dejar el sistema sin ningún
+  // Administrador al cambiarle el rol al último que queda.
+  if(esRolAdmin(u.rol) && !esRolAdmin(rol)){
+    const quedanAdmins = state.usuarios.filter(x => x.id !== id && esRolAdmin(x.rol)).length;
+    if(quedanAdmins === 0){
+      alert('No puedes cambiarle el rol a este usuario: quedaría el sistema sin ningún Administrador.');
+      renderApp(); // revierte el <select> a su valor real (el clic ya cambió lo que se ve)
+      return;
+    }
+  }
+  u.rol = rol;
+  // Misma regla que al crear: Administrador y Contabilidad ven ambas
+  // sucursales; si se le quita ese rol, vuelve a necesitar una sucursal
+  // concreta (queda en Concepción por defecto, editable abajo).
+  if(esRolAdmin(rol) || esRolContabilidad(rol)){
+    u.sucursal = 'Ambas';
+  }else if(u.sucursal === 'Ambas'){
+    u.sucursal = 'Concepcion';
+  }
+  if(esRolAsistente(rol) && !u.carterasVisibles) u.carterasVisibles = [];
+  await saveUsuarios();
+  renderApp();
+  showToast('Rol actualizado.');
+}
+
+async function actualizarPerfilSucursal(id, sucursal){
+  const u = state.usuarios.find(u => u.id === id);
+  if(!u || esRolAdmin(u.rol) || esRolContabilidad(u.rol)) return;
+  u.sucursal = sucursal;
+  await saveUsuarios();
+  renderApp();
+  showToast('Sucursal actualizada.');
 }
 
 async function agregarCarteraVisible(usuarioId){
