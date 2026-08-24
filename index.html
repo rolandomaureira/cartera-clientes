@@ -1032,6 +1032,7 @@ function sectionNav(){
       ${puedeVerTodasLasCarteras(currentUser) ? item('trabajos-especiales', 'Trabajos Especiales') : ''}
       ${esRolContabilidad(currentUser.rol) ? item('reporte-semanal', 'Reporte Semanal') : ''}
       ${esRolContabilidad(currentUser.rol) ? item('derivar-cartera', 'Derivar Cartera') : ''}
+      ${esRolContabilidad(currentUser.rol) ? item('configuracion', 'Configuración') : ''}
     `;
   }
   return `
@@ -1221,6 +1222,8 @@ function contabilidadLayout(){
           ? reporteSemanalContent()
           : activeTab === 'derivar-cartera'
           ? derivarCarteraTabContent()
+          : activeTab === 'configuracion'
+          ? configuracionContent()
           : adminMainContent(unassigned)}
       </div>
     </div>
@@ -4466,6 +4469,53 @@ function actividadContent(){
         `).join('') : '<tr><td colspan="3" style="color:#8a8879;">Todavía no hay actividad registrada.</td></tr>'}
       </tbody>
     </table>
+  `;
+}
+
+// Sección "Configuración" exclusiva del rol Contabilidad: a diferencia de
+// "Usuarios y Roles" (solo Administrador), acá solo se puede ver la lista
+// de usuarios y crear perfiles nuevos con su rol — no cambiar claves,
+// eliminar usuarios ni tocar accesos a cartera de Asistentes. Reutiliza
+// addUsuario() tal cual (no tiene guardia de isAdmin), incluida la
+// posibilidad de asignar el rol Administrador.
+function configuracionContent(){
+  const usuariosOrdenados = [...state.usuarios].sort((a,b) => a.name.localeCompare(b.name, 'es'));
+  return `
+    <div class="main-head">
+      <div>
+        <h2 class="display">Configuración</h2>
+        <div class="meta">${state.usuarios.length} usuario${state.usuarios.length===1?'':'s'} · crea perfiles nuevos y asígnales un rol</div>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Sucursal</th></tr></thead>
+      <tbody>
+        ${usuariosOrdenados.map(u => `
+          <tr>
+            <td class="client-name">${escapeHtml(u.name)}</td>
+            <td class="mono">${escapeHtml(u.usuario||'—')}</td>
+            <td><span class="role-badge ${esRolAdmin(u.rol)?'admin':'encargado'}">${escapeHtml(u.rol)}</span></td>
+            <td>${escapeHtml(u.sucursal||'—')}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    <div class="manage-section">
+      <h3 class="display">Crear nuevo perfil</h3>
+      <div class="form-inline" style="max-width:520px;">
+        <input type="text" id="newUserName" placeholder="Nombre completo">
+        <select id="newUserRol">
+          ${ROLES_DISPONIBLES.map(r=>`<option value="${r}">${escapeHtml(r)}</option>`).join('')}
+        </select>
+        <select id="newUserSucursal">
+          <option value="Concepcion">Concepción</option>
+          <option value="Temuco">Temuco</option>
+        </select>
+        <button class="btn" onclick="addUsuario()">Crear (genera clave)</button>
+      </div>
+    </div>
   `;
 }
 
