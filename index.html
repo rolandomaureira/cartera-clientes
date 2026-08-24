@@ -1345,7 +1345,7 @@ function currentFolderLabel(){
 }
 
 function adminMainContent(unassigned){
-  const list = currentList(unassigned);
+  const list = ordenarPorGrupo(currentList(unassigned));
   const q = (searchQuery||'').trim().toLowerCase();
   const { pageItems, totalPages, page } = paginate(list, tablePage);
   // Solo el Administrador da de alta/baja clientes. El rol Contabilidad (que
@@ -2205,6 +2205,44 @@ function clientMeta(c){
   return parts.length ? `<div class="client-notes">${parts.join(' · ')}</div>` : '';
 }
 
+// Ordena por grupo (alfabético, "" al final) y por nombre dentro de cada
+// grupo, para que al paginar los clientes de un mismo grupo queden juntos
+// (ver filasConEncabezadoDeGrupo). Solo se usa en la vista "Cartera de
+// Clientes" — el resto de las tablas (F-29, Renta, Facturación, Tareas)
+// no se tocan.
+function ordenarPorGrupo(list){
+  return [...list].sort((a, b) => {
+    const ga = a.grupo || '';
+    const gb = b.grupo || '';
+    if(ga !== gb){
+      if(!ga) return 1;
+      if(!gb) return -1;
+      return ga.localeCompare(gb, 'es');
+    }
+    return (a.name||'').localeCompare(b.name||'', 'es');
+  });
+}
+
+// Inserta una fila de encabezado cada vez que cambia c.grupo dentro de la
+// lista ya ordenada (ver ordenarPorGrupo). Si en esta página/lista solo hay
+// un grupo (o ninguno), no vale la pena mostrar el encabezado — se pinta
+// plano, igual que antes de que existiera esta función.
+function filasConEncabezadoDeGrupo(list, renderFila){
+  const distintos = new Set(list.map(c => c.grupo || ''));
+  if(distintos.size <= 1) return list.map(renderFila).join('');
+  let filas = '';
+  let grupoAnterior;
+  list.forEach(c => {
+    const grupo = c.grupo || '';
+    if(grupo !== grupoAnterior){
+      grupoAnterior = grupo;
+      filas += `<tr><td colspan="99" style="background:var(--paper-2);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;padding:8px 16px;color:#6b6a5f;border-top:2px solid var(--line);">${grupo ? escapeHtml(grupo) : 'Sin grupo'}</td></tr>`;
+    }
+    filas += renderFila(c);
+  });
+  return filas;
+}
+
 function clientTable(list, permitirEliminar){
   if(permitirEliminar === undefined) permitirEliminar = true; // por defecto, comportamiento admin sin cambios
   return `
@@ -2213,7 +2251,7 @@ function clientTable(list, permitirEliminar){
         <th>Cliente</th><th>Rut</th><th>Clave</th><th>Encargado</th><th></th>
       </tr></thead>
       <tbody>
-        ${list.map(c => `
+        ${filasConEncabezadoDeGrupo(list, c => `
           <tr>
             <td><div class="client-name client-clickable" onclick="openClientDetail('${c.id}')">${escapeHtml(c.name)}</div>${clientMeta(c)}</td>
             <td class="mono">${escapeHtml(c.rut||'—')}</td>
@@ -2228,7 +2266,7 @@ function clientTable(list, permitirEliminar){
               ${permitirEliminar ? `<button class="btn danger small" onclick="removeClient('${c.id}')">Eliminar</button>` : ''}
             </td>
           </tr>
-        `).join('')}
+        `)}
       </tbody>
     </table>
   `;
@@ -4816,7 +4854,7 @@ function encargadoLayout(){
   const baseList = verTodo ? state.clientes : state.clientes.filter(c => misCarteras.includes(c.encargadoId));
   const q = (searchQuery||'').trim().toLowerCase();
   const filtered = q ? baseList.filter(c => (c.name||'').toLowerCase().includes(q) || (c.rut||'').toLowerCase().includes(q)) : baseList;
-  const { pageItems, totalPages, page } = paginate(filtered, tablePage);
+  const { pageItems, totalPages, page } = paginate(ordenarPorGrupo(filtered), tablePage);
 
   const content = activeTab === 'inicio' ? inicioContent()
     : activeTab === 'requerimientos' ? requerimientosContent()
@@ -4859,13 +4897,13 @@ function clientTableReadonly(list){
     <table>
       <thead><tr><th>Cliente</th><th>Rut</th><th>Clave</th></tr></thead>
       <tbody>
-        ${list.map(c => `
+        ${filasConEncabezadoDeGrupo(list, c => `
           <tr>
             <td><div class="client-name client-clickable" onclick="openClientDetail('${c.id}')">${escapeHtml(c.name)}</div>${clientMeta(c)}</td>
             <td class="mono">${escapeHtml(c.rut||'—')}</td>
             <td class="mono">${escapeHtml(c.clave||'—')}</td>
           </tr>
-        `).join('')}
+        `)}
       </tbody>
     </table>
   `;
