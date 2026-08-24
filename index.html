@@ -272,6 +272,7 @@
     border-width:1px;padding:6px 10px;
   }
   select.f29-pending{background:#F7ECD9;border-color:#D9B36C;color:#7A5A19;}
+  select.f29-guardado{background:#E8EDFC;border-color:#3E6FF0;color:#2748A8;}
   select.f29-ok{background:#E1EFE9;border-color:var(--teal);color:var(--teal-dark);}
 
   /* Onboarding form */
@@ -1458,6 +1459,7 @@ function f29BulkBar(){
     <div id="f29BulkBar" style="display:${f29Selected.size?'flex':'none'};align-items:center;gap:10px;background:var(--paper-2);border:1px solid var(--line);padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;">
       <span><span id="f29SelCount">${f29Selected.size}</span> seleccionado${f29Selected.size===1?'':'s'}</span>
       <button class="btn small" onclick="aplicarAccionMasivaF29('enviado')">Marcar como Enviado</button>
+      <button class="btn secondary small" onclick="aplicarAccionMasivaF29('guardado')">Marcar como Guardado</button>
       <button class="btn secondary small" onclick="aplicarAccionMasivaF29('no_enviado')">Marcar como No enviado</button>
       <button class="btn secondary small" onclick="f29Selected.clear(); renderApp();">Cancelar selección</button>
     </div>
@@ -1495,6 +1497,16 @@ async function aplicarAccionMasivaF29(estado){
   showToast('Estado actualizado en lote.');
 }
 
+// 'no_enviado' (pendiente) → 'guardado' (F-29 confeccionado/guardado, pero
+// todavía no se presenta al SII) → 'enviado'. "Guardado" sigue contando
+// como pendiente en los contadores de "sin enviar" (Inicio, nómina, etc.):
+// solo cambia lo que se ve en el selector de esta tabla.
+function f29ClassFor(estado){
+  if(estado === 'enviado') return 'f29-ok';
+  if(estado === 'guardado') return 'f29-guardado';
+  return 'f29-pending';
+}
+
 function f29Table(list, showEncargado){
   return `
     ${f29BulkBar()}
@@ -1513,8 +1525,9 @@ function f29Table(list, showEncargado){
             ${showEncargado ? `<td>${escapeHtml((state.usuarios.find(e=>e.id===c.encargadoId)||{}).name || "Sin asignar")}</td>` : ''}
             <td>${c.f29Requerido ? '<span class="role-badge admin" style="background:var(--gold);">En nómina</span>' : (c.f29CasoEspecialMes===mesActualISO() ? '<span class="role-badge encargado">Caso especial</span>' : '')}</td>
             <td>
-              <select class="f29-select ${c.f29Estado==='enviado'?'f29-ok':'f29-pending'}" onchange="this.className = 'f29-select ' + (this.value==='enviado'?'f29-ok':'f29-pending'); setF29Status('${c.id}', this.value)">
-                <option value="no_enviado" ${c.f29Estado!=='enviado'?'selected':''}>No enviado</option>
+              <select class="f29-select ${f29ClassFor(c.f29Estado)}" onchange="this.className = 'f29-select ' + f29ClassFor(this.value); setF29Status('${c.id}', this.value)">
+                <option value="no_enviado" ${c.f29Estado!=='enviado' && c.f29Estado!=='guardado'?'selected':''}>No enviado</option>
+                <option value="guardado" ${c.f29Estado==='guardado'?'selected':''}>Guardado</option>
                 <option value="enviado" ${c.f29Estado==='enviado'?'selected':''}>Enviado</option>
               </select>
             </td>
