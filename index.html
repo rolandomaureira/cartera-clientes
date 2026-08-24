@@ -3567,9 +3567,13 @@ function dashboardContent(){
   const total = clientes.length;
   const porSucursal = { Concepcion: clientes.filter(c=>c.sucursal==='Concepcion').length, Temuco: clientes.filter(c=>c.sucursal==='Temuco').length };
 
+  // F-29: ahora son 3 estados (ver "Guardado", agregado en Confección Iva) —
+  // el dashboard ya no puede resumir solo con un % de enviados.
   const nomina = clientes.filter(c => c.f29Requerido || c.f29CasoEspecialMes === mesActualISO());
-  const enviados = nomina.filter(c => c.f29Estado === 'enviado').length;
-  const pctEnviado = nomina.length ? Math.round((enviados/nomina.length)*100) : 0;
+  const f29Enviados = nomina.filter(c => c.f29Estado === 'enviado').length;
+  const f29Guardados = nomina.filter(c => c.f29Estado === 'guardado').length;
+  const f29Pendientes = nomina.length - f29Enviados - f29Guardados;
+  const pctEnviado = nomina.length ? Math.round((f29Enviados/nomina.length)*100) : 0;
 
   const conValor = clientes.filter(c => typeof c.valorServicioMensual === 'number' && c.valorServicioMensual > 0);
   const sumaUFMensual = conValor.reduce((s,c) => s + c.valorServicioMensual, 0);
@@ -3581,6 +3585,20 @@ function dashboardContent(){
     const delAnio = (c.serviciosExtraordinarios||[]).filter(se => (se.fecha||'').startsWith(anioActual));
     return s + delAnio.reduce((s2,se) => s2 + (se.montoUF||0), 0);
   }, 0);
+
+  // Requerimientos y Archivos: firma completa de todo lo que se ha ido
+  // agregando a la app (notificaciones, archivos permanentes/temporales),
+  // resumido acá para que el Administrador tenga panorama sin entrar a
+  // cada sección por separado.
+  const reqPendientes = state.requerimientos.filter(r => r.estado !== 'Resuelto');
+  const hoyISO = todayISO();
+  const reqVencidos = reqPendientes.filter(r => r.fechaRespuesta && r.fechaRespuesta < hoyISO);
+
+  let totalArchivos = 0, archivosVencidos = 0;
+  clientes.forEach(c => (c.archivos||[]).forEach(a => {
+    totalArchivos++;
+    if(a.tipo === 'temporal' && a.fechaVencimiento && a.fechaVencimiento < hoyISO) archivosVencidos++;
+  }));
 
   const regimenCounts = {};
   clientes.forEach(c => {
@@ -3596,10 +3614,22 @@ function dashboardContent(){
     .sort((a,b)=>b.n-a.n);
   const maxEncargado = Math.max(1, ...porEncargado.map(({n})=>n));
 
+  // Clientes por grupo (columna "Grupo" de la restructuración de carteras,
+  // ej. Concepción 2026): agrupa empresas relacionadas. Se omite el "Sin
+  // grupo" del ranking — con cientos de clientes sin ese dato todavía, una
+  // barra gigante ahí no aporta nada — y solo se muestra el panel si hay
+  // al menos un grupo cargado.
+  const grupoCounts = {};
+  clientes.forEach(c => { if(c.grupo) grupoCounts[c.grupo] = (grupoCounts[c.grupo]||0) + 1; });
+  const grupoOrdenado = Object.entries(grupoCounts).sort((a,b)=>b[1]-a[1]).slice(0, 12);
+  const maxGrupo = Math.max(1, ...grupoOrdenado.map(([,n])=>n));
+  const clientesConGrupo = clientes.filter(c => c.grupo).length;
+
   const sinRegimen = clientes.filter(c => !c.regimenTributario).length;
   const sinRepresentante = clientes.filter(c => !c.representanteLegal).length;
   const sinActividad = clientes.filter(c => !c.actividadEconomica && !c.codigoActividadEconomica).length;
   const sinValor = total - conValor.length;
+  const sinGrupo = total - clientesConGrupo;
 
   const card = (label, value, sub) => `
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
@@ -3616,10 +3646,13 @@ function dashboardContent(){
 
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         ${card('Total clientes', total, `Concepción ${porSucursal.Concepcion} · Temuco ${porSucursal.Temuco}`)}
-        ${card('Nómina IVA vigente', nomina.length, `${enviados} enviados (${pctEnviado}%)`)}
-        ${card('Sin valor mensual cargado', sinValor, sinValor ? 'Dato clave para el flujo' : 'Todos con valor cargado')}
+        ${card('Nómina IVA vigente', nomina.length, `${f29Enviados} enviados · ${f29Guardados} guardados · ${f29Pendientes} pendientes (${pctEnviado}% enviado)`)}
         ${card('Cartera mensual (UF)', `${sumaUFMensual.toLocaleString('es-CL', {minimumFractionDigits:1, maximumFractionDigits:1})} UF`, `Concepción ${sumaUFConcepcion.toFixed(1)} UF · Temuco ${sumaUFTemuco.toFixed(1)} UF`)}
         ${card(`Servicios extraordinarios ${anioActual}`, `${extraordinariosUF.toFixed(1)} UF`, 'Trabajos puntuales (fuera del mensual)')}
+        ${card('Requerimientos pendientes', reqPendientes.length, reqVencidos.length ? `${reqVencidos.length} vencidos` : 'Ninguno vencido')}
+        ${card('Archivos cargados', totalArchivos, archivosVencidos ? `${archivosVencidos} temporales vencidos` : 'Sin temporales vencidos')}
+        ${card('Sin valor mensual cargado', sinValor, sinValor ? 'Dato clave para el flujo' : 'Todos con valor cargado')}
+        ${card('Sin grupo asignado', sinGrupo, clientesConGrupo ? `${clientesConGrupo} con grupo cargado` : 'Ningún cliente con grupo todavía')}
       </div>
 
       ${dashboardFlujoUF(sumaUFMensual)}
@@ -3644,6 +3677,21 @@ function dashboardContent(){
           `).join('')}
         </div>
       </div>
+
+      ${grupoOrdenado.length ? `
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+        <h3 class="text-sm font-bold text-gray-700 mb-1">Clientes por grupo</h3>
+        <p class="text-xs text-gray-400 mb-4">Top ${grupoOrdenado.length} grupos con más empresas (columna "Grupo" de la restructuración de carteras).</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+          ${grupoOrdenado.map(([g,n]) => `
+            <div class="mb-3">
+              <div class="flex justify-between text-xs text-gray-600 mb-1"><span>${escapeHtml(g)}</span><span>${n}</span></div>
+              <div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-purple-500 h-2 rounded-full" style="width:${(n/maxGrupo)*100}%"></div></div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      ` : ''}
 
       <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
         <h3 class="text-sm font-bold text-gray-700 mb-4">Completitud de datos</h3>
