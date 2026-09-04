@@ -3509,15 +3509,50 @@ async function submitRequerimiento(){
 
   if(!dirigidoA.length){ showToast('Selecciona al menos una persona en "Dirigido a".'); return; }
 
-  state.requerimientos.push({
+  const nuevoReq = {
     id: uid('r'),
     tipo, fechaCreacion, dirigidoA, fechaRespuesta, estado, descripcion,
     creadoPor: currentUser.id
-  });
+  };
+  state.requerimientos.push(nuevoReq);
   document.getElementById('reqDescripcion').value = '';
   await saveRequerimientos();
+  enviarNotificacionCorreoRequerimiento(nuevoReq); // no bloqueante: si falla el correo, el requerimiento ya quedó guardado igual
   showToast('Requerimiento creado.');
   renderApp();
+}
+
+// Aviso "en vivo" fuera de la app: el polling (sondearRequerimientosNuevos)
+// solo avisa a quien ya tiene la página abierta. Para que también le llegue
+// a alguien que no está navegando en ese momento, se manda un correo — el
+// backend lo hace con MailApp (accion 'notificarRequerimiento' en Code.gs).
+// Solo se les avisa a quienes tengan correo cargado (ver "Correo" en
+// Usuarios y Roles / Configuración); si nadie lo tiene, no se manda nada.
+async function enviarNotificacionCorreoRequerimiento(r){
+  if(!BACKEND_URL) return;
+  const destinatarios = dirigidoAIds(r)
+    .map(id => state.usuarios.find(u => u.id === id))
+    .filter(u => u && u.email)
+    .map(u => ({ email: u.email, nombre: u.name }));
+  if(!destinatarios.length) return;
+  try{
+    await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        accion: 'notificarRequerimiento',
+        token: API_TOKEN,
+        destinatarios,
+        creadorNombre: currentUser.name,
+        tipo: r.tipo,
+        descripcion: r.descripcion,
+        fechaRespuesta: r.fechaRespuesta,
+        urlApp: location.origin + location.pathname,
+      })
+    });
+  }catch(e){
+    console.error('No se pudo enviar el correo de aviso del requerimiento:', e);
+  }
 }
 
 async function updateRequerimientoEstado(id, estado){
@@ -4707,7 +4742,7 @@ function configuracionContent(){
     </div>
 
     <table>
-      <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Sucursal</th></tr></thead>
+      <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Sucursal</th><th>Correo</th></tr></thead>
       <tbody>
         ${usuariosOrdenados.map(u => `
           <tr>
@@ -4726,6 +4761,7 @@ function configuracionContent(){
                      <option value="Temuco" ${u.sucursal==='Temuco'?'selected':''}>Temuco</option>
                    </select>`}
             </td>
+            <td><input type="email" value="${escapeAttr(u.email||'')}" placeholder="Para avisos" onchange="actualizarPerfilEmail('${u.id}', this.value)" style="min-width:180px;"></td>
           </tr>
         `).join('')}
       </tbody>
@@ -4735,6 +4771,7 @@ function configuracionContent(){
       <h3 class="display">Crear nuevo perfil</h3>
       <div class="form-inline" style="max-width:520px;">
         <input type="text" id="newUserName" placeholder="Nombre completo">
+        <input type="email" id="newUserEmail" placeholder="Correo (opcional, para avisos)">
         <select id="newUserRol">
           ${ROLES_DISPONIBLES.map(r=>`<option value="${r}">${escapeHtml(r)}</option>`).join('')}
         </select>
@@ -4765,7 +4802,7 @@ function usuariosContent(){
     </div>
 
     <table>
-      <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Sucursal</th><th></th></tr></thead>
+      <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Sucursal</th><th>Correo</th><th></th></tr></thead>
       <tbody>
         ${usuariosOrdenados.map(u => `
           <tr>
@@ -4773,7 +4810,9 @@ function usuariosContent(){
             <td class="mono">${escapeHtml(u.usuario||'—')}</td>
             <td><span class="role-badge ${esRolAdmin(u.rol)?'admin':'encargado'}">${escapeHtml(u.rol)}</span></td>
             <td>${escapeHtml(u.sucursal||'—')}</td>
+            <td style="font-size:12px;color:${u.email?'inherit':'#8a8879'};">${escapeHtml(u.email||'Sin correo')}</td>
             <td class="row-actions">
+              <button class="btn secondary small" onclick="editarEmail('${u.id}','${escapeHtml(u.name)}')">${u.email?'Editar correo':'Agregar correo'}</button>
               <button class="btn secondary small" onclick="changePassword('${u.id}','${escapeHtml(u.name)}')">Cambiar clave</button>
               <button class="btn danger small" onclick="removeUsuario('${u.id}')">Eliminar</button>
             </td>
@@ -4815,6 +4854,7 @@ function usuariosContent(){
       <h3 class="display">Crear nuevo usuario</h3>
       <div class="form-inline" style="max-width:520px;">
         <input type="text" id="newUserName" placeholder="Nombre completo">
+        <input type="email" id="newUserEmail" placeholder="Correo (opcional, para avisos)">
         <select id="newUserRol">
           ${ROLES_DISPONIBLES.map(r=>`<option value="${r}">${escapeHtml(r)}</option>`).join('')}
         </select>
@@ -4845,6 +4885,21 @@ async function changePassword(id, label){
   creds.usuarios[id] = hash;
   await saveCreds();
   alert(`Clave actualizada para ${label}:\n\n${nueva}\n\nCompártela por un canal seguro. No se mostrará de nuevo.`);
+}
+
+// Correo usado para avisarle a la persona por email cuando le asignen un
+// requerimiento (ver enviarNotificacionCorreoRequerimiento). Opcional: si
+// queda vacío, esa persona simplemente no recibe el correo (sigue viendo el
+// aviso en vivo dentro de la app, ver sondearRequerimientosNuevos).
+async function editarEmail(id, label){
+  const u = state.usuarios.find(u => u.id === id);
+  if(!u) return;
+  const nuevo = prompt(`Correo para ${label} (se usa para avisarle por correo cuando le asignen un requerimiento):`, u.email || '');
+  if(nuevo === null) return;
+  u.email = nuevo.trim();
+  await saveUsuarios();
+  renderApp();
+  showToast('Correo actualizado.');
 }
 
 function setFolder(id){ flushPendingSaves(); searchDebouncer.cancel(); clearBulkSelections(); activeFolder = id; searchQuery=''; tablePage = 1; renderApp(); }
@@ -4897,9 +4952,11 @@ function generarUsuarioLogin(nombre){
 
 async function addUsuario(){
   const nameInput = document.getElementById('newUserName');
+  const emailInput = document.getElementById('newUserEmail');
   const rolSelect = document.getElementById('newUserRol');
   const sucursalSelect = document.getElementById('newUserSucursal');
   const name = nameInput.value.trim();
+  const email = emailInput ? emailInput.value.trim() : '';
   const rol = rolSelect.value;
   // Administrador y Contabilidad ven ambas sucursales; el resto queda en la
   // sucursal que se elija en el formulario.
@@ -4909,7 +4966,7 @@ async function addUsuario(){
   const pass = generatePassword();
   const hash = await sha256(pass);
   const usuarioLogin = generarUsuarioLogin(name);
-  const nuevoUsuario = { id, name, rol, usuario: usuarioLogin, sucursal };
+  const nuevoUsuario = { id, name, rol, usuario: usuarioLogin, sucursal, email };
   // Un Asistente nuevo arranca sin cartera asignada; el administrador le
   // otorga acceso manualmente desde "Accesos a cartera" más abajo.
   if(esRolAsistente(rol)){
@@ -4938,6 +4995,15 @@ async function actualizarPerfilNombre(id, nombre){
   await saveUsuarios();
   renderApp();
   showToast('Nombre actualizado.');
+}
+
+async function actualizarPerfilEmail(id, email){
+  const u = state.usuarios.find(u => u.id === id);
+  if(!u) return;
+  u.email = email.trim();
+  await saveUsuarios();
+  renderApp();
+  showToast('Correo actualizado.');
 }
 
 async function actualizarPerfilRol(id, rol){
