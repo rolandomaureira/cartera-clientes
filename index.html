@@ -896,6 +896,7 @@ function goToGate(){
   flushPendingSaves();
   searchDebouncer.cancel();
   clearBulkSelections();
+  detenerPollingRequerimientos();
   currentUser = null;
   searchQuery = '';
   activeFolder = 'todos';
@@ -1008,6 +1009,7 @@ function enterAsUsuario(id){
   activeFolder = 'todos';
   showWhoami();
   renderApp();
+  iniciarPollingRequerimientos();
 }
 
 function showWhoami(){
@@ -2608,6 +2610,62 @@ function nombresDirigidoA(r){
   const nombres = dirigidoAIds(r).map(id => (state.usuarios.find(u=>u.id===id)||{}).name).filter(Boolean);
   return nombres.length ? nombres.join(', ') : 'Sin asignar';
 }
+
+/* ---------------- Notificaciones en vivo (polling) ---------------- */
+// El backend es Apps Script + Sheets, sin websockets ni push real. Para que
+// un requerimiento recién creado avise "en vivo" a quienes fue dirigido sin
+// que tengan que recargar la página, cada cierto tiempo se vuelve a pedir
+// SOLO la llave 'requerimientos' y se compara contra lo que ya había en
+// memoria por id: lo nuevo dirigido a currentUser dispara un toast y
+// refresca la campana. No reemplaza el resto de `state` ni interrumpe a
+// nadie que esté escribiendo en un formulario.
+const REQUERIMIENTOS_POLL_MS = 20000;
+let requerimientosPollTimer = null;
+
+function iniciarPollingRequerimientos(){
+  if(requerimientosPollTimer) return;
+  requerimientosPollTimer = setInterval(sondearRequerimientosNuevos, REQUERIMIENTOS_POLL_MS);
+}
+
+function detenerPollingRequerimientos(){
+  if(requerimientosPollTimer){ clearInterval(requerimientosPollTimer); requerimientosPollTimer = null; }
+}
+
+async function sondearRequerimientosNuevos(){
+  if(!currentUser || !BACKEND_URL) return;
+  const res = await kvGet('requerimientos');
+  if(!res) return;
+  let nuevos;
+  try{ nuevos = JSON.parse(res.value); }catch(e){ return; }
+  if(!Array.isArray(nuevos)) return;
+
+  const idsAntes = new Set(state.requerimientos.map(r => r.id));
+  const recienDirigidosAMi = nuevos.filter(r =>
+    !idsAntes.has(r.id) && esNoLeidoParaMi(r) && r.creadoPor !== currentUser.id
+  );
+
+  state.requerimientos = nuevos;
+  recienDirigidosAMi.forEach(r => {
+    showToast(`${nombreCreador(r) || 'Alguien'} te asignó un requerimiento: ${r.tipo}`);
+  });
+  renderNotifBell();
+
+  // Si ya estoy parado en Requerimientos, refresco la lista para que el
+  // nuevo aparezca sin recargar — salvo que tenga el foco en un campo del
+  // formulario de creación, para no borrarle a la persona lo que está
+  // escribiendo.
+  const enFormulario = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement && document.activeElement.tagName);
+  if(activeTab === 'requerimientos' && !enFormulario && recienDirigidosAMi.length){
+    renderApp();
+  }
+}
+
+// Los navegadores frenan los setInterval de pestañas en segundo plano; al
+// volver a primer plano se sondea de inmediato para no esperar hasta el
+// próximo tick.
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden && currentUser) sondearRequerimientosNuevos();
+});
 
 function puedeDerivarTax(r){
   return r.tipo === 'Impuestos (TAX)' && currentUser.name === 'Maria Fernanda Doyhamberry';
