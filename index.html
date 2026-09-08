@@ -129,6 +129,33 @@
   .notif-dot{width:8px;height:8px;border-radius:50%;background:var(--teal-dark);flex-shrink:0;margin-top:5px;}
   .notif-empty{padding:30px 16px;text-align:center;color:#8a8879;font-family:'IBM Plex Sans',sans-serif;font-size:13px;}
 
+  /* ---------- Color personal por cliente (solo Pablo Prieto y Sara Barriga) ---------- */
+  .color-swatch-wrap{position:relative;}
+  .color-swatch-btn{
+    width:26px;height:26px;border-radius:6px;
+    border:1px solid var(--line);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    padding:0;font-size:13px;background:var(--white);
+  }
+  .color-swatch-btn:hover{border-color:var(--teal-dark);}
+  .color-popover{
+    position:fixed;z-index:90;
+    background:var(--white);border:1px solid var(--line);
+    border-radius:8px;box-shadow:0 12px 32px rgba(22,27,34,0.22);
+    padding:12px;width:190px;text-align:left;
+  }
+  .color-popover .swatch-label{
+    font-family:'IBM Plex Sans',sans-serif;font-size:11px;text-transform:uppercase;
+    letter-spacing:0.4px;color:#8a8879;margin:8px 0 6px;
+  }
+  .color-popover .swatch-label:first-child{margin-top:0;}
+  .swatch-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+  .color-swatch-cell{
+    width:26px;height:26px;border-radius:4px;
+    border:1px solid rgba(22,27,34,0.15);cursor:pointer;padding:0;
+  }
+  .color-swatch-cell.selected{outline:2px solid var(--teal-dark);outline-offset:1px;}
+
   /* ---------- Gate screen ---------- */
   .gate{
     min-height:calc(100vh - 80px);
@@ -425,7 +452,8 @@ const PAGE_SIZE = 75;
 let f29Selected = new Set();      // ids de clientes marcados para acción masiva en F-29
 let facturaSelected = new Set();  // ids de clientes marcados para acción masiva en Facturación
 let rentaSelected = new Set();    // ids de clientes marcados para acción masiva en Declaración Renta
-function clearBulkSelections(){ f29Selected.clear(); facturaSelected.clear(); rentaSelected.clear(); }
+let clienteColorSelected = new Set(); // ids de clientes marcados para aplicar color "en conjunto" (ver puedeColorearClientes)
+function clearBulkSelections(){ f29Selected.clear(); facturaSelected.clear(); rentaSelected.clear(); clienteColorSelected.clear(); }
 
 // Sub-pestaña activa dentro de "Obligaciones Tributarias".
 let obligacionesSubTab = 'confeccion-iva';
@@ -2279,7 +2307,11 @@ async function quitarServicioExtra(clienteId, servicioId){
   renderModal();
 }
 
-function clientMeta(c){
+// colorTexto: cuando la fila tiene un color de fondo personal (ver
+// puedeColorearClientes), se pasa el color de letra ya calculado para
+// contraste — sin esto, el gris fijo de .client-notes podría volverse
+// ilegible sobre un fondo oscuro.
+function clientMeta(c, colorTexto){
   const parts = [];
   if(c.regimenTributario) parts.push(`Régimen: ${escapeHtml(c.regimenTributario)}`);
   if(c.representanteLegal) parts.push(`Rep. legal: ${escapeHtml(c.representanteLegal)}`);
@@ -2289,7 +2321,9 @@ function clientMeta(c){
   if(c.claveUnica && c.claveUnica.activo) parts.push('Clave Única');
   if(c.datosFacturacion && c.datosFacturacion.activo) parts.push('Factura');
   if(c.notas) parts.push(escapeHtml(c.notas));
-  return parts.length ? `<div class="client-notes">${parts.join(' · ')}</div>` : '';
+  if(!parts.length) return '';
+  const estilo = colorTexto ? ` style="color:${colorTexto};opacity:0.85;"` : '';
+  return `<div class="client-notes"${estilo}>${parts.join(' · ')}</div>`;
 }
 
 // Ordena por grupo (alfabético, "" al final) y por nombre dentro de cada
@@ -2381,6 +2415,145 @@ async function renombrarGrupo(grupoActual){
   await saveClientes();
   renderApp();
   showToast(`Grupo renombrado (${afectados.length} cliente${afectados.length===1?'':'s'}).`);
+}
+
+/* ---------------------------------------------------------------------
+ * Color personal por cliente — SOLO Pablo Prieto y Sara Barriga, cada uno
+ * con lo suyo (mismo patrón de gate por nombre que puedeDerivarTax()).
+ * Es una preferencia puramente visual, al estilo del relleno de celda de
+ * Excel: se guarda en localStorage del propio navegador, separado por id
+ * de usuario, y NUNCA se sube al backend compartido — así que jamás la ve
+ * el resto del equipo, ni siquiera si ambos usan el mismo computador.
+ * ------------------------------------------------------------------- */
+function puedeColorearClientes(u){
+  return !!u && (u.name === 'Pablo Prieto' || u.name === 'Sara Barriga');
+}
+
+// Mismos dos bloques que ofrece Excel al pintar celdas: "Colores del tema"
+// y "Colores estándar".
+const PALETA_COLORES_CLIENTE = {
+  tema: ['#FFFFFF','#000000','#E7E6E6','#44546A','#4472C4','#ED7D31','#A5A5A5','#FFC000','#5B9BD5','#70AD47'],
+  estandar: ['#C00000','#FF0000','#FFC000','#FFFF00','#92D050','#00B050','#00B0F0','#0070C0','#002060','#7030A0'],
+};
+
+function coloresClientesStorageKey(){
+  return 'bpo1_coloresClientes_' + currentUser.id;
+}
+
+function cargarColoresClientes(){
+  try{ return JSON.parse(localStorage.getItem(coloresClientesStorageKey()) || '{}'); }catch(e){ return {}; }
+}
+
+function guardarColoresClientes(mapa){
+  try{ localStorage.setItem(coloresClientesStorageKey(), JSON.stringify(mapa)); }catch(e){ /* localStorage no disponible (modo privado, cuota llena, etc.): se ignora sin bloquear la app */ }
+}
+
+// Negro (--ink) o el crema claro de la paleta (--white) como color de
+// letra, según cuál tenga mejor contraste contra el fondo elegido —
+// fórmula YIQ, de sobra para decidir claro/oscuro sin librerías externas.
+// Así la letra queda siempre legible sin importar qué color se elija.
+function colorTextoParaFondo(hex){
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex||'');
+  if(!m) return null;
+  const r = parseInt(m[1],16), g = parseInt(m[2],16), b = parseInt(m[3],16);
+  const yiq = (r*299 + g*587 + b*114) / 1000;
+  return yiq >= 140 ? 'var(--ink)' : 'var(--white)';
+}
+
+let colorPickerAbiertoPara = null; // id del cliente con el selector de color desplegado, o null
+let colorPickerPos = null; // {top, left} en px de viewport, calculado al abrir (ver toggleColorPicker)
+
+// La tabla tiene overflow:hidden (para las esquinas redondeadas), así que un
+// popover posicionado relativo a la celda quedaría recortado si la fila
+// está cerca del borde. Por eso se usa position:fixed con coordenadas
+// calculadas a partir del botón que se clickeó, en vez de depender de un
+// ancestro con position:relative.
+function toggleColorPicker(ev, clienteId){
+  // Sin stopPropagation, el mismo clic que abre el selector llega al
+  // listener de "clic afuera = cerrar" (más abajo) y lo cierra de inmediato
+  // — mismo problema, y misma solución, que ya resolvió toggleNotifPanel().
+  ev.stopPropagation();
+  if(colorPickerAbiertoPara === clienteId){
+    colorPickerAbiertoPara = null;
+    colorPickerPos = null;
+  }else{
+    const r = ev.currentTarget.getBoundingClientRect();
+    colorPickerPos = {
+      top: r.bottom + 6,
+      left: Math.min(r.left, window.innerWidth - 206), // 190px de ancho + margen, sin salirse por la derecha
+    };
+    colorPickerAbiertoPara = clienteId;
+  }
+  renderApp();
+}
+
+function aplicarColorCliente(clienteId, colorHex){
+  const mapa = cargarColoresClientes();
+  if(colorHex) mapa[clienteId] = colorHex; else delete mapa[clienteId];
+  guardarColoresClientes(mapa);
+  colorPickerAbiertoPara = null;
+  colorPickerPos = null;
+  renderApp();
+}
+
+function colorPickerHtml(clienteId, colorActual){
+  const pos = colorPickerPos || {top:0,left:0};
+  const celda = (hex) => `<button class="color-swatch-cell ${colorActual===hex?'selected':''}" style="background:${hex};" title="${hex}" onclick="event.stopPropagation(); aplicarColorCliente('${clienteId}', '${hex}')"></button>`;
+  return `
+    <div class="color-popover" style="top:${pos.top}px;left:${pos.left}px;" onclick="event.stopPropagation();">
+      <div class="swatch-label">Colores del tema</div>
+      <div class="swatch-grid">${PALETA_COLORES_CLIENTE.tema.map(celda).join('')}</div>
+      <div class="swatch-label">Colores estándar</div>
+      <div class="swatch-grid">${PALETA_COLORES_CLIENTE.estandar.map(celda).join('')}</div>
+      <button class="btn secondary small" style="width:100%;margin-top:10px;" onclick="event.stopPropagation(); aplicarColorCliente('${clienteId}', null)">Sin color</button>
+    </div>
+  `;
+}
+
+// Clic afuera del selector = se cierra (mismo comportamiento que la
+// campana de notificaciones).
+document.addEventListener('click', (ev) => {
+  if(colorPickerAbiertoPara === null) return;
+  const abierto = document.querySelector('.color-popover');
+  if(abierto && !abierto.contains(ev.target)){ colorPickerAbiertoPara = null; colorPickerPos = null; renderApp(); }
+});
+
+function onClienteColorCheckChange(id, checked){
+  if(checked) clienteColorSelected.add(id); else clienteColorSelected.delete(id);
+  renderApp();
+}
+
+function toggleSelectAllClienteColor(checked){
+  document.querySelectorAll('.cliente-color-check').forEach(cb => {
+    cb.checked = checked;
+    if(checked) clienteColorSelected.add(cb.dataset.id); else clienteColorSelected.delete(cb.dataset.id);
+  });
+  renderApp();
+}
+
+// Aplica (o quita, si colorHex es null) un mismo color a todos los
+// clientes marcados a la vez — la parte "en conjunto" del pedido.
+async function aplicarColorClientesSeleccionados(colorHex){
+  if(!clienteColorSelected.size) return;
+  const mapa = cargarColoresClientes();
+  clienteColorSelected.forEach(id => { if(colorHex) mapa[id] = colorHex; else delete mapa[id]; });
+  guardarColoresClientes(mapa);
+  clienteColorSelected.clear();
+  renderApp();
+  showToast('Color aplicado a los clientes seleccionados.');
+}
+
+function colorBulkBarHtml(){
+  if(!clienteColorSelected.size) return '';
+  const celda = (hex) => `<button class="color-swatch-cell" style="background:${hex};width:20px;height:20px;" title="${hex}" onclick="aplicarColorClientesSeleccionados('${hex}')"></button>`;
+  return `
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--paper-2);border:1px solid var(--line);padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;">
+      <span>${clienteColorSelected.size} seleccionado${clienteColorSelected.size===1?'':'s'}</span>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">${[...PALETA_COLORES_CLIENTE.tema, ...PALETA_COLORES_CLIENTE.estandar].map(celda).join('')}</div>
+      <button class="btn secondary small" onclick="aplicarColorClientesSeleccionados(null)">Quitar color</button>
+      <button class="btn secondary small" onclick="clienteColorSelected.clear(); renderApp();">Cancelar selección</button>
+    </div>
+  `;
 }
 
 function clientTable(list, permitirEliminar){
@@ -5327,18 +5500,34 @@ function encargadoLayout(){
 // (Administrador, TAX o Contabilidad — ver puedeVerTodasLasCarteras) que
 // llegan a esta tabla de solo lectura (Encargado y Asistente no la reciben).
 function clientTableReadonly(list, puedeEditarGrupo){
+  const puedeColor = puedeColorearClientes(currentUser);
+  const coloresMapa = puedeColor ? cargarColoresClientes() : {};
   return `
+    ${puedeColor ? colorBulkBarHtml() : ''}
     <table>
-      <thead><tr><th>Cliente</th><th>Rut</th><th>Clave</th>${puedeEditarGrupo ? '<th>Grupo</th>' : ''}</tr></thead>
+      <thead><tr>
+        ${puedeColor ? `<th style="width:34px;"><input type="checkbox" onchange="toggleSelectAllClienteColor(this.checked)" title="Seleccionar todos en esta página"></th>` : ''}
+        <th>Cliente</th><th>Rut</th><th>Clave</th>${puedeEditarGrupo ? '<th>Grupo</th>' : ''}${puedeColor ? '<th>Color</th>' : ''}
+      </tr></thead>
       <tbody>
-        ${filasConEncabezadoDeGrupo(list, c => `
-          <tr>
-            <td><div class="client-name client-clickable" onclick="openClientDetail('${c.id}')">${escapeHtml(c.name)}</div>${clientMeta(c)}</td>
+        ${filasConEncabezadoDeGrupo(list, c => {
+          const color = puedeColor ? coloresMapa[c.id] : null;
+          const colorTexto = color ? colorTextoParaFondo(color) : null;
+          const estiloFila = color ? ` style="background:${color};color:${colorTexto};"` : '';
+          return `
+          <tr${estiloFila}>
+            ${puedeColor ? `<td><input type="checkbox" class="cliente-color-check" data-id="${c.id}" ${clienteColorSelected.has(c.id)?'checked':''} onchange="onClienteColorCheckChange('${c.id}', this.checked)"></td>` : ''}
+            <td><div class="client-name client-clickable" onclick="openClientDetail('${c.id}')"${color?` style="color:${colorTexto};text-decoration-color:${colorTexto};"`:''}>${escapeHtml(c.name)}</div>${clientMeta(c, colorTexto)}</td>
             <td class="mono">${escapeHtml(c.rut||'—')}</td>
             <td class="mono">${escapeHtml(c.clave||'—')}</td>
             ${puedeEditarGrupo ? `<td>${grupoSelectHtml(c)}</td>` : ''}
+            ${puedeColor ? `<td class="color-swatch-wrap">
+              <button class="color-swatch-btn" style="background:${color||'var(--white)'};" title="Elegir color para este cliente" onclick="toggleColorPicker(event,'${c.id}')">${color?'':'🎨'}</button>
+              ${colorPickerAbiertoPara===c.id ? colorPickerHtml(c.id, color) : ''}
+            </td>` : ''}
           </tr>
-        `, puedeEditarGrupo)}
+        `;
+        }, puedeEditarGrupo)}
       </tbody>
     </table>
   `;
