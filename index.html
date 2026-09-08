@@ -1904,6 +1904,13 @@ function renderModal(){
               return `<select id="dt_encargado">${opciones.map(o=>`<option value="${o.id}" ${c.encargadoId===o.id?'selected':''}>${escapeHtml(o.name)}</option>`).join('')}</select>`;
             })()}
           </label>
+          ${puedeVerTodasLasCarteras(currentUser) ? `<label>Grupo
+            <select id="dt_grupo">
+              <option value="" ${!c.grupo?'selected':''}>Sin grupo</option>
+              ${gruposExistentes().map(g=>`<option value="${escapeAttr(g)}" ${c.grupo===g?'selected':''}>${escapeHtml(g)}</option>`).join('')}
+              <option value="__nuevo__">+ Nuevo grupo…</option>
+            </select>
+          </label>` : ''}
           ${isAdmin ? `<label>Valor servicio mensual (UF)
             <input type="number" id="dt_valor_mensual" placeholder="Ej: 5.5" min="0" step="0.1" value="${c.valorServicioMensual != null ? c.valorServicioMensual : ''}">
           </label>
@@ -2047,6 +2054,15 @@ async function saveClientDetail(id){
   const encSel = document.getElementById('dt_encargado');
   if(currentUser.isAdmin || (encSel && encSel.tagName === 'SELECT')){
     if(encSel) c.encargadoId = encSel.value || null;
+  }
+  const grupoSel = document.getElementById('dt_grupo');
+  if(grupoSel){
+    if(grupoSel.value === '__nuevo__'){
+      const nombre = prompt('Nombre del nuevo grupo:');
+      if(nombre && nombre.trim()) c.grupo = nombre.trim();
+    }else{
+      c.grupo = grupoSel.value || null;
+    }
   }
   const valorInput = document.getElementById('dt_valor_mensual');
   if(valorInput){
@@ -2297,8 +2313,11 @@ function ordenarPorGrupo(list){
 // Inserta una fila de encabezado cada vez que cambia c.grupo dentro de la
 // lista ya ordenada (ver ordenarPorGrupo). Si en esta página/lista solo hay
 // un grupo (o ninguno), no vale la pena mostrar el encabezado — se pinta
-// plano, igual que antes de que existiera esta función.
-function filasConEncabezadoDeGrupo(list, renderFila){
+// plano, igual que antes de que existiera esta función. Si puedeEditarGrupo
+// es true (Administrador, TAX o Contabilidad — ver puedeVerTodasLasCarteras),
+// el encabezado incluye un botón para renombrar el grupo completo de una
+// sola vez.
+function filasConEncabezadoDeGrupo(list, renderFila, puedeEditarGrupo){
   const distintos = new Set(list.map(c => c.grupo || ''));
   if(distintos.size <= 1) return list.map(renderFila).join('');
   let filas = '';
@@ -2307,11 +2326,61 @@ function filasConEncabezadoDeGrupo(list, renderFila){
     const grupo = c.grupo || '';
     if(grupo !== grupoAnterior){
       grupoAnterior = grupo;
-      filas += `<tr><td colspan="99" style="background:var(--paper-2);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;padding:8px 16px;color:#6b6a5f;border-top:2px solid var(--line);">${grupo ? escapeHtml(grupo) : 'Sin grupo'}</td></tr>`;
+      const etiqueta = grupo ? escapeHtml(grupo) : 'Sin grupo';
+      const renombrar = (puedeEditarGrupo && grupo) ? `<button onclick="renombrarGrupo('${escapeAttr(grupo)}')" style="margin-left:10px;font-size:11px;font-weight:600;text-transform:none;letter-spacing:normal;color:var(--teal-dark);background:none;border:none;cursor:pointer;text-decoration:underline;">Renombrar grupo</button>` : '';
+      filas += `<tr><td colspan="99" style="background:var(--paper-2);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;padding:8px 16px;color:#6b6a5f;border-top:2px solid var(--line);">${etiqueta}${renombrar}</td></tr>`;
     }
     filas += renderFila(c);
   });
   return filas;
+}
+
+// Nombres de grupo ya usados en toda la cartera (no solo la página o
+// sucursal actual), para ofrecerlos como opciones al asignar/reasignar y
+// evitar duplicados por variaciones de escritura ("Grupo A" vs "grupo a").
+function gruposExistentes(){
+  return [...new Set(state.clientes.map(c => (c.grupo||'').trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'es'));
+}
+
+// Selector reutilizable para asignar/reasignar el grupo de un cliente:
+// "Sin grupo", cada grupo ya existente, y una opción para crear uno nuevo.
+function grupoSelectHtml(c){
+  return `
+    <select onchange="cambiarGrupoCliente('${c.id}', this.value)">
+      <option value="" ${!c.grupo?'selected':''}>Sin grupo</option>
+      ${gruposExistentes().map(g => `<option value="${escapeAttr(g)}" ${c.grupo===g?'selected':''}>${escapeHtml(g)}</option>`).join('')}
+      <option value="__nuevo__">+ Nuevo grupo…</option>
+    </select>
+  `;
+}
+
+async function cambiarGrupoCliente(clienteId, valor){
+  const c = state.clientes.find(c => c.id === clienteId);
+  if(!c) return;
+  if(valor === '__nuevo__'){
+    const nombre = prompt('Nombre del nuevo grupo:');
+    if(!nombre || !nombre.trim()){ renderApp(); return; } // cancelado o vacío: se revierte el <select> al re-renderizar
+    c.grupo = nombre.trim();
+  }else{
+    c.grupo = valor || null;
+  }
+  await saveClientes();
+  renderApp();
+  showToast('Grupo actualizado.');
+}
+
+// Renombra un grupo completo: todos los clientes que hoy comparten
+// `grupoActual` pasan al nuevo nombre de una sola vez, sin tener que
+// editarlos cliente por cliente.
+async function renombrarGrupo(grupoActual){
+  const nuevo = prompt(`Nuevo nombre para el grupo "${grupoActual}":`, grupoActual);
+  if(!nuevo || !nuevo.trim() || nuevo.trim() === grupoActual) return;
+  const nuevoNombre = nuevo.trim();
+  const afectados = state.clientes.filter(c => (c.grupo||'') === grupoActual);
+  afectados.forEach(c => { c.grupo = nuevoNombre; });
+  await saveClientes();
+  renderApp();
+  showToast(`Grupo renombrado (${afectados.length} cliente${afectados.length===1?'':'s'}).`);
 }
 
 function clientTable(list, permitirEliminar){
@@ -2319,7 +2388,7 @@ function clientTable(list, permitirEliminar){
   return `
     <table>
       <thead><tr>
-        <th>Cliente</th><th>Rut</th><th>Clave</th><th>Encargado</th><th></th>
+        <th>Cliente</th><th>Rut</th><th>Clave</th><th>Encargado</th><th>Grupo</th><th></th>
       </tr></thead>
       <tbody>
         ${filasConEncabezadoDeGrupo(list, c => `
@@ -2333,11 +2402,12 @@ function clientTable(list, permitirEliminar){
                 ${state.usuarios.map(e=>`<option value="${e.id}" ${c.encargadoId===e.id?'selected':''}>${escapeHtml(e.name)}</option>`).join('')}
               </select>
             </td>
+            <td>${grupoSelectHtml(c)}</td>
             <td class="row-actions">
               ${permitirEliminar ? `<button class="btn danger small" onclick="removeClient('${c.id}')">Eliminar</button>` : ''}
             </td>
           </tr>
-        `)}
+        `, true)}
       </tbody>
     </table>
   `;
@@ -5238,7 +5308,7 @@ function encargadoLayout(){
           <div class="display">Sin resultados</div>
           <div>Prueba con otro nombre o RUT.</div>
         </div>`
-        : clientTableReadonly(pageItems) + paginationControls(page, totalPages)}
+        : clientTableReadonly(pageItems, verTodo) + paginationControls(page, totalPages)}
   `;
 
   return `
@@ -5253,18 +5323,22 @@ function encargadoLayout(){
   `;
 }
 
-function clientTableReadonly(list){
+// puedeEditarGrupo: true para roles con visión completa de la cartera
+// (Administrador, TAX o Contabilidad — ver puedeVerTodasLasCarteras) que
+// llegan a esta tabla de solo lectura (Encargado y Asistente no la reciben).
+function clientTableReadonly(list, puedeEditarGrupo){
   return `
     <table>
-      <thead><tr><th>Cliente</th><th>Rut</th><th>Clave</th></tr></thead>
+      <thead><tr><th>Cliente</th><th>Rut</th><th>Clave</th>${puedeEditarGrupo ? '<th>Grupo</th>' : ''}</tr></thead>
       <tbody>
         ${filasConEncabezadoDeGrupo(list, c => `
           <tr>
             <td><div class="client-name client-clickable" onclick="openClientDetail('${c.id}')">${escapeHtml(c.name)}</div>${clientMeta(c)}</td>
             <td class="mono">${escapeHtml(c.rut||'—')}</td>
             <td class="mono">${escapeHtml(c.clave||'—')}</td>
+            ${puedeEditarGrupo ? `<td>${grupoSelectHtml(c)}</td>` : ''}
           </tr>
-        `)}
+        `, puedeEditarGrupo)}
       </tbody>
     </table>
   `;
