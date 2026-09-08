@@ -5064,12 +5064,12 @@ function configuracionContent(){
     <div class="main-head">
       <div>
         <h2 class="display">Configuración</h2>
-        <div class="meta">${state.usuarios.length} usuario${state.usuarios.length===1?'':'s'} · crea perfiles nuevos, asígnales un rol, modifica los existentes y administra a los asistentes de cada ejecutivo</div>
+        <div class="meta">${state.usuarios.length} usuario${state.usuarios.length===1?'':'s'} · crea perfiles nuevos, asígnales un rol, modifica o elimina los existentes, y administra a los asistentes de cada ejecutivo</div>
       </div>
     </div>
 
     <table>
-      <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Sucursal</th><th>Correo</th></tr></thead>
+      <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Sucursal</th><th>Correo</th><th></th></tr></thead>
       <tbody>
         ${usuariosOrdenados.map(u => `
           <tr>
@@ -5089,6 +5089,9 @@ function configuracionContent(){
                    </select>`}
             </td>
             <td><input type="email" value="${escapeAttr(u.email||'')}" placeholder="Para avisos" onchange="actualizarPerfilEmail('${u.id}', this.value)" style="min-width:180px;"></td>
+            <td class="row-actions">
+              <button class="btn danger small" onclick="removeUsuario('${u.id}')">Eliminar</button>
+            </td>
           </tr>
         `).join('')}
       </tbody>
