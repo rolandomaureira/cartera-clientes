@@ -4821,7 +4821,7 @@ function configuracionContent(){
     <div class="main-head">
       <div>
         <h2 class="display">Configuración</h2>
-        <div class="meta">${state.usuarios.length} usuario${state.usuarios.length===1?'':'s'} · crea perfiles nuevos, asígnales un rol y modifica los existentes</div>
+        <div class="meta">${state.usuarios.length} usuario${state.usuarios.length===1?'':'s'} · crea perfiles nuevos, asígnales un rol, modifica los existentes y administra a los asistentes de cada ejecutivo</div>
       </div>
     </div>
 
@@ -4850,6 +4850,37 @@ function configuracionContent(){
         `).join('')}
       </tbody>
     </table>
+
+    <div class="manage-section">
+      <h3 class="display">Asistentes de Ejecutivos</h3>
+      <p style="font-size:13px;color:#6b6a5f;margin-bottom:14px;">Cada asistente ve únicamente las carteras de los ejecutivos que le asignes aquí. Desde esta sección puedes asignar un ejecutivo nuevo, cambiar o quitar una asignación existente, y eliminar el acceso del asistente cuando corresponda.</p>
+      ${state.usuarios.filter(u=>esRolAsistente(u.rol)).map(u => {
+        const disponibles = carterasDisponibles(u.sucursal).filter(c => !(u.carterasVisibles||[]).includes(c.id));
+        return `
+        <div style="padding:14px 0;border-bottom:1px solid var(--line);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">
+            <div style="font-weight:600;">${escapeHtml(u.name)} <span style="font-weight:400;color:#6b6a5f;font-size:13px;">(${escapeHtml(u.rol)} · ${escapeHtml(u.sucursal||'—')})</span></div>
+            <button class="btn danger small" onclick="removeUsuario('${u.id}')">Eliminar asistente</button>
+          </div>
+          <div style="margin-bottom:10px;">
+            <span style="font-size:12px;color:#8a8879;text-transform:uppercase;letter-spacing:0.4px;margin-right:8px;">Ejecutivo(s) asignado(s)</span>
+            ${(u.carterasVisibles||[]).map(id => {
+              const enc = state.usuarios.find(x=>x.id===id);
+              return `<span class="encargado-chip">${escapeHtml(enc?enc.name:'—')}
+                <button onclick="quitarCarteraVisible('${u.id}','${id}')" title="Quitar asignación">×</button>
+              </span>`;
+            }).join('') || '<span style="font-size:13px;color:#8a8879;">Sin ejecutivo asignado.</span>'}
+          </div>
+          <div class="form-inline" style="max-width:420px;">
+            <select id="addCartera_${u.id}">
+              ${disponibles.length ? disponibles.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') : '<option value="">No hay más ejecutivos para asignar</option>'}
+            </select>
+            <button class="btn secondary small" ${disponibles.length?'':'disabled'} onclick="agregarCarteraVisible('${u.id}')">Asignar ejecutivo</button>
+          </div>
+        </div>
+      `;
+      }).join('') || '<div style="font-size:13px;color:#8a8879;">No hay usuarios con rol Asistente aún.</div>'}
+    </div>
 
     <div class="manage-section">
       <h3 class="display">Crear nuevo perfil</h3>
