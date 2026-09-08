@@ -415,6 +415,9 @@ let activeTab = 'inicio';
 let activeSucursal = 'todos'; // 'todos' | 'Concepcion' | 'Temuco' (solo relevante para Administrador)
 let archivosFiltroTipo = 'todos'; // 'todos' | 'permanente' | 'temporal' | 'vencido' (pestaña Archivos)
 let requerimientosFiltroUrgencia = 'todos'; // 'todos' | 'vencido' | 'proximo' | 'pendiente' | 'resuelto'
+let requerimientosFiltroDirigidoA = 'todos'; // 'todos' | id de usuario
+let requerimientosFiltroFechaDesde = ''; // 'YYYY-MM-DD' o '' (sin límite inferior)
+let requerimientosFiltroFechaHasta = ''; // 'YYYY-MM-DD' o '' (sin límite superior)
 let facturacionMes = null; // 'YYYY-MM', se inicializa al mes actual la primera vez que se abre la pestaña
 let calendarioMes = null; // 'YYYY-MM' del calendario tributario en Inicio
 let tablePage = 1; // página actual de la tabla grande visible (Cartera, F-29, Facturación o Tareas)
@@ -525,6 +528,25 @@ function setArchivosFiltroTipo(tipo){
 
 function setRequerimientosFiltroUrgencia(v){
   requerimientosFiltroUrgencia = v;
+  renderApp();
+}
+
+function setRequerimientosFiltroDirigidoA(id){
+  requerimientosFiltroDirigidoA = id;
+  renderApp();
+}
+
+function setRequerimientosFiltroFecha(cual, valor){
+  if(cual === 'desde') requerimientosFiltroFechaDesde = valor;
+  else requerimientosFiltroFechaHasta = valor;
+  renderApp();
+}
+
+function limpiarFiltrosRequerimientos(){
+  requerimientosFiltroUrgencia = 'todos';
+  requerimientosFiltroDirigidoA = 'todos';
+  requerimientosFiltroFechaDesde = '';
+  requerimientosFiltroFechaHasta = '';
   renderApp();
 }
 
@@ -3397,17 +3419,33 @@ function filasRequerimientosConEncabezado(list, renderFila){
 
 function requerimientosContent(){
   const visibles = state.requerimientos.filter(r => puedeVerRequerimiento(r, currentUser));
-  // Filtro por chip (Vencidos/Próximos a vencer/Pendientes/Resueltos/Todos)
-  // + orden por urgencia y, dentro de cada urgencia, por persona a cargo.
+  // Filtro por "Dirigido a" y por rango de fecha límite se aplican primero
+  // (son independientes entre sí y del chip de urgencia); el chip de
+  // urgencia se aplica encima, y sus contadores reflejan ya lo acotado por
+  // los otros dos, para que el número de cada chip coincida con lo que de
+  // verdad se puede llegar a ver combinando los tres filtros.
+  const porPersonaYFecha = visibles
+    .filter(r => requerimientosFiltroDirigidoA === 'todos' || dirigidoAIds(r).includes(requerimientosFiltroDirigidoA))
+    .filter(r => !requerimientosFiltroFechaDesde || (r.fechaRespuesta && r.fechaRespuesta >= requerimientosFiltroFechaDesde))
+    .filter(r => !requerimientosFiltroFechaHasta || (r.fechaRespuesta && r.fechaRespuesta <= requerimientosFiltroFechaHasta));
+  // Orden por urgencia y, dentro de cada urgencia, por persona a cargo.
   const filtrados = requerimientosFiltroUrgencia === 'todos'
-    ? visibles
-    : visibles.filter(r => categoriaUrgenciaRequerimiento(r) === requerimientosFiltroUrgencia);
+    ? porPersonaYFecha
+    : porPersonaYFecha.filter(r => categoriaUrgenciaRequerimiento(r) === requerimientosFiltroUrgencia);
   const rows = ordenarRequerimientosPorUrgencia(filtrados);
   const conteoPorCategoria = { vencido: 0, proximo: 0, pendiente: 0, resuelto: 0 };
-  visibles.forEach(r => { conteoPorCategoria[categoriaUrgenciaRequerimiento(r)]++; });
+  porPersonaYFecha.forEach(r => { conteoPorCategoria[categoriaUrgenciaRequerimiento(r)]++; });
   const chipUrgencia = (valor, etiqueta, n) => `
     <button onclick="setRequerimientosFiltroUrgencia('${valor}')" class="px-3 py-1.5 rounded-full text-xs font-semibold border ${requerimientosFiltroUrgencia===valor ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}">${etiqueta} <span class="${requerimientosFiltroUrgencia===valor?'text-gray-300':'text-gray-400'}">${n}</span></button>
   `;
+  // Opciones del selector "Dirigido a": solo personas que de verdad aparecen
+  // como destinatario en algo que este usuario puede ver (no la lista
+  // completa de usuarios del sistema), ordenadas alfabéticamente.
+  const personasDirigidoA = [...new Set(visibles.flatMap(r => dirigidoAIds(r)))]
+    .map(id => state.usuarios.find(u => u.id === id))
+    .filter(Boolean)
+    .sort((a,b) => a.name.localeCompare(b.name, 'es'));
+  const hayFiltrosExtra = requerimientosFiltroDirigidoA !== 'todos' || requerimientosFiltroFechaDesde || requerimientosFiltroFechaHasta;
 
   return `
     <div class="max-w-4xl">
@@ -3431,8 +3469,8 @@ function requerimientosContent(){
             ${renderDirigidoAField(REQ_TIPOS[0])}
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Fecha de Respuesta</label>
-            <input type="date" id="reqFechaRespuesta" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Fecha Límite <span class="text-red-500">*</span></label>
+            <input type="date" id="reqFechaRespuesta" required class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400">
           </div>
           <div class="md:col-span-2">
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Descripción de lo solicitado</label>
@@ -3450,8 +3488,27 @@ function requerimientosContent(){
         </div>
       </div>
 
+      <div class="flex flex-wrap items-end gap-3 mb-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Dirigido a</label>
+          <select onchange="setRequerimientosFiltroDirigidoA(this.value)" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="todos">Todos</option>
+            ${personasDirigidoA.map(u => `<option value="${u.id}" ${requerimientosFiltroDirigidoA===u.id?'selected':''}>${escapeHtml(u.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Vence desde</label>
+          <input type="date" value="${requerimientosFiltroFechaDesde}" onchange="setRequerimientosFiltroFecha('desde', this.value)" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Vence hasta</label>
+          <input type="date" value="${requerimientosFiltroFechaHasta}" onchange="setRequerimientosFiltroFecha('hasta', this.value)" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+        ${hayFiltrosExtra ? `<button onclick="limpiarFiltrosRequerimientos()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold pb-2">Limpiar filtros</button>` : ''}
+      </div>
+
       <div class="flex flex-wrap gap-2 mb-4">
-        ${chipUrgencia('todos', 'Todos', visibles.length)}
+        ${chipUrgencia('todos', 'Todos', porPersonaYFecha.length)}
         ${chipUrgencia('vencido', 'Vencidos', conteoPorCategoria.vencido)}
         ${chipUrgencia('proximo', 'Próximos a vencer', conteoPorCategoria.proximo)}
         ${chipUrgencia('pendiente', 'Pendientes', conteoPorCategoria.pendiente)}
@@ -3501,7 +3558,7 @@ function requerimientosContent(){
                     <button onclick="removeRequerimiento('${r.id}')" class="text-red-500 hover:text-red-700 text-xs font-semibold">Eliminar</button>
                   </td>
                 </tr>
-              `) : `<tr><td colspan="7" class="px-5 py-8 text-center text-gray-400">${currentUser.isAdmin ? 'Aún no hay requerimientos creados.' : 'No tienes requerimientos dirigidos a ti por el momento.'}</td></tr>`}
+              `) : `<tr><td colspan="7" class="px-5 py-8 text-center text-gray-400">${visibles.length ? 'No hay requerimientos que coincidan con los filtros seleccionados.' : (currentUser.isAdmin ? 'Aún no hay requerimientos creados.' : 'No tienes requerimientos dirigidos a ti por el momento.')}</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -3525,6 +3582,7 @@ async function submitRequerimiento(){
   const descripcion = document.getElementById('reqDescripcion').value.trim();
 
   if(!dirigidoA.length){ showToast('Selecciona al menos una persona en "Dirigido a".'); return; }
+  if(!fechaRespuesta){ showToast('Indica la fecha límite del requerimiento.'); return; }
 
   const nuevoReq = {
     id: uid('r'),
@@ -3535,11 +3593,15 @@ async function submitRequerimiento(){
   document.getElementById('reqDescripcion').value = '';
   await saveRequerimientos();
   enviarNotificacionCorreoRequerimiento(nuevoReq); // no bloqueante: si falla el correo, el requerimiento ya quedó guardado igual
-  // Si había un chip de urgencia distinto de "Todos" activo (p.ej. quedó en
-  // "Pendientes" de una visita anterior) y el requerimiento recién creado
-  // cae en otra categoría, quedaba guardado pero invisible en la lista — se
-  // vuelve a "Todos" para garantizar que lo recién creado siempre se vea.
+  // Si había algún filtro activo (chip de urgencia, "Dirigido a" en una
+  // persona puntual, o un rango de fecha límite) de una visita anterior, y
+  // el requerimiento recién creado no calza con él, quedaba guardado pero
+  // invisible en la lista — se limpian todos para garantizar que lo recién
+  // creado siempre se vea.
   requerimientosFiltroUrgencia = 'todos';
+  requerimientosFiltroDirigidoA = 'todos';
+  requerimientosFiltroFechaDesde = '';
+  requerimientosFiltroFechaHasta = '';
   showToast('Requerimiento creado.');
   renderApp();
 }
