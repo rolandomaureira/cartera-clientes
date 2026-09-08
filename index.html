@@ -464,6 +464,16 @@ function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9
 function makeDebouncer(fn, wait){
   let timer = null;
   let pendingArgs = null;
+  // Además del timer de espera, se rastrea si fn(...) está corriendo (p.ej.
+  // el POST de guardado ya salió pero la respuesta no ha vuelto). isPending()
+  // cubre ambas ventanas — la usa sondearRequerimientosNuevos() para no
+  // pisar con una respuesta vieja del servidor un cambio local que todavía
+  // no terminó de guardarse.
+  let enVuelo = false;
+  async function ejecutar(a){
+    enVuelo = true;
+    try{ await fn(...a); } finally { enVuelo = false; }
+  }
   function run(...args){
     pendingArgs = args;
     clearTimeout(timer);
@@ -471,7 +481,7 @@ function makeDebouncer(fn, wait){
       timer = null;
       const a = pendingArgs;
       pendingArgs = null;
-      fn(...a);
+      ejecutar(a);
     }, wait);
   }
   function flush(){
@@ -480,14 +490,15 @@ function makeDebouncer(fn, wait){
     timer = null;
     const a = pendingArgs;
     pendingArgs = null;
-    fn(...a);
+    ejecutar(a);
   }
   function cancel(){
     clearTimeout(timer);
     timer = null;
     pendingArgs = null;
   }
-  return { run, flush, cancel };
+  function isPending(){ return timer !== null || enVuelo; }
+  return { run, flush, cancel, isPending };
 }
 
 // Paginación genérica para tablas grandes: corta `list` a la página pedida,
@@ -2633,6 +2644,12 @@ function detenerPollingRequerimientos(){
 
 async function sondearRequerimientosNuevos(){
   if(!currentUser || !BACKEND_URL) return;
+  // Si hay un guardado de requerimientos pendiente o en curso (p.ej. se acaba
+  // de crear/editar uno hace instantes), no se pisa con lo que devuelva el
+  // servidor: ese guardado todavía no llegó, y aplicar la respuesta vieja
+  // haría "desaparecer" momentáneamente el cambio recién hecho localmente.
+  // Se reintenta solo en el próximo ciclo, cuando el guardado ya se hizo.
+  if(requerimientosSaveDebouncer.isPending()) return;
   const res = await kvGet('requerimientos');
   if(!res) return;
   let nuevos;
@@ -3518,6 +3535,11 @@ async function submitRequerimiento(){
   document.getElementById('reqDescripcion').value = '';
   await saveRequerimientos();
   enviarNotificacionCorreoRequerimiento(nuevoReq); // no bloqueante: si falla el correo, el requerimiento ya quedó guardado igual
+  // Si había un chip de urgencia distinto de "Todos" activo (p.ej. quedó en
+  // "Pendientes" de una visita anterior) y el requerimiento recién creado
+  // cae en otra categoría, quedaba guardado pero invisible en la lista — se
+  // vuelve a "Todos" para garantizar que lo recién creado siempre se vea.
+  requerimientosFiltroUrgencia = 'todos';
   showToast('Requerimiento creado.');
   renderApp();
 }
