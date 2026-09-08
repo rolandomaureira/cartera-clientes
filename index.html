@@ -1447,10 +1447,12 @@ function adminMainContent(unassigned){
   const list = ordenarPorGrupo(currentList(unassigned));
   const q = (searchQuery||'').trim().toLowerCase();
   const { pageItems, totalPages, page } = paginate(list, tablePage);
-  // Solo el Administrador da de alta/baja clientes. El rol Contabilidad (que
-  // también llega a esta vista) puede reasignar el encargado de cada
-  // cliente, pero no crear ni eliminar clientes.
-  const puedeAltaBaja = currentUser.isAdmin;
+  // Solo el Administrador da de alta a clientes nuevos. Para eliminar, se
+  // suma el rol Contabilidad (además del Administrador, que ya podía);
+  // Contabilidad también puede reasignar el encargado de cada cliente,
+  // pero no crear clientes nuevos.
+  const puedeAgregarCliente = currentUser.isAdmin;
+  const puedeEliminarCliente = currentUser.isAdmin || esRolContabilidad(currentUser.rol);
 
   return `
     ${sucursalFilterBar()}
@@ -1464,7 +1466,7 @@ function adminMainContent(unassigned){
       <button class="btn secondary" onclick="exportarCarteraCSV()">Exportar CSV</button>
     </div>
 
-    ${puedeAltaBaja ? `
+    ${puedeAgregarCliente ? `
     <div class="form-inline">
       <input type="text" id="newClientName" placeholder="Razón social / nombre">
       <input type="text" id="newClientRut" placeholder="RUT">
@@ -1477,9 +1479,9 @@ function adminMainContent(unassigned){
     </div>
     ` : ''}
 
-    ${list.length ? clientTable(pageItems, puedeAltaBaja) + paginationControls(page, totalPages) : `<div class="empty-state">
+    ${list.length ? clientTable(pageItems, puedeEliminarCliente) + paginationControls(page, totalPages) : `<div class="empty-state">
         <div class="display">${q ? 'Sin resultados' : 'Sin clientes aquí todavía'}</div>
-        <div>${q ? 'Prueba con otro nombre o RUT.' : puedeAltaBaja ? 'Agrega el primero desde el formulario de arriba.' : ''}</div>
+        <div>${q ? 'Prueba con otro nombre o RUT.' : puedeAgregarCliente ? 'Agrega el primero desde el formulario de arriba.' : ''}</div>
       </div>`}
   `;
 }
@@ -5279,7 +5281,7 @@ async function addClient(){
 }
 
 async function removeClient(id){
-  if(!currentUser.isAdmin) return showToast('Solo un administrador puede eliminar clientes.');
+  if(!currentUser.isAdmin && !esRolContabilidad(currentUser.rol)) return showToast('Solo un administrador o Contabilidad puede eliminar clientes.');
   const c = state.clientes.find(c => c.id === id);
   if(!confirm(`¿Eliminar al cliente "${c ? c.name : ''}"? Esta acción no se puede deshacer.`)) return;
   state.clientes = state.clientes.filter(c => c.id !== id);
