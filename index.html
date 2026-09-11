@@ -194,28 +194,28 @@
   .add-enc-row input{flex:1;}
 
   /* ---------- Layout ---------- */
-  .layout{display:flex;min-height:calc(100vh - 80px);}
+  /* Secciones en franja superior por columnas agrupadas (mismo patrón que la
+     home de banca en línea de Banco de Chile: categoría en mayúscula chica
+     arriba, lista de enlaces de texto plano debajo), con la tipografía y
+     paleta propias de la app en vez de las de ese banco. */
+  .layout{display:flex;flex-direction:column;min-height:calc(100vh - 80px);}
   .folders{
-    width:230px;flex-shrink:0;
-    border-right:2px solid var(--ink);
-    padding:22px 0;
+    border-bottom:2px solid var(--ink);
+    background:var(--white);
+    padding:24px 40px;
   }
-  .folders h3{
+  .nav-columns{display:flex;flex-wrap:wrap;gap:40px;}
+  .nav-col{min-width:170px;}
+  .nav-col h3{
     font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#6b6a5f;
-    margin:0 18px 12px;
+    margin:0 0 12px;font-weight:600;
   }
-  .folder-tab{
-    display:flex;justify-content:space-between;align-items:center;
-    padding:11px 18px;cursor:pointer;font-size:14px;
-    border-left:3px solid transparent;
+  .nav-link{
+    display:block;padding:5px 0;cursor:pointer;font-size:14px;color:var(--ink);
+    line-height:1.4;
   }
-  .folder-tab:hover{background:var(--paper-2);}
-  .folder-tab.active{
-    background:var(--white);border-left:3px solid var(--teal);font-weight:600;
-  }
-  .folder-tab .count{
-    font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8a8879;
-  }
+  .nav-link:hover{color:var(--teal-dark);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;}
+  .nav-link.active{color:var(--teal-dark);font-weight:600;}
 
   /* Encargado filter bar (dentro del contenido) */
   .filter-bar{
@@ -393,8 +393,8 @@
   }
   .encargado-chip button:hover{background:#F3E4E0;}
   @media (max-width: 720px){
-    .layout{flex-direction:column;}
-    .folders{width:100%;border-right:none;border-bottom:2px solid var(--ink);}
+    .folders{padding:18px 18px;}
+    .nav-columns{gap:24px;}
     .main{padding:24px 18px;}
   }
 
@@ -1108,70 +1108,61 @@ function clientsFor(encargadoId){
 }
 
 /* --- Admin --- */
+// Secciones agrupadas por columna, con el mismo lenguaje visual que la
+// pantalla de inicio de la banca en línea de Banco de Chile (categoría en
+// mayúscula chica arriba de cada columna, enlaces de texto plano debajo),
+// pero con la tipografía y los colores propios de esta app.
+function navCol(titulo, itemsHtml){
+  if(!itemsHtml) return '';
+  return `<div class="nav-col"><h3>${titulo}</h3>${itemsHtml}</div>`;
+}
+
 function sectionNav(){
+  const link = (tab, label) => `<div class="nav-link ${activeTab===tab?'active':''}" onclick="setTab('${tab}')">${label}</div>`;
+
   if(!currentUser.isAdmin){
-    // Encargado, Asistente, TAX y Contabilidad: lista plana (sin agrupar),
-    // siempre en este orden, y solo estas 5 secciones — el resto (Facturación,
-    // Incorporar Clientes, Dashboard, Usuarios y Roles) no está disponible
-    // para estos roles. Confección Iva vive dentro de Obligaciones Tributarias.
-    // Trabajos Especiales es la única excepción: la ven TAX y Contabilidad
-    // (además del Administrador), pero no Encargado ni Asistente.
-    const item = (tab, label) => `
-      <div class="folder-tab ${activeTab===tab?'active':''}" onclick="setTab('${tab}')">
-        <span>${label}</span>
-      </div>`;
+    // Encargado, Asistente, TAX y Contabilidad: mismas secciones de siempre
+    // (el resto — Facturación, Incorporar Clientes, Dashboard, Usuarios y
+    // Roles — sigue sin estar disponible para estos roles), ahora repartidas
+    // en columnas: "Gestión" y "Cartera" para todos; Trabajos Especiales se
+    // suma a "Cartera" solo para TAX y Contabilidad (además del
+    // Administrador); "Administración" es exclusiva de Contabilidad.
+    const colGestion = link('inicio', 'Inicio') + link('requerimientos', 'Requerimientos');
+    const colCartera = link('cartera', 'Cartera de Clientes')
+      + link('obligaciones', 'Obligaciones Tributarias')
+      + link('tareas', 'Tareas')
+      + link('archivos', 'Archivos')
+      + (puedeVerTodasLasCarteras(currentUser) ? link('trabajos-especiales', 'Trabajos Especiales') : '');
+    const colAdmin = esRolContabilidad(currentUser.rol)
+      ? link('reporte-semanal', 'Reporte Semanal') + link('derivar-cartera', 'Derivar Cartera') + link('configuracion', 'Configuración')
+      : '';
     return `
-      <h3>Secciones</h3>
-      ${item('inicio', 'Inicio')}
-      ${item('requerimientos', 'Requerimientos')}
-      ${item('cartera', 'Cartera de Clientes')}
-      ${item('obligaciones', 'Obligaciones Tributarias')}
-      ${item('tareas', 'Tareas')}
-      ${item('archivos', 'Archivos')}
-      ${puedeVerTodasLasCarteras(currentUser) ? item('trabajos-especiales', 'Trabajos Especiales') : ''}
-      ${esRolContabilidad(currentUser.rol) ? item('reporte-semanal', 'Reporte Semanal') : ''}
-      ${esRolContabilidad(currentUser.rol) ? item('derivar-cartera', 'Derivar Cartera') : ''}
-      ${esRolContabilidad(currentUser.rol) ? item('configuracion', 'Configuración') : ''}
+      <div class="nav-columns">
+        ${navCol('Gestión', colGestion)}
+        ${navCol('Cartera', colCartera)}
+        ${navCol('Administración', colAdmin)}
+      </div>
     `;
   }
+
+  const colClientes = link('cartera', 'Cartera de Clientes')
+    + link('obligaciones', 'Obligaciones Tributarias')
+    + link('tareas', 'Tareas')
+    + link('archivos', 'Archivos')
+    + link('facturacion', 'Facturación')
+    + link('incorporar', 'Incorporar Clientes');
+  const colGestion = link('inicio', 'Inicio')
+    + link('requerimientos', 'Requerimientos')
+    + link('trabajos-especiales', 'Trabajos Especiales');
+  const colSistema = link('dashboard', 'Dashboard')
+    + link('usuarios', 'Usuarios y Roles')
+    + link('actividad', 'Actividad');
+
   return `
-    <h3>Clientes</h3>
-    <div class="folder-tab ${activeTab==='cartera'?'active':''}" onclick="setTab('cartera')">
-      <span>Cartera de Clientes</span>
-    </div>
-    <div class="folder-tab ${activeTab==='obligaciones'?'active':''}" onclick="setTab('obligaciones')">
-      <span>Obligaciones Tributarias</span>
-    </div>
-    <div class="folder-tab ${activeTab==='tareas'?'active':''}" onclick="setTab('tareas')">
-      <span>Tareas</span>
-    </div>
-    <div class="folder-tab ${activeTab==='archivos'?'active':''}" onclick="setTab('archivos')">
-      <span>Archivos</span>
-    </div>
-    <div class="folder-tab ${activeTab==='facturacion'?'active':''}" onclick="setTab('facturacion')">
-      <span>Facturación</span>
-    </div>
-    <div class="folder-tab ${activeTab==='incorporar'?'active':''}" onclick="setTab('incorporar')">
-      <span>Incorporar Clientes</span>
-    </div>
-    <h3 style="margin-top:22px;">Gestión</h3>
-    <div class="folder-tab ${activeTab==='inicio'?'active':''}" onclick="setTab('inicio')">
-      <span>Inicio</span>
-    </div>
-    <div class="folder-tab ${activeTab==='requerimientos'?'active':''}" onclick="setTab('requerimientos')">
-      <span>Requerimientos</span>
-    </div>
-    <div class="folder-tab ${activeTab==='trabajos-especiales'?'active':''}" onclick="setTab('trabajos-especiales')">
-      <span>Trabajos Especiales</span>
-    </div>
-    <div class="folder-tab ${activeTab==='dashboard'?'active':''}" onclick="setTab('dashboard')">
-      <span>Dashboard</span>
-    </div>
-    <div class="folder-tab ${activeTab==='usuarios'?'active':''}" onclick="setTab('usuarios')">
-      <span>Usuarios y Roles</span>
-    </div>
-    <div class="folder-tab ${activeTab==='actividad'?'active':''}" onclick="setTab('actividad')">
-      <span>Actividad</span>
+    <div class="nav-columns">
+      ${navCol('Clientes', colClientes)}
+      ${navCol('Gestión', colGestion)}
+      ${navCol('Sistema', colSistema)}
     </div>
   `;
 }
