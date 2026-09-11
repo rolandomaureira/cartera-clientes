@@ -194,24 +194,42 @@
   .add-enc-row input{flex:1;}
 
   /* ---------- Layout ---------- */
-  /* Secciones en franja superior por columnas agrupadas (mismo patrón que la
-     home de banca en línea de Banco de Chile: categoría en mayúscula chica
-     arriba, lista de enlaces de texto plano debajo), con la tipografía y
-     paleta propias de la app en vez de las de ese banco. */
+  /* Navegación de secciones en dos niveles, mismo patrón que la home de
+     banca en línea de Banco de Chile: una fila de pestañas tipo píldora
+     arriba (cada una, un grupo de secciones) y, debajo, un panel con las
+     secciones de la pestaña activa repartidas en columnas — con la
+     tipografía y paleta propias de la app en vez de las de ese banco. */
   .layout{display:flex;flex-direction:column;min-height:calc(100vh - 80px);}
   .folders{
     border-bottom:2px solid var(--ink);
     background:var(--white);
-    padding:24px 40px;
+    padding:22px 40px 28px;
   }
-  .nav-columns{display:flex;flex-wrap:wrap;gap:40px;}
+  .nav-pills{
+    display:inline-flex;flex-wrap:wrap;gap:4px;
+    background:var(--paper-2);border-radius:12px;padding:5px;
+    margin-bottom:24px;
+  }
+  .nav-pill{
+    display:flex;align-items:center;gap:8px;
+    padding:9px 16px;border-radius:8px;cursor:pointer;
+    font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:500;
+    color:#6b6a5f;border:none;background:none;white-space:nowrap;
+  }
+  .nav-pill svg{flex-shrink:0;opacity:0.7;}
+  .nav-pill:hover{color:var(--ink);}
+  .nav-pill.active{
+    background:var(--white);color:var(--teal-dark);font-weight:600;
+    box-shadow:0 1px 3px rgba(22,27,34,0.15);
+  }
+  .nav-pill.active svg{opacity:1;}
+  .nav-panel-title{
+    font-family:'Fraunces',serif;font-size:17px;font-weight:600;margin-bottom:16px;
+  }
+  .nav-columns{display:flex;flex-wrap:wrap;gap:12px 48px;}
   .nav-col{min-width:170px;}
-  .nav-col h3{
-    font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#6b6a5f;
-    margin:0 0 12px;font-weight:600;
-  }
   .nav-link{
-    display:block;padding:5px 0;cursor:pointer;font-size:14px;color:var(--ink);
+    display:block;padding:6px 0;cursor:pointer;font-size:14px;color:var(--ink);
     line-height:1.4;
   }
   .nav-link:hover{color:var(--teal-dark);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;}
@@ -393,8 +411,9 @@
   }
   .encargado-chip button:hover{background:#F3E4E0;}
   @media (max-width: 720px){
-    .folders{padding:18px 18px;}
-    .nav-columns{gap:24px;}
+    .folders{padding:16px 18px 22px;}
+    .nav-pills{display:flex;width:100%;overflow-x:auto;}
+    .nav-columns{gap:16px 28px;}
     .main{padding:24px 18px;}
   }
 
@@ -439,6 +458,7 @@ let state = null;         // { usuarios: [{id,name,rol}], clientes: [{id,name,..
 let currentUser = null;   // { id, name, rol, isAdmin }
 let activeFolder = 'todos';
 let activeTab = 'inicio';
+let navGrupoPreview = null; // key de la pestaña superior de secciones elegida a mano, sin haber navegado aún (ver setNavGrupoActivo); se limpia al navegar de verdad (ver setTab)
 let activeSucursal = 'todos'; // 'todos' | 'Concepcion' | 'Temuco' (solo relevante para Administrador)
 let archivosFiltroTipo = 'todos'; // 'todos' | 'permanente' | 'temporal' | 'vencido' (pestaña Archivos)
 let requerimientosFiltroUrgencia = 'todos'; // 'todos' | 'vencido' | 'proximo' | 'pendiente' | 'resuelto'
@@ -1108,61 +1128,101 @@ function clientsFor(encargadoId){
 }
 
 /* --- Admin --- */
-// Secciones agrupadas por columna, con el mismo lenguaje visual que la
-// pantalla de inicio de la banca en línea de Banco de Chile (categoría en
-// mayúscula chica arriba de cada columna, enlaces de texto plano debajo),
-// pero con la tipografía y los colores propios de esta app.
-function navCol(titulo, itemsHtml){
-  if(!itemsHtml) return '';
-  return `<div class="nav-col"><h3>${titulo}</h3>${itemsHtml}</div>`;
+// Íconos de línea reutilizables para las pestañas superiores de secciones
+// (mismo trazo/estilo que ya usa la campana de notificaciones).
+const NAV_ICONS = {
+  folder: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"></path></svg>`,
+  list: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="16" rx="2"></rect><path d="M9 9h6M9 13h6M9 17h3"></path></svg>`,
+  gear: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`,
+};
+
+function chunk(arr, size){
+  const out = [];
+  for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i, i+size));
+  return out;
 }
 
+function setNavGrupoActivo(key){
+  navGrupoPreview = key;
+  renderApp();
+}
+
+// Navegación de secciones en dos niveles (mismo patrón que la home de banca
+// en línea de Banco de Chile): una fila de pestañas tipo píldora, cada una
+// un grupo de secciones con su ícono, y debajo un panel con las secciones
+// de la pestaña activa repartidas en columnas de a lo más 4 enlaces.
 function sectionNav(){
   const link = (tab, label) => `<div class="nav-link ${activeTab===tab?'active':''}" onclick="setTab('${tab}')">${label}</div>`;
 
+  let grupos;
   if(!currentUser.isAdmin){
     // Encargado, Asistente, TAX y Contabilidad: mismas secciones de siempre
     // (el resto — Facturación, Incorporar Clientes, Dashboard, Usuarios y
-    // Roles — sigue sin estar disponible para estos roles), ahora repartidas
-    // en columnas: "Gestión" y "Cartera" para todos; Trabajos Especiales se
-    // suma a "Cartera" solo para TAX y Contabilidad (además del
-    // Administrador); "Administración" es exclusiva de Contabilidad.
-    const colGestion = link('inicio', 'Inicio') + link('requerimientos', 'Requerimientos');
-    const colCartera = link('cartera', 'Cartera de Clientes')
-      + link('obligaciones', 'Obligaciones Tributarias')
-      + link('tareas', 'Tareas')
-      + link('archivos', 'Archivos')
-      + (puedeVerTodasLasCarteras(currentUser) ? link('trabajos-especiales', 'Trabajos Especiales') : '');
-    const colAdmin = esRolContabilidad(currentUser.rol)
-      ? link('reporte-semanal', 'Reporte Semanal') + link('derivar-cartera', 'Derivar Cartera') + link('configuracion', 'Configuración')
-      : '';
-    return `
-      <div class="nav-columns">
-        ${navCol('Gestión', colGestion)}
-        ${navCol('Cartera', colCartera)}
-        ${navCol('Administración', colAdmin)}
-      </div>
-    `;
+    // Roles — sigue sin estar disponible para estos roles). Trabajos
+    // Especiales se suma a "Cartera" solo para TAX y Contabilidad (además
+    // del Administrador); "Administración" es exclusiva de Contabilidad.
+    grupos = [
+      { key:'gestion', label:'Gestión', icon: NAV_ICONS.list, tabs: [
+        {tab:'inicio', label:'Inicio'},
+        {tab:'requerimientos', label:'Requerimientos'},
+      ]},
+      { key:'cartera', label:'Cartera', icon: NAV_ICONS.folder, tabs: [
+        {tab:'cartera', label:'Cartera de Clientes'},
+        {tab:'obligaciones', label:'Obligaciones Tributarias'},
+        {tab:'tareas', label:'Tareas'},
+        {tab:'archivos', label:'Archivos'},
+        ...(puedeVerTodasLasCarteras(currentUser) ? [{tab:'trabajos-especiales', label:'Trabajos Especiales'}] : []),
+      ]},
+    ];
+    if(esRolContabilidad(currentUser.rol)){
+      grupos.push({ key:'administracion', label:'Administración', icon: NAV_ICONS.gear, tabs: [
+        {tab:'reporte-semanal', label:'Reporte Semanal'},
+        {tab:'derivar-cartera', label:'Derivar Cartera'},
+        {tab:'configuracion', label:'Configuración'},
+      ]});
+    }
+  }else{
+    grupos = [
+      { key:'clientes', label:'Clientes', icon: NAV_ICONS.folder, tabs: [
+        {tab:'cartera', label:'Cartera de Clientes'},
+        {tab:'obligaciones', label:'Obligaciones Tributarias'},
+        {tab:'tareas', label:'Tareas'},
+        {tab:'archivos', label:'Archivos'},
+        {tab:'facturacion', label:'Facturación'},
+        {tab:'incorporar', label:'Incorporar Clientes'},
+      ]},
+      { key:'gestion', label:'Gestión', icon: NAV_ICONS.list, tabs: [
+        {tab:'inicio', label:'Inicio'},
+        {tab:'requerimientos', label:'Requerimientos'},
+        {tab:'trabajos-especiales', label:'Trabajos Especiales'},
+      ]},
+      { key:'sistema', label:'Sistema', icon: NAV_ICONS.gear, tabs: [
+        {tab:'dashboard', label:'Dashboard'},
+        {tab:'usuarios', label:'Usuarios y Roles'},
+        {tab:'actividad', label:'Actividad'},
+      ]},
+    ];
   }
 
-  const colClientes = link('cartera', 'Cartera de Clientes')
-    + link('obligaciones', 'Obligaciones Tributarias')
-    + link('tareas', 'Tareas')
-    + link('archivos', 'Archivos')
-    + link('facturacion', 'Facturación')
-    + link('incorporar', 'Incorporar Clientes');
-  const colGestion = link('inicio', 'Inicio')
-    + link('requerimientos', 'Requerimientos')
-    + link('trabajos-especiales', 'Trabajos Especiales');
-  const colSistema = link('dashboard', 'Dashboard')
-    + link('usuarios', 'Usuarios y Roles')
-    + link('actividad', 'Actividad');
+  // La pestaña activa sigue a la sección donde se está parado, salvo que se
+  // haya elegido otra a mano (navGrupoPreview) sin haber navegado todavía.
+  const grupoActivoKey = (navGrupoPreview && grupos.some(g=>g.key===navGrupoPreview))
+    ? navGrupoPreview
+    : (grupos.find(g => g.tabs.some(t => t.tab === activeTab)) || grupos[0]).key;
+  const grupoActivo = grupos.find(g => g.key === grupoActivoKey);
+  const columnas = chunk(grupoActivo.tabs, 4);
 
   return `
+    <div class="nav-pills">
+      ${grupos.map(g => `
+        <button class="nav-pill ${g.key===grupoActivoKey?'active':''}" onclick="setNavGrupoActivo('${g.key}')">
+          ${g.icon}<span>${g.label}</span>
+        </button>
+      `).join('')}
+    </div>
+    <div class="nav-panel-title">${grupoActivo.label}</div>
     <div class="nav-columns">
-      ${navCol('Clientes', colClientes)}
-      ${navCol('Gestión', colGestion)}
-      ${navCol('Sistema', colSistema)}
+      ${columnas.map(col => `<div class="nav-col">${col.map(it => link(it.tab, it.label)).join('')}</div>`).join('')}
     </div>
   `;
 }
@@ -1172,6 +1232,7 @@ function setTab(tab){
   searchDebouncer.cancel();
   clearBulkSelections();
   activeTab = tab;
+  navGrupoPreview = null; // al navegar de verdad, la pestaña superior vuelve a seguir a la sección real
   searchQuery = '';
   tablePage = 1;
   inicioReqExpandido = false;
