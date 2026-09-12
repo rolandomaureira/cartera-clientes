@@ -3586,6 +3586,7 @@ function trabajosEspecialesContent(){
               <th class="text-left px-5 py-3 font-semibold text-gray-600">Fecha límite</th>
               <th class="text-right px-5 py-3 font-semibold text-gray-600">Monto (UF)</th>
               <th class="text-left px-5 py-3 font-semibold text-gray-600">Estado</th>
+              <th class="text-left px-5 py-3 font-semibold text-gray-600">Archivos</th>
               <th class="px-5 py-3"></th>
             </tr>
           </thead>
@@ -3606,12 +3607,13 @@ function trabajosEspecialesContent(){
                       ${TRABAJO_ESTADOS.map(e=>`<option value="${e}" ${t.estado===e?'selected':''}>${e}</option>`).join('')}
                     </select>
                   </td>
+                  <td class="px-5 py-3">${trabajoArchivosHtml(t, 'teArchivo')}</td>
                   <td class="px-5 py-3 text-right">
                     <button onclick="removeTrabajoEspecial('${t.id}')" class="text-red-500 hover:text-red-700 text-xs font-semibold">Eliminar</button>
                   </td>
                 </tr>
               `;
-            }).join('') : `<tr><td colspan="7" class="px-5 py-8 text-center text-gray-400">Sin trabajos especiales asignados.</td></tr>`}
+            }).join('') : `<tr><td colspan="8" class="px-5 py-8 text-center text-gray-400">Sin trabajos especiales asignados.</td></tr>`}
           </tbody>
         </table>
         ${lista.length ? `<div style="padding:10px 20px;font-size:13px;color:#6b6a5f;text-align:right;border-top:1px solid #f0f0f0;">Total: <span class="mono">${lista.reduce((s,t)=>s+(t.montoUF||0),0).toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})} UF</span></div>` : ''}
@@ -3632,7 +3634,7 @@ async function submitTrabajoEspecial(){
   if(!asignadoA) return showToast('Selecciona a quién se asigna.');
   state.trabajosEspeciales.push({
     id: uid('te'), titulo, descripcion, clienteId, asignadoA, montoUF,
-    asignadoPor: currentUser.id, fechaCreacion: todayISO(), fechaLimite, estado: 'Pendiente'
+    asignadoPor: currentUser.id, fechaCreacion: todayISO(), fechaLimite, estado: 'Pendiente', archivos: []
   });
   await saveTrabajosEspeciales();
   showToast('Trabajo especial asignado.');
@@ -3652,6 +3654,77 @@ async function removeTrabajoEspecial(id){
   await saveTrabajosEspeciales();
   renderApp();
   showToast('Trabajo especial eliminado.');
+}
+
+// Adjuntos de un trabajo especial (Word, Excel, PDF, imágenes, etc). Se
+// suben con la misma acción de backend "subirArchivo" que ya usan los
+// archivos de cliente (mismo Drive, misma cuota de 5 MB) — solo cambia el
+// nombre de carpeta para que no se mezclen con las carpetas de clientes.
+// inputIdPrefix distingue el <input type=file> según se muestre en la
+// tabla de administración o en "Mis trabajos especiales", para que los ids
+// nunca choquen si ambas vistas llegaran a coexistir en el DOM.
+function trabajoArchivosHtml(t, inputIdPrefix){
+  const archivos = t.archivos || [];
+  const inputId = `${inputIdPrefix}_${t.id}`;
+  return `
+    <div class="flex flex-wrap items-center gap-1.5">
+      ${archivos.map((a,i) => `
+        <span class="inline-flex items-center gap-1 bg-gray-100 rounded-full pl-2.5 pr-1.5 py-1 text-xs">
+          <a href="${escapeAttr(a.url)}" target="_blank" rel="noopener" class="text-blue-600 hover:underline max-w-[120px] truncate">${escapeHtml(a.nombre)}</a>
+          <button type="button" onclick="quitarArchivoTrabajoEspecial('${t.id}', ${i})" title="Quitar" class="text-gray-400 hover:text-red-500 font-bold leading-none">×</button>
+        </span>
+      `).join('')}
+      <label class="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 cursor-pointer font-semibold whitespace-nowrap">
+        <input type="file" id="${inputId}" class="hidden" onchange="subirArchivoTrabajoEspecial('${t.id}', this)">
+        <span>+ Adjuntar</span>
+      </label>
+    </div>
+  `;
+}
+
+async function subirArchivoTrabajoEspecial(trabajoId, inputEl){
+  const file = inputEl && inputEl.files && inputEl.files[0];
+  if(!file) return;
+  const LIMITE_BYTES = 5 * 1024 * 1024;
+  if(file.size > LIMITE_BYTES){ showToast('El archivo es muy grande (máx. 5 MB).'); inputEl.value = ''; return; }
+  const t = state.trabajosEspeciales.find(x => x.id === trabajoId);
+  if(!t) return;
+  try{
+    const contenidoBase64 = await leerArchivoComoBase64(file);
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        accion: 'subirArchivo',
+        token: API_TOKEN,
+        clienteId: 'te_' + t.id,
+        clienteNombre: 'Trabajo especial - ' + (t.titulo || '').slice(0, 60),
+        nombreArchivo: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        contenidoBase64
+      })
+    });
+    const data = await res.json();
+    if(!data || !data.ok){ showToast('No se pudo subir el archivo.'); return; }
+    if(!t.archivos) t.archivos = [];
+    t.archivos.push({ nombre: data.nombre || file.name, url: data.url, driveFileId: data.id, fecha: todayISO(), subidoPor: currentUser.name });
+    await saveTrabajosEspeciales();
+    showToast('Archivo adjuntado.');
+    renderApp();
+  }catch(err){
+    console.error('Error al subir archivo de trabajo especial:', err);
+    showToast('Error al subir el archivo.');
+  }finally{
+    inputEl.value = '';
+  }
+}
+
+async function quitarArchivoTrabajoEspecial(trabajoId, index){
+  const t = state.trabajosEspeciales.find(x => x.id === trabajoId);
+  if(!t || !t.archivos) return;
+  t.archivos.splice(index, 1);
+  await saveTrabajosEspeciales();
+  renderApp();
 }
 
 // Bloque que se inserta dentro de la pestaña Tareas de la persona asignada
@@ -3686,6 +3759,7 @@ function misTrabajosEspecialesContent(){
                   ${TRABAJO_ESTADOS.map(e=>`<option value="${e}" ${t.estado===e?'selected':''}>${e}</option>`).join('')}
                 </select>
               </div>
+              <div class="w-full">${trabajoArchivosHtml(t, 'mteArchivo')}</div>
             </div>
           `;
         }).join('') : `<p class="text-xs text-gray-400">Sin trabajos especiales por ahora.</p>`}
@@ -3735,7 +3809,7 @@ async function submitMiTrabajoEspecial(){
   if(!titulo) return showToast('Escribe un título para el trabajo.');
   state.trabajosEspeciales.push({
     id: uid('te'), titulo, descripcion, clienteId, asignadoA: currentUser.id, montoUF,
-    asignadoPor: currentUser.id, fechaCreacion: todayISO(), fechaLimite, estado: 'Pendiente'
+    asignadoPor: currentUser.id, fechaCreacion: todayISO(), fechaLimite, estado: 'Pendiente', archivos: []
   });
   await saveTrabajosEspeciales();
   showToast('Trabajo especial agregado.');
