@@ -467,6 +467,9 @@ let requerimientosFiltroFechaDesde = ''; // 'YYYY-MM-DD' o '' (sin límite infer
 let requerimientosFiltroFechaHasta = ''; // 'YYYY-MM-DD' o '' (sin límite superior)
 let facturacionMes = null; // 'YYYY-MM', se inicializa al mes actual la primera vez que se abre la pestaña
 let calendarioMes = null; // 'YYYY-MM' del calendario tributario en Inicio
+let estimacionF29ClienteId = null; // cliente elegido en la sección "F-29" (estimaciones de impuestos)
+let estimacionF29Periodo = null;   // 'YYYY-MM' elegido en "F-29"
+let f29FormActual = null;          // borrador en memoria del formulario F-29 actualmente visible (ver cargarFormularioF29)
 let tablePage = 1; // página actual de la tabla grande visible (Cartera, F-29, Facturación o Tareas)
 const PAGE_SIZE = 75;
 let f29Selected = new Set();      // ids de clientes marcados para acción masiva en F-29
@@ -742,7 +745,7 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // requeriría filas individuales por registro, un cambio más grande), pero
 // el caso que causó problemas — un cambio en usuarios pisado por un
 // cambio de clientes, o viceversa — queda resuelto.
-const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria'];
+const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29'];
 
 function valorPorDefectoColeccion(nombre){
   if(nombre === 'usuarios') return [];
@@ -752,6 +755,7 @@ function valorPorDefectoColeccion(nombre){
   if(nombre === 'reuniones') return [];
   if(nombre === 'trabajosEspeciales') return [];
   if(nombre === 'auditoria') return [];
+  if(nombre === 'estimacionesF29') return [];
   return [];
 }
 
@@ -815,6 +819,7 @@ const requerimientosSaveDebouncer = crearGuardadoColeccion('requerimientos', () 
 const obligacionesSaveDebouncer = crearGuardadoColeccion('obligaciones', () => state.obligaciones, 'No se pudo guardar las obligaciones. Intenta de nuevo.');
 const reunionesSaveDebouncer = crearGuardadoColeccion('reuniones', () => state.reuniones, 'No se pudo guardar la reunión. Intenta de nuevo.');
 const trabajosEspecialesSaveDebouncer = crearGuardadoColeccion('trabajosEspeciales', () => state.trabajosEspeciales, 'No se pudo guardar el trabajo especial. Intenta de nuevo.');
+const estimacionesF29SaveDebouncer = crearGuardadoColeccion('estimacionesF29', () => state.estimacionesF29, 'No se pudo guardar la estimación F-29. Intenta de nuevo.');
 const configSaveDebouncer = crearGuardadoColeccion('config', () => ({ tareasPlantilla: state.tareasPlantilla, declaracionesJuradasPlantilla: state.declaracionesJuradasPlantilla }), 'No se pudo guardar la configuración. Intenta de nuevo.');
 const auditoriaSaveDebouncer = crearGuardadoColeccion('auditoria', () => state.auditoria, 'No se pudo guardar el registro de actividad.');
 
@@ -834,6 +839,7 @@ async function saveRequerimientos(){ registrarAuditoria('requerimientos'); reque
 async function saveObligaciones(){ registrarAuditoria('obligaciones'); obligacionesSaveDebouncer.run(); }
 async function saveReuniones(){ registrarAuditoria('reuniones'); reunionesSaveDebouncer.run(); }
 async function saveTrabajosEspeciales(){ registrarAuditoria('trabajosEspeciales'); trabajosEspecialesSaveDebouncer.run(); }
+async function saveEstimacionesF29(){ registrarAuditoria('estimacionesF29'); estimacionesF29SaveDebouncer.run(); }
 async function saveConfig(){ registrarAuditoria('config'); configSaveDebouncer.run(); }
 
 let creds = null; // { usuarios: { id: hash } }
@@ -1169,6 +1175,7 @@ function sectionNav(){
       { key:'cartera', label:'Cartera', icon: NAV_ICONS.folder, tabs: [
         {tab:'cartera', label:'Cartera de Clientes'},
         {tab:'obligaciones', label:'Obligaciones Tributarias'},
+        {tab:'f29', label:'F-29'},
         {tab:'tareas', label:'Tareas'},
         {tab:'archivos', label:'Archivos'},
         ...(puedeVerTodasLasCarteras(currentUser) ? [{tab:'trabajos-especiales', label:'Trabajos Especiales'}] : []),
@@ -1186,6 +1193,7 @@ function sectionNav(){
       { key:'clientes', label:'Clientes', icon: NAV_ICONS.folder, tabs: [
         {tab:'cartera', label:'Cartera de Clientes'},
         {tab:'obligaciones', label:'Obligaciones Tributarias'},
+        {tab:'f29', label:'F-29'},
         {tab:'tareas', label:'Tareas'},
         {tab:'archivos', label:'Archivos'},
         {tab:'facturacion', label:'Facturación'},
@@ -1330,6 +1338,8 @@ function adminLayout(){
           ? facturacionContent()
           : activeTab === 'obligaciones'
           ? obligacionesContent(true)
+          : activeTab === 'f29'
+          ? estimacionF29Content(true)
           : activeTab === 'tareas'
           ? tareasContent(true, true)
           : activeTab === 'trabajos-especiales'
@@ -1363,6 +1373,8 @@ function contabilidadLayout(){
           ? requerimientosContent()
           : activeTab === 'obligaciones'
           ? obligacionesContent(true)
+          : activeTab === 'f29'
+          ? estimacionF29Content(true)
           : activeTab === 'tareas'
           ? tareasContent(true, false)
           : activeTab === 'trabajos-especiales'
@@ -4700,6 +4712,523 @@ function obligacionEstadoClass(estado){
   return `${base} ${OBLIGACION_ESTADO_CLASS[estado] || OBLIGACION_ESTADO_CLASS['Pendiente']}`;
 }
 
+/* ==================== F-29 (estimación de impuestos mensuales) ====================
+ * Sección aparte de "Confección Iva" (que solo registra el estado de envío
+ * del F-29 real ante el SII, ver f29Table()/setF29Status() en Obligaciones
+ * Tributarias). Esta sección CALCULA una estimación mensual de IVA, PPM y
+ * retenciones por cliente, a partir de un formato de trabajo interno
+ * (planilla "Propuesta F-29"), y arma un resumen ejecutivo imprimible/PDF
+ * con los conceptos por los que el cliente pagará.
+ *
+ * Alcance deliberadamente acotado: cubre IVA (ventas/compras habituales),
+ * PPM y las retenciones de renta más comunes (honorarios, sueldos, etc.),
+ * que es el caso de la enorme mayoría de los clientes. Mecanismos poco
+ * frecuentes del Formulario 29 real (cambio de sujeto, créditos especiales,
+ * tributación simplificada, impuestos adicionales a bebidas/licores, etc.)
+ * NO se modelan campo por campo — se cubren con la sección genérica
+ * "Ajustes adicionales" (líneas libres +/-), para no tener que replicar las
+ * ~140 líneas del formulario oficial.
+ */
+
+const F29_VENTAS_EXENTAS = [
+  'Exportaciones',
+  'Ventas y/o Servicios Exentos del Giro',
+  'Ventas y/o Servicios exentos que no son del giro',
+  'Facturas de Compra recibidas con retención total',
+  'Facturas de Compra recibidas con retención parcial',
+];
+
+const F29_VENTAS_AFECTAS = [
+  { label:'Facturas emitidas', tasa:0.19 },
+  { label:'Facturas por Inmuebles', tasa:0.19 },
+  { label:'Facturas por Activo Fijo', tasa:0.19 },
+  { label:'Boletas', tasa:0.19 },
+  { label:'Comprobantes de pago', tasa:0.19 },
+  { label:'Notas de débito emitidas', tasa:0.19 },
+  { label:'Notas de crédito emitidas por factura', tasa:0.19, resta:true },
+  { label:'Notas de crédito emitidas por boletas', tasa:0.19, resta:true },
+  { label:'Facturas de compra retención parcial', tasa:0.15 },
+  { label:'Liquidación Factura', tasa:0.19 },
+];
+
+const F29_COMPRAS_SIN_DERECHO = [
+  'Internas afectas',
+  'Importaciones',
+  'Internas exentas o no gravadas',
+];
+
+const F29_COMPRAS_CON_DERECHO = [
+  { label:'Facturas recibidas', tasa:0.19 },
+  { label:'Facturas de Compra emitidas con retención 19%', tasa:0.19 },
+  { label:'Facturas de Compra emitidas con retención 11%', tasa:0.19 },
+  { label:'Facturas activo fijo', tasa:0.19 },
+  { label:'Notas de crédito recibidas', tasa:0.19, resta:true },
+  { label:'Notas de débito recibidas', tasa:0.19 },
+  { label:'Declaraciones de Ingreso (importaciones)', tasa:0.19 },
+  { label:'Impuesto específico Diesel Agrícola', tasa:1 },
+  { label:'Impuesto específico Diesel Transportistas', tasa:1 },
+];
+
+// tasa:null → el monto ingresado ES la retención (no se multiplica por nada),
+// para casos como la retención única a trabajadores que no sale de aplicar
+// un % fijo. En los demás, "monto" es la base imponible y "tasa" es editable
+// (estas tasas cambian por ley de tanto en tanto).
+const F29_RETENCIONES_RENTA = [
+  { label:'Retención Impuesto Único a los Trabajadores', tasa:null },
+  { label:'Retención Art. 42 N°2 LIR (Honorarios)', tasa:0.1525 },
+  { label:'Retención Art. 48 LIR (Directores/Consejeros)', tasa:0.10 },
+  { label:'Retención Art. 42 N°1 LIR (Sueldos, reintegro préstamo tasa 0%)', tasa:0.03 },
+  { label:'Retención Art. 42 N°2 LIR (Honorarios, reintegro préstamo tasa 0%)', tasa:0.03 },
+];
+
+function periodoActualISO(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function periodoAnteriorISO(periodo){
+  const [y, m] = periodo.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function periodoLabel(periodo){
+  const [y, m] = periodo.split('-').map(Number);
+  return `${MESES_NOMBRE[m-1]} ${y}`;
+}
+
+// Sugerencia de fecha límite: día 20 del mes siguiente al período tributario
+// (cuando el F-29 real se paga), corrida al siguiente día hábil. Editable
+// por el usuario porque el día exacto varía según el medio de declaración.
+function fechaLimiteF29Sugerida(periodo){
+  const [y, m] = periodo.split('-').map(Number);
+  const d = new Date(y, m, 1); // m (1-based del período) cae en el mes siguiente al pasarlo como índice 0-based
+  const ySig = d.getFullYear(), mSig = d.getMonth() + 1;
+  const festivosSet = new Set([...festivosChile(ySig), ...festivosChile(ySig+1)]);
+  return siguienteDiaHabil(`${ySig}-${String(mSig).padStart(2,'0')}-20`, festivosSet);
+}
+
+function obtenerEstimacionF29(clienteId, periodo){
+  return (state.estimacionesF29||[]).find(e => e.clienteId === clienteId && e.periodo === periodo);
+}
+
+function nuevaEstimacionF29Vacia(clienteId, periodo){
+  const anterior = obtenerEstimacionF29(clienteId, periodoAnteriorISO(periodo));
+  const calcAnterior = anterior ? calcularF29(anterior) : null;
+  return {
+    id: uid('f29e'),
+    clienteId, periodo,
+    ventasExentas: F29_VENTAS_EXENTAS.map(() => ({ docs:'', monto:0 })),
+    ventasAfectas: F29_VENTAS_AFECTAS.map(c => ({ docs:'', monto:0, tasa:c.tasa })),
+    comprasSinDerecho: F29_COMPRAS_SIN_DERECHO.map(() => ({ docs:'', monto:0 })),
+    comprasConDerecho: F29_COMPRAS_CON_DERECHO.map(c => ({ docs:'', monto:0, tasa:c.tasa })),
+    remanenteCreditoFiscalAnterior: calcAnterior ? calcAnterior.remanenteCreditoFiscalSiguiente : 0,
+    retenciones: F29_RETENCIONES_RENTA.map(c => ({ monto:0, tasa:c.tasa })),
+    ppmTasa: 0.01,
+    ajustesAdicionales: [],
+    fechaLimitePago: fechaLimiteF29Sugerida(periodo),
+    notas: '',
+    creadoPor: currentUser.name,
+    fechaCreacion: todayISO(),
+  };
+}
+
+// Cálculo puro: no lee ni escribe estado global, solo transforma la
+// estimación en los totales del resumen ejecutivo. Se recalcula en cada
+// render de la pestaña F-29 (no hay nada cacheado).
+function calcularF29(est){
+  const totalExentos = (est.ventasExentas||[]).reduce((s,r) => s + (Number(r.monto)||0), 0);
+
+  let totalNetosAfectos = 0, totalDebitos = 0;
+  const ventasAfectasDetalle = (est.ventasAfectas||[]).map((r,i) => {
+    const cfg = F29_VENTAS_AFECTAS[i];
+    const monto = Number(r.monto) || 0;
+    const debito = Math.round(monto * (Number(r.tasa)||0));
+    const signo = cfg.resta ? -1 : 1;
+    totalNetosAfectos += signo * monto;
+    totalDebitos += signo * debito;
+    return { label: cfg.label, monto, debito, resta: !!cfg.resta };
+  });
+
+  const totalComprasSinDerecho = (est.comprasSinDerecho||[]).reduce((s,r) => s + (Number(r.monto)||0), 0);
+
+  let totalCreditos = 0;
+  const comprasConDerechoDetalle = (est.comprasConDerecho||[]).map((r,i) => {
+    const cfg = F29_COMPRAS_CON_DERECHO[i];
+    const monto = Number(r.monto) || 0;
+    const credito = Math.round(monto * (Number(r.tasa)||0));
+    const signo = cfg.resta ? -1 : 1;
+    totalCreditos += signo * credito;
+    return { label: cfg.label, monto, credito, resta: !!cfg.resta };
+  });
+
+  const remanenteCreditoFiscalAnterior = Number(est.remanenteCreditoFiscalAnterior) || 0;
+  const totalCreditosConRemanente = totalCreditos + remanenteCreditoFiscalAnterior;
+
+  const retencionesDetalle = (est.retenciones||[]).map((r,i) => {
+    const cfg = F29_RETENCIONES_RENTA[i];
+    const monto = cfg.tasa == null ? (Number(r.monto)||0) : Math.round((Number(r.monto)||0) * (Number(r.tasa)||0));
+    return { label: cfg.label, monto };
+  });
+  const totalRetenciones = retencionesDetalle.reduce((s,r) => s + r.monto, 0);
+
+  const ppmBase = totalNetosAfectos + totalExentos;
+  const ppmTasa = Number(est.ppmTasa) || 0;
+  const ppmMonto = Math.round(ppmBase * ppmTasa);
+
+  const ivaDeterminado = totalDebitos - totalCreditosConRemanente;
+  const ivaAPagar = Math.max(ivaDeterminado, 0);
+  const remanenteCreditoFiscalSiguiente = Math.max(-ivaDeterminado, 0);
+
+  let ajustesNeto = 0;
+  const ajustesDetalle = (est.ajustesAdicionales||[]).map(a => {
+    const monto = Number(a.monto) || 0;
+    const signado = a.signo === 'resta' ? -monto : monto;
+    ajustesNeto += signado;
+    return { concepto: a.concepto, monto, signo: a.signo, signado };
+  });
+
+  const totalAPagar = ivaAPagar + totalRetenciones + ppmMonto + ajustesNeto;
+
+  return {
+    totalExentos, totalNetosAfectos, totalDebitos, ventasAfectasDetalle,
+    totalComprasSinDerecho, totalCreditos, comprasConDerechoDetalle,
+    remanenteCreditoFiscalAnterior, totalCreditosConRemanente,
+    ivaDeterminado, ivaAPagar, remanenteCreditoFiscalSiguiente,
+    retencionesDetalle, totalRetenciones,
+    ppmBase, ppmTasa, ppmMonto,
+    ajustesDetalle, ajustesNeto,
+    totalAPagar,
+  };
+}
+
+// Carga (o crea) el borrador en memoria f29FormActual para el cliente y
+// período actualmente elegidos. Se clona con JSON.parse/stringify para que
+// los cambios en el formulario no muten state.estimacionesF29 hasta que se
+// presione "Calcular y guardar estimación" (ver guardarEstimacionF29).
+function cargarFormularioF29(){
+  if(!estimacionF29ClienteId || !estimacionF29Periodo){ f29FormActual = null; return; }
+  const existente = obtenerEstimacionF29(estimacionF29ClienteId, estimacionF29Periodo);
+  f29FormActual = existente ? JSON.parse(JSON.stringify(existente)) : nuevaEstimacionF29Vacia(estimacionF29ClienteId, estimacionF29Periodo);
+}
+
+function setEstimacionF29Cliente(id){
+  estimacionF29ClienteId = id;
+  f29FormActual = null;
+  renderApp();
+}
+
+function setEstimacionF29Periodo(periodo){
+  estimacionF29Periodo = periodo;
+  f29FormActual = null;
+  renderApp();
+}
+
+// Estas dos NO llaman renderApp(): se usan en el onchange de inputs de
+// texto/número, y re-renderizar en cada tecleo perdería el foco/cursor. El
+// resumen ejecutivo se recalcula recién al presionar "Calcular y guardar".
+function f29SetRowCampo(seccion, idx, campo, valor){
+  if(!f29FormActual) return;
+  const row = f29FormActual[seccion] && f29FormActual[seccion][idx];
+  if(!row) return;
+  row[campo] = campo === 'docs' ? valor : (parseFloat(valor) || 0);
+}
+
+function f29SetCampo(campo, valor){
+  if(!f29FormActual) return;
+  f29FormActual[campo] = (campo === 'fechaLimitePago' || campo === 'notas') ? valor : (parseFloat(valor) || 0);
+}
+
+function f29AgregarAjuste(){
+  if(!f29FormActual) return;
+  const concepto = (document.getElementById('f29AjusteConcepto').value||'').trim();
+  const monto = parseFloat(document.getElementById('f29AjusteMonto').value) || 0;
+  const signo = document.getElementById('f29AjusteSigno').value;
+  if(!concepto) return showToast('Escribe un concepto para el ajuste.');
+  if(!monto) return showToast('Ingresa un monto para el ajuste.');
+  f29FormActual.ajustesAdicionales.push({ concepto, monto, signo });
+  renderApp();
+}
+
+function f29QuitarAjuste(idx){
+  if(!f29FormActual) return;
+  f29FormActual.ajustesAdicionales.splice(idx, 1);
+  renderApp();
+}
+
+async function guardarEstimacionF29(){
+  if(!f29FormActual) return;
+  f29FormActual.actualizadoPor = currentUser.name;
+  f29FormActual.fechaActualizacion = todayISO();
+  const copia = JSON.parse(JSON.stringify(f29FormActual));
+  if(!state.estimacionesF29) state.estimacionesF29 = [];
+  const idx = state.estimacionesF29.findIndex(e => e.id === copia.id);
+  if(idx >= 0) state.estimacionesF29[idx] = copia; else state.estimacionesF29.push(copia);
+  await saveEstimacionesF29();
+  showToast('Estimación F-29 calculada y guardada.');
+  renderApp();
+}
+
+function f29TablaFilas(titulo, subtitulo, filas, conceptos, seccion, conTasa, conDebitoCredito, labelDebitoCredito){
+  return `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
+      <h3 class="text-sm font-bold text-gray-700 mb-1">${titulo}</h3>
+      ${subtitulo ? `<p class="text-xs text-gray-400 mb-3">${subtitulo}</p>` : ''}
+      <div style="overflow-x:auto;">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500">
+          <th class="py-1 pr-3 font-medium">Concepto</th>
+          <th class="py-1 pr-3 font-medium" style="width:90px;">N° doctos</th>
+          <th class="py-1 pr-3 font-medium text-right" style="width:140px;">Monto neto</th>
+          ${conTasa ? `<th class="py-1 pr-3 font-medium text-right" style="width:90px;">Tasa</th>` : ''}
+          ${conDebitoCredito ? `<th class="py-1 pr-3 font-medium text-right" style="width:130px;">${labelDebitoCredito}</th>` : ''}
+        </tr></thead>
+        <tbody>
+          ${conceptos.map((cfg,i) => {
+            const r = filas[i] || {};
+            const monto = Number(r.monto)||0;
+            const tasa = conTasa ? (Number(r.tasa)||0) : null;
+            const calcVal = conDebitoCredito ? Math.round(monto*tasa) : null;
+            const label = cfg.label || cfg;
+            return `
+              <tr class="border-t border-gray-100">
+                <td class="py-1.5 pr-3 text-gray-700">${escapeHtml(label)}${cfg.resta ? ' <span class="text-gray-400">(resta)</span>' : ''}</td>
+                <td class="py-1.5 pr-3"><input type="text" value="${escapeAttr(r.docs||'')}" onchange="f29SetRowCampo('${seccion}', ${i}, 'docs', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs"></td>
+                <td class="py-1.5 pr-3"><input type="number" value="${monto||''}" onchange="f29SetRowCampo('${seccion}', ${i}, 'monto', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>
+                ${conTasa ? `<td class="py-1.5 pr-3"><input type="number" step="0.0001" value="${tasa}" onchange="f29SetRowCampo('${seccion}', ${i}, 'tasa', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>` : ''}
+                ${conDebitoCredito ? `<td class="py-1.5 pr-3 text-right mono text-gray-600">$${formatoCLP(calcVal)}</td>` : ''}
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  `;
+}
+
+function f29SeccionVentas(est){
+  return `
+    ${f29TablaFilas('Ventas y Servicios Prestados — Exentos', 'No generan débito de IVA, pero suman a la base del PPM.', est.ventasExentas, F29_VENTAS_EXENTAS, 'ventasExentas', false, false, '')}
+    ${f29TablaFilas('Ventas y Servicios Prestados — Afectos (generan Débito)', 'La tasa es editable por si cambia la ley. Las notas de crédito se restan del total.', est.ventasAfectas, F29_VENTAS_AFECTAS, 'ventasAfectas', true, true, 'Débito')}
+  `;
+}
+
+function f29SeccionCompras(est){
+  return `
+    ${f29TablaFilas('Compras — Sin Derecho a Crédito', 'Solo referencia para cuadrar con el registro de compras (no genera crédito fiscal).', est.comprasSinDerecho, F29_COMPRAS_SIN_DERECHO, 'comprasSinDerecho', false, false, '')}
+    ${f29TablaFilas('Compras — Con Derecho a Crédito', 'Las notas de crédito recibidas se restan del total.', est.comprasConDerecho, F29_COMPRAS_CON_DERECHO, 'comprasConDerecho', true, true, 'Crédito')}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
+      <h3 class="text-sm font-bold text-gray-700 mb-1">Remanente de Crédito Fiscal del mes anterior</h3>
+      <p class="text-xs text-gray-400 mb-3">Se autocompleta con el remanente calculado en la estimación guardada del período anterior de este cliente (editable si hace falta corregirlo).</p>
+      <input type="number" value="${est.remanenteCreditoFiscalAnterior||''}" onchange="f29SetCampo('remanenteCreditoFiscalAnterior', this.value)" class="rounded-lg border border-gray-300 px-3 py-2 text-sm text-right" style="width:200px;">
+    </div>
+  `;
+}
+
+function f29SeccionRetencionesPpm(est){
+  const filas = F29_RETENCIONES_RENTA.map((cfg,i) => {
+    const r = est.retenciones[i] || {};
+    if(cfg.tasa == null){
+      return `
+        <tr class="border-t border-gray-100">
+          <td class="py-1.5 pr-3 text-gray-700">${escapeHtml(cfg.label)}</td>
+          <td class="py-1.5 pr-3 text-right" colspan="2"><input type="number" value="${r.monto||''}" placeholder="Monto retenido" onchange="f29SetRowCampo('retenciones', ${i}, 'monto', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>
+        </tr>
+      `;
+    }
+    return `
+      <tr class="border-t border-gray-100">
+        <td class="py-1.5 pr-3 text-gray-700">${escapeHtml(cfg.label)}</td>
+        <td class="py-1.5 pr-3"><input type="number" value="${r.monto||''}" placeholder="Base imponible" onchange="f29SetRowCampo('retenciones', ${i}, 'monto', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>
+        <td class="py-1.5 pr-3"><input type="number" step="0.0001" value="${r.tasa}" onchange="f29SetRowCampo('retenciones', ${i}, 'tasa', this.value)" class="rounded-lg border border-gray-200 px-2 py-1 text-xs text-right" style="width:90px;"></td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
+      <h3 class="text-sm font-bold text-gray-700 mb-1">Retenciones de Impuesto a la Renta</h3>
+      <p class="text-xs text-gray-400 mb-3">Honorarios, sueldos y otras retenciones habituales. Revisa las tasas cada cierto tiempo: cambian por ley.</p>
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500"><th class="py-1 pr-3 font-medium">Concepto</th><th class="py-1 pr-3 font-medium">Base imponible / Monto</th><th class="py-1 pr-3 font-medium" style="width:90px;">Tasa</th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+
+      <div class="mt-5 pt-4 border-t border-gray-100">
+        <h4 class="text-sm font-bold text-gray-700 mb-1">PPM (Pago Provisional Mensual)</h4>
+        <p class="text-xs text-gray-400 mb-3">Base = ventas afectas + exentas del período. Tasa según régimen del cliente (habitual 1ª categoría: 1%).</p>
+        <div class="flex items-center gap-3">
+          <label class="text-xs text-gray-500">Tasa PPM</label>
+          <input type="number" step="0.0001" value="${est.ppmTasa}" onchange="f29SetCampo('ppmTasa', this.value)" class="rounded-lg border border-gray-200 px-2 py-1 text-xs text-right" style="width:100px;">
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function f29SeccionAjustes(est){
+  return `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
+      <h3 class="text-sm font-bold text-gray-700 mb-1">Ajustes adicionales</h3>
+      <p class="text-xs text-gray-400 mb-3">Para casos que no están en las secciones anteriores (cambio de sujeto, créditos especiales, tributación simplificada, impuestos adicionales a bebidas/licores, etc.). Se suman o restan del total a pagar.</p>
+      <div class="space-y-1.5 mb-3">
+        ${(est.ajustesAdicionales||[]).length ? est.ajustesAdicionales.map((a,i) => `
+          <div class="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
+            <span class="text-gray-700">${escapeHtml(a.concepto)} <span class="text-gray-400">(${a.signo==='resta'?'−':'+'}$${formatoCLP(a.monto)})</span></span>
+            <button onclick="f29QuitarAjuste(${i})" class="text-red-500 hover:text-red-700 font-semibold">Quitar</button>
+          </div>
+        `).join('') : `<p class="text-xs text-gray-400">Sin ajustes adicionales.</p>`}
+      </div>
+      <div class="flex flex-wrap gap-2 items-center">
+        <input type="text" id="f29AjusteConcepto" placeholder="Concepto (ej: Cambio de sujeto)" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs" style="min-width:180px;">
+        <input type="number" id="f29AjusteMonto" placeholder="Monto" class="rounded-lg border border-gray-300 px-3 py-2 text-xs text-right" style="width:110px;">
+        <select id="f29AjusteSigno" class="rounded-lg border border-gray-300 px-2 py-2 text-xs">
+          <option value="suma">Suma</option>
+          <option value="resta">Resta</option>
+        </select>
+        <button onclick="f29AgregarAjuste()" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold px-4 py-2 rounded-lg">Agregar</button>
+      </div>
+    </div>
+  `;
+}
+
+// Tarjeta final: es lo único que queda visible al imprimir/descargar PDF
+// (todo lo demás en estimacionF29Content() está envuelto en .no-print).
+function resumenEjecutivoF29Html(cliente, periodo, calc, est){
+  const conceptos = [];
+  if(calc.ivaAPagar > 0) conceptos.push({ label:'IVA Formulario 29', monto: calc.ivaAPagar });
+  if(calc.ppmMonto > 0) conceptos.push({ label:'PPM (Pago Provisional Mensual)', monto: calc.ppmMonto });
+  calc.retencionesDetalle.forEach(r => { if(r.monto > 0) conceptos.push({ label: r.label, monto: r.monto }); });
+  calc.ajustesDetalle.forEach(a => { if(a.signado !== 0) conceptos.push({ label: a.concepto, monto: a.signado }); });
+
+  const hayRemanente = calc.ivaDeterminado < 0;
+
+  return `
+    <div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:32px 36px;max-width:720px;margin:0 auto;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:20px;">
+        <div>
+          <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:600;color:var(--ink);">Resumen Ejecutivo F-29</div>
+          <div style="font-size:12px;color:#6b6a5f;margin-top:2px;">Estimación de impuestos mensuales</div>
+        </div>
+        <div style="text-align:right;font-size:12px;color:#6b6a5f;">
+          <div>Emitido: ${todayISO()}</div>
+          <div>Preparado por: ${escapeHtml(currentUser.name)}</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:13px;margin-bottom:24px;">
+        <div><span style="color:#6b6a5f;">Cliente:</span> <b>${escapeHtml(cliente.name)}</b></div>
+        <div><span style="color:#6b6a5f;">RUT:</span> <b>${escapeHtml(cliente.rut||'—')}</b></div>
+        <div><span style="color:#6b6a5f;">Período tributario:</span> <b>${periodoLabel(periodo)}</b></div>
+        <div><span style="color:#6b6a5f;">Fecha límite de pago:</span> <b>${escapeHtml(est.fechaLimitePago||'—')}</b></div>
+      </div>
+
+      <div style="font-size:13px;font-weight:600;color:var(--ink);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:10px;">Conceptos por los que pagará</div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:8px;">
+        ${conceptos.length ? conceptos.map(c => `
+          <tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:9px 0;color:var(--ink);">${escapeHtml(c.label)}</td>
+            <td style="padding:9px 0;text-align:right;font-family:'IBM Plex Mono',monospace;color:${c.monto<0?'var(--danger)':'var(--ink)'};">${c.monto<0?'-':''}$${formatoCLP(Math.abs(c.monto))}</td>
+          </tr>
+        `).join('') : `<tr><td style="padding:9px 0;color:#6b6a5f;" colspan="2">Sin conceptos con monto a pagar en este período.</td></tr>`}
+      </table>
+
+      ${hayRemanente ? `<div style="font-size:12px;color:var(--teal-dark);background:#E1EFE9;border-radius:6px;padding:8px 12px;margin-bottom:12px;">Remanente de crédito fiscal para el período siguiente: $${formatoCLP(calc.remanenteCreditoFiscalSiguiente)}</div>` : ''}
+
+      <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid var(--ink);padding-top:14px;margin-top:12px;">
+        <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:600;">TOTAL A PAGAR</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:var(--teal-dark);">$${formatoCLP(Math.max(calc.totalAPagar,0))}</div>
+      </div>
+
+      ${est.notas ? `<div style="margin-top:16px;font-size:12px;color:#6b6a5f;"><b>Notas:</b> ${escapeHtml(est.notas)}</div>` : ''}
+
+      <div style="margin-top:24px;padding-top:14px;border-top:1px solid var(--line);font-size:11px;color:#9a9788;">
+        Este documento es una estimación preparada internamente y puede variar respecto del Formulario 29 finalmente presentado ante el Servicio de Impuestos Internos (SII).
+      </div>
+    </div>
+
+    <div class="no-print" style="max-width:720px;margin:16px auto 0;display:flex;justify-content:flex-end;">
+      <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Descargar PDF</button>
+    </div>
+  `;
+}
+
+function estimacionF29Content(verTodo){
+  const misCarteras = carterasDeUsuario(currentUser);
+  const clientesVisibles = (verTodo ? clientesEnSucursalActiva() : state.clientes.filter(c => misCarteras.includes(c.encargadoId)))
+    .slice().sort((a,b) => a.name.localeCompare(b.name, 'es'));
+
+  if(!clientesVisibles.length){
+    return `<div class="empty-state"><div class="display">Sin clientes</div><div>No hay clientes disponibles para hacer una estimación F-29.</div></div>`;
+  }
+
+  if(!estimacionF29Periodo) estimacionF29Periodo = periodoActualISO();
+  if(!estimacionF29ClienteId || !clientesVisibles.some(c => c.id === estimacionF29ClienteId)){
+    estimacionF29ClienteId = clientesVisibles[0].id;
+    f29FormActual = null;
+  }
+  if(!f29FormActual || f29FormActual.clienteId !== estimacionF29ClienteId || f29FormActual.periodo !== estimacionF29Periodo){
+    cargarFormularioF29();
+  }
+
+  const cliente = clientesVisibles.find(c => c.id === estimacionF29ClienteId);
+  const est = f29FormActual;
+  const calc = calcularF29(est);
+  const historial = (state.estimacionesF29||[]).filter(e => e.clienteId === cliente.id).sort((a,b) => b.periodo.localeCompare(a.periodo));
+
+  return `
+    <div class="max-w-5xl">
+      <div class="mb-1 no-print">
+        <h2 class="text-2xl font-bold text-gray-800 mb-1">F-29</h2>
+        <p class="text-sm text-gray-500">Estimación de impuestos mensuales (IVA, PPM y retenciones) por cliente, con resumen ejecutivo listo para enviar.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 my-6 no-print">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Cliente</label>
+            <select onchange="setEstimacionF29Cliente(this.value)" class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm">
+              ${clientesVisibles.map(c => `<option value="${c.id}" ${c.id===estimacionF29ClienteId?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Período tributario</label>
+            <input type="month" value="${estimacionF29Periodo}" onchange="setEstimacionF29Periodo(this.value)" class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Fecha límite de pago</label>
+            <input type="date" value="${est.fechaLimitePago||''}" onchange="f29SetCampo('fechaLimitePago', this.value)" class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm">
+          </div>
+        </div>
+        <div class="mt-4">
+          <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Notas para el resumen (opcional)</label>
+          <textarea onchange="f29SetCampo('notas', this.value)" rows="2" class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm">${escapeHtml(est.notas||'')}</textarea>
+        </div>
+        ${historial.length ? `
+        <div class="mt-4 flex flex-wrap gap-2 items-center">
+          <span class="text-xs text-gray-400">Historial de este cliente:</span>
+          ${historial.map(h => `<button onclick="setEstimacionF29Periodo('${h.periodo}')" class="text-xs px-2.5 py-1 rounded-full border ${h.periodo===estimacionF29Periodo?'bg-blue-50 border-blue-300 text-blue-700 font-semibold':'border-gray-200 text-gray-500 hover:border-gray-300'}">${periodoLabel(h.periodo)}</button>`).join('')}
+        </div>
+        ` : ''}
+      </div>
+
+      <div class="no-print">
+        ${f29SeccionVentas(est)}
+        ${f29SeccionCompras(est)}
+        ${f29SeccionRetencionesPpm(est)}
+        ${f29SeccionAjustes(est)}
+        <div class="flex items-center gap-3 mb-8">
+          <button onclick="guardarEstimacionF29()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Calcular y guardar estimación</button>
+          <span class="text-xs text-gray-400">El resumen de abajo se actualiza al presionar este botón.</span>
+        </div>
+      </div>
+
+      ${resumenEjecutivoF29Html(cliente, estimacionF29Periodo, calc, est)}
+    </div>
+  `;
+}
+
 function obligacionesScope(verTodo){
   return verTodo ? clientesEnSucursalActiva() : state.clientes.filter(c => carterasDeUsuario(currentUser).includes(c.encargadoId));
 }
@@ -5671,6 +6200,7 @@ function encargadoLayout(){
   const content = activeTab === 'inicio' ? inicioContent()
     : activeTab === 'requerimientos' ? requerimientosContent()
     : activeTab === 'obligaciones' ? obligacionesContent(verTodo)
+    : activeTab === 'f29' ? estimacionF29Content(verTodo)
     : activeTab === 'tareas' ? tareasContent(verTodo, false)
     : activeTab === 'archivos' ? archivosContent()
     : activeTab === 'trabajos-especiales' ? trabajosEspecialesContent() : `
