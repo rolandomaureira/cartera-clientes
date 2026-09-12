@@ -2180,26 +2180,34 @@ function badgeTipoArchivo(a){
   return `<span style="font-size:10px;font-weight:600;padding:1px 7px;border-radius:9999px;white-space:nowrap;${estilo}">${vencido ? 'Vencido' : `Vence ${escapeHtml(a.fechaVencimiento)}`}</span>`;
 }
 
-// Vista consolidada: un renglón por archivo, de todos los clientes que el
-// usuario actual puede ver (misma regla de alcance que "Cartera de
-// Clientes" — todo si puedeVerTodasLasCarteras, si no solo su(s) cartera(s)).
+// Vista consolidada: un renglón por archivo, de todos los clientes y
+// trabajos especiales que el usuario actual puede ver (misma regla de
+// alcance que "Cartera de Clientes" para clientes — todo si
+// puedeVerTodasLasCarteras, si no solo su(s) cartera(s) —; para trabajos
+// especiales, todos si puedeVerTodasLasCarteras, si no solo los propios).
 // No es una colección propia: cada archivo sigue viviendo dentro de
-// c.archivos, esto solo los junta para no tener que entrar cliente por
-// cliente a revisarlos.
+// c.archivos o t.archivos, esto solo los junta. Esta es también la ÚNICA
+// pantalla desde la que se pueden AGREGAR archivos nuevos a un trabajo
+// especial (ver el bloque "Adjuntar archivo a un trabajo especial" más
+// abajo) — Trabajos Especiales solo los muestra, ya no permite subirlos.
 function archivosContent(){
   const verTodo = puedeVerTodasLasCarteras(currentUser);
   const misCarteras = carterasDeUsuario(currentUser);
   const clientesVisibles = verTodo ? state.clientes : state.clientes.filter(c => misCarteras.includes(c.encargadoId));
+  const trabajosVisibles = verTodo ? (state.trabajosEspeciales||[]) : (state.trabajosEspeciales||[]).filter(t => t.asignadoA === currentUser.id);
 
   let filas = [];
   clientesVisibles.forEach(c => {
-    (c.archivos||[]).forEach((archivo, index) => filas.push({ cliente: c, archivo, index }));
+    (c.archivos||[]).forEach((archivo, index) => filas.push({ origenTipo:'cliente', origenNombre: c.name, clienteId: c.id, archivo, index }));
+  });
+  trabajosVisibles.forEach(t => {
+    (t.archivos||[]).forEach((archivo, index) => filas.push({ origenTipo:'trabajo', origenNombre: `Trabajo especial: ${t.titulo}`, trabajoId: t.id, archivo, index }));
   });
 
   const q = (searchQuery||'').trim().toLowerCase();
   if(q){
-    filas = filas.filter(({cliente, archivo}) =>
-      (cliente.name||'').toLowerCase().includes(q) || (archivo.nombre||'').toLowerCase().includes(q)
+    filas = filas.filter(({origenNombre, archivo}) =>
+      (origenNombre||'').toLowerCase().includes(q) || (archivo.nombre||'').toLowerCase().includes(q)
     );
   }
   const hoy = todayISO();
@@ -2210,7 +2218,8 @@ function archivosContent(){
   filas.sort((a,b) => (b.archivo.fecha||'').localeCompare(a.archivo.fecha||''));
 
   const { pageItems, totalPages, page } = paginate(filas, tablePage);
-  const totalSinFiltrar = clientesVisibles.reduce((n, c) => n + (c.archivos ? c.archivos.length : 0), 0);
+  const totalSinFiltrar = clientesVisibles.reduce((n, c) => n + (c.archivos ? c.archivos.length : 0), 0)
+    + trabajosVisibles.reduce((n, t) => n + (t.archivos ? t.archivos.length : 0), 0);
 
   const chip = (tipo, label) => `<div class="filter-chip ${archivosFiltroTipo===tipo?'active':''}" onclick="setArchivosFiltroTipo('${tipo}')">${label}</div>`;
 
@@ -2220,8 +2229,22 @@ function archivosContent(){
         <h2 class="display">Archivos</h2>
         <div class="meta">${filas.length} de ${totalSinFiltrar} archivo${totalSinFiltrar===1?'':'s'} · ${verTodo ? 'de todos los clientes' : 'de tu cartera'}</div>
       </div>
-      <input type="text" id="searchBox" placeholder="Buscar por cliente o nombre de archivo…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" style="min-width:240px;">
+      <input type="text" id="searchBox" placeholder="Buscar por cliente, trabajo especial o nombre de archivo…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" style="min-width:240px;">
     </div>
+    ${trabajosVisibles.length ? `
+    <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:16px;">
+      <h4 style="margin:0 0 10px;font-size:14px;">Adjuntar archivo a un trabajo especial</h4>
+      <div class="form-inline">
+        <select id="archivosTeSelect" style="min-width:220px;">
+          <option value="">Selecciona un trabajo especial…</option>
+          ${trabajosVisibles.map(t=>`<option value="${t.id}">${escapeHtml(t.titulo)}</option>`).join('')}
+        </select>
+        <input type="file" id="archivosTeInput" style="flex:1;">
+        <button class="btn secondary small" id="archivosTeBtn" onclick="subirArchivoTrabajoDesdeArchivos()">Subir archivo</button>
+      </div>
+      <div style="font-size:11px;color:#8a8879;margin-top:6px;">Máximo 5 MB por archivo. Los archivos de clientes se agregan desde la ficha de cada cliente.</div>
+    </div>
+    ` : ''}
     <div class="filter-bar" style="margin-bottom:14px;">
       ${chip('todos', 'Todos')}
       ${chip('permanente', 'Permanentes')}
@@ -2229,21 +2252,37 @@ function archivosContent(){
       ${chip('vencido', 'Vencidos')}
     </div>
     <table>
-      <thead><tr><th>Cliente</th><th>Archivo</th><th></th><th>Subido</th><th></th></tr></thead>
+      <thead><tr><th>Origen</th><th>Archivo</th><th></th><th>Subido</th><th></th></tr></thead>
       <tbody>
-        ${pageItems.length ? pageItems.map(({cliente, archivo, index}) => `
+        ${pageItems.length ? pageItems.map(({origenTipo, origenNombre, clienteId, trabajoId, archivo, index}) => `
           <tr>
-            <td class="client-name">${escapeHtml(cliente.name)}</td>
+            <td class="client-name">${escapeHtml(origenNombre)}</td>
             <td><a href="${escapeAttr(archivo.url)}" target="_blank" rel="noopener" style="color:var(--teal-dark);text-decoration:underline;">${escapeHtml(archivo.nombre)}</a></td>
             <td>${badgeTipoArchivo(archivo)}</td>
             <td style="color:#8a8879;font-size:12px;white-space:nowrap;">${escapeHtml(archivo.fecha||'')}${archivo.subidoPor?` · ${escapeHtml(archivo.subidoPor)}`:''}</td>
-            <td class="row-actions"><button class="btn danger small" onclick="quitarArchivoCliente('${cliente.id}', ${index})">Quitar</button></td>
+            <td class="row-actions"><button class="btn danger small" onclick="${origenTipo==='cliente' ? `quitarArchivoCliente('${clienteId}', ${index})` : `quitarArchivoTrabajoEspecial('${trabajoId}', ${index})`}">Quitar</button></td>
           </tr>
         `).join('') : `<tr><td colspan="5" style="padding:32px;text-align:center;color:#8a8879;">${q || archivosFiltroTipo!=='todos' ? 'No hay archivos que coincidan con el filtro.' : 'Todavía no se ha subido ningún archivo.'}</td></tr>`}
       </tbody>
     </table>
     ${paginationControls(page, totalPages)}
   `;
+}
+
+async function subirArchivoTrabajoDesdeArchivos(){
+  const sel = document.getElementById('archivosTeSelect');
+  const input = document.getElementById('archivosTeInput');
+  const boton = document.getElementById('archivosTeBtn');
+  const trabajoId = sel && sel.value;
+  if(!trabajoId) return showToast('Selecciona un trabajo especial.');
+  if(!input || !input.files || !input.files[0]) return showToast('Elige un archivo primero.');
+  if(boton){ boton.disabled = true; boton.textContent = 'Subiendo…'; }
+  try{
+    await subirArchivoTrabajoEspecial(trabajoId, input);
+    if(sel) sel.value = '';
+  }finally{
+    if(boton){ boton.disabled = false; boton.textContent = 'Subir archivo'; }
+  }
 }
 
 async function subirArchivoCliente(clienteId){
@@ -3607,7 +3646,7 @@ function trabajosEspecialesContent(){
                       ${TRABAJO_ESTADOS.map(e=>`<option value="${e}" ${t.estado===e?'selected':''}>${e}</option>`).join('')}
                     </select>
                   </td>
-                  <td class="px-5 py-3">${trabajoArchivosHtml(t, 'teArchivo')}</td>
+                  <td class="px-5 py-3">${trabajoArchivosViewHtml(t)}</td>
                   <td class="px-5 py-3 text-right">
                     <button onclick="removeTrabajoEspecial('${t.id}')" class="text-red-500 hover:text-red-700 text-xs font-semibold">Eliminar</button>
                   </td>
@@ -3656,28 +3695,18 @@ async function removeTrabajoEspecial(id){
   showToast('Trabajo especial eliminado.');
 }
 
-// Adjuntos de un trabajo especial (Word, Excel, PDF, imágenes, etc). Se
-// suben con la misma acción de backend "subirArchivo" que ya usan los
-// archivos de cliente (mismo Drive, misma cuota de 5 MB) — solo cambia el
-// nombre de carpeta para que no se mezclen con las carpetas de clientes.
-// inputIdPrefix distingue el <input type=file> según se muestre en la
-// tabla de administración o en "Mis trabajos especiales", para que los ids
-// nunca choquen si ambas vistas llegaran a coexistir en el DOM.
-function trabajoArchivosHtml(t, inputIdPrefix){
+// Adjuntos de un trabajo especial (Word, Excel, PDF, imágenes, etc): solo
+// lectura — para agregar o quitar uno hay que ir a la sección "Archivos"
+// (ver archivosContent()), que es el único lugar desde donde se suben.
+// Aquí solo se listan como referencia rápida mientras se revisa el trabajo.
+function trabajoArchivosViewHtml(t){
   const archivos = t.archivos || [];
-  const inputId = `${inputIdPrefix}_${t.id}`;
+  if(!archivos.length) return `<span class="text-xs text-gray-400">Sin archivos</span>`;
   return `
     <div class="flex flex-wrap items-center gap-1.5">
-      ${archivos.map((a,i) => `
-        <span class="inline-flex items-center gap-1 bg-gray-100 rounded-full pl-2.5 pr-1.5 py-1 text-xs">
-          <a href="${escapeAttr(a.url)}" target="_blank" rel="noopener" class="text-blue-600 hover:underline max-w-[120px] truncate">${escapeHtml(a.nombre)}</a>
-          <button type="button" onclick="quitarArchivoTrabajoEspecial('${t.id}', ${i})" title="Quitar" class="text-gray-400 hover:text-red-500 font-bold leading-none">×</button>
-        </span>
+      ${archivos.map(a => `
+        <a href="${escapeAttr(a.url)}" target="_blank" rel="noopener" class="inline-flex items-center bg-gray-100 rounded-full px-2.5 py-1 text-xs text-blue-600 hover:underline max-w-[140px] truncate">${escapeHtml(a.nombre)}</a>
       `).join('')}
-      <label class="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 cursor-pointer font-semibold whitespace-nowrap">
-        <input type="file" id="${inputId}" class="hidden" onchange="subirArchivoTrabajoEspecial('${t.id}', this)">
-        <span>+ Adjuntar</span>
-      </label>
     </div>
   `;
 }
@@ -3759,7 +3788,7 @@ function misTrabajosEspecialesContent(){
                   ${TRABAJO_ESTADOS.map(e=>`<option value="${e}" ${t.estado===e?'selected':''}>${e}</option>`).join('')}
                 </select>
               </div>
-              <div class="w-full">${trabajoArchivosHtml(t, 'mteArchivo')}</div>
+              <div class="w-full">${trabajoArchivosViewHtml(t)}</div>
             </div>
           `;
         }).join('') : `<p class="text-xs text-gray-400">Sin trabajos especiales por ahora.</p>`}
