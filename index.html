@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
+<!-- Genera el PDF del Resumen Ejecutivo F-29 directamente (sin pasar por el diálogo de impresión del navegador). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
   // Preflight desactivado a propósito: esta app ya tiene sus propios estilos
   // base (topbar, tablas, botones). Tailwind se usa solo como utilidades
@@ -5219,7 +5221,7 @@ function resumenEjecutivoF29Html(cliente, periodo, calc, est){
   const hayRemanente = calc.ivaDeterminado < 0;
 
   return `
-    <div style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:32px 36px;max-width:720px;margin:0 auto;">
+    <div id="f29ResumenCardInner" style="background:var(--white);border:1px solid var(--line);border-radius:10px;padding:32px 36px;max-width:720px;margin:0 auto;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:20px;">
         <div>
           <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:600;color:var(--ink);">Resumen Ejecutivo F-29</div>
@@ -5263,9 +5265,41 @@ function resumenEjecutivoF29Html(cliente, periodo, calc, est){
     </div>
 
     <div class="no-print" style="max-width:720px;margin:16px auto 0;display:flex;justify-content:flex-end;">
-      <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Descargar PDF</button>
+      <button id="f29BotonPdf" onclick="descargarResumenF29Pdf()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Descargar PDF</button>
     </div>
   `;
+}
+
+// Genera el PDF del Resumen Ejecutivo F-29 directamente con html2pdf.js, sin
+// pasar por el diálogo de impresión del navegador. Si la librería no llegó a
+// cargar (por ejemplo, sin conexión a internet), cae de respaldo al diálogo
+// de impresión de siempre para no dejar a la persona sin ninguna salida.
+function descargarResumenF29Pdf(){
+  const el = document.getElementById('f29ResumenCardInner');
+  if(!el) return;
+  if(typeof html2pdf === 'undefined'){
+    showToast('No se pudo cargar el generador de PDF; se abre el diálogo de impresión.');
+    return window.print();
+  }
+  const boton = document.getElementById('f29BotonPdf');
+  const textoOriginal = boton ? boton.textContent : '';
+  if(boton){ boton.textContent = 'Generando PDF…'; boton.disabled = true; }
+
+  const cliente = state.clientes.find(c => c.id === estimacionF29ClienteId);
+  const slug = (s) => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'cliente';
+  const nombreArchivo = `F29_${slug(cliente && cliente.name)}_${estimacionF29Periodo||''}.pdf`;
+
+  html2pdf().set({
+    margin: 10,
+    filename: nombreArchivo,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, backgroundColor: '#FBFAF6' },
+    jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+  }).from(el).save().catch(() => {
+    showToast('No se pudo generar el PDF. Intenta de nuevo.');
+  }).finally(() => {
+    if(boton){ boton.textContent = textoOriginal; boton.disabled = false; }
+  });
 }
 
 function estimacionF29Content(verTodo){
