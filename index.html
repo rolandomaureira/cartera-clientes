@@ -4919,19 +4919,64 @@ function setEstimacionF29Periodo(periodo){
   renderApp();
 }
 
-// Estas dos NO llaman renderApp(): se usan en el onchange de inputs de
-// texto/número, y re-renderizar en cada tecleo perdería el foco/cursor. El
-// resumen ejecutivo se recalcula recién al presionar "Calcular y guardar".
+// Estas dos NO llaman renderApp() (perdería el foco/cursor en cada tecleo).
+// En cambio llaman a actualizarF29EnVivo(), que recalcula con calcularF29()
+// y actualiza por DOM directo solo las celdas de totales, la barra de
+// estado y el resumen ejecutivo — sin tocar los inputs. El botón "Guardar
+// estimación" solo persiste el borrador que ya se ve calculado en pantalla.
 function f29SetRowCampo(seccion, idx, campo, valor){
   if(!f29FormActual) return;
   const row = f29FormActual[seccion] && f29FormActual[seccion][idx];
   if(!row) return;
   row[campo] = campo === 'docs' ? valor : (parseFloat(valor) || 0);
+  actualizarF29EnVivo();
 }
 
 function f29SetCampo(campo, valor){
   if(!f29FormActual) return;
   f29FormActual[campo] = (campo === 'fechaLimitePago' || campo === 'notas') ? valor : (parseFloat(valor) || 0);
+  actualizarF29EnVivo();
+}
+
+// Recalcula F-29 en vivo cada vez que se edita un monto/tasa/remanente,
+// actualizando por DOM directo (nunca renderApp()) las celdas de totales de
+// cada tabla, la barra de estado y el resumen ejecutivo. Este último es una
+// tarjeta de solo lectura (sin inputs), así que regenerarla entera en cada
+// tecleo es segura y no pierde foco en ningún campo.
+function actualizarF29EnVivo(){
+  if(!f29FormActual) return;
+  const calc = calcularF29(f29FormActual);
+  const setTexto = (id, texto) => { const el = document.getElementById(id); if(el) el.textContent = texto; };
+
+  setTexto('f29subtotal-monto-ventasExentas', '$' + formatoCLP(calc.totalExentos));
+
+  calc.ventasAfectasDetalle.forEach((r,i) => setTexto(`f29rowcalc-ventasAfectas-${i}`, '$' + formatoCLP(r.debito)));
+  setTexto('f29subtotal-monto-ventasAfectas', '$' + formatoCLP(calc.totalNetosAfectos));
+  setTexto('f29subtotal-calc-ventasAfectas', '$' + formatoCLP(calc.totalDebitos));
+
+  setTexto('f29subtotal-monto-comprasSinDerecho', '$' + formatoCLP(calc.totalComprasSinDerecho));
+
+  calc.comprasConDerechoDetalle.forEach((r,i) => setTexto(`f29rowcalc-comprasConDerecho-${i}`, '$' + formatoCLP(r.credito)));
+  const totalNetoComprasConDerecho = calc.comprasConDerechoDetalle.reduce((s,r) => s + (r.resta ? -1 : 1) * r.monto, 0);
+  setTexto('f29subtotal-monto-comprasConDerecho', '$' + formatoCLP(totalNetoComprasConDerecho));
+  setTexto('f29subtotal-calc-comprasConDerecho', '$' + formatoCLP(calc.totalCreditos));
+
+  calc.retencionesDetalle.forEach((r,i) => setTexto(`f29rowcalc-retenciones-${i}`, '$' + formatoCLP(r.monto)));
+  setTexto('f29subtotal-retenciones', '$' + formatoCLP(calc.totalRetenciones));
+
+  setTexto('f29PpmBase', '$' + formatoCLP(calc.ppmBase));
+  setTexto('f29PpmMonto', '$' + formatoCLP(calc.ppmMonto));
+
+  setTexto('f29BarDebito', '$' + formatoCLP(calc.totalDebitos));
+  setTexto('f29BarCredito', '$' + formatoCLP(calc.totalCreditosConRemanente));
+  setTexto('f29BarIva', (calc.ivaDeterminado < 0 ? '−' : '') + '$' + formatoCLP(Math.abs(calc.ivaDeterminado)));
+  setTexto('f29BarTotal', '$' + formatoCLP(Math.max(calc.totalAPagar, 0)));
+
+  const resumenCard = document.getElementById('f29ResumenCard');
+  if(resumenCard){
+    const cliente = state.clientes.find(c => c.id === f29FormActual.clienteId);
+    if(cliente) resumenCard.innerHTML = resumenEjecutivoF29Html(cliente, f29FormActual.periodo, calc, f29FormActual);
+  }
 }
 
 function f29AgregarAjuste(){
@@ -4979,6 +5024,28 @@ async function marcarF29GuardadoSiPeriodoActual(clienteId, periodo){
 }
 
 function f29TablaFilas(titulo, subtitulo, filas, conceptos, seccion, conTasa, conDebitoCredito, labelDebitoCredito){
+  let totalMonto = 0;
+  let totalCalc = 0;
+  const filasHtml = conceptos.map((cfg,i) => {
+    const r = filas[i] || {};
+    const monto = Number(r.monto)||0;
+    const tasa = conTasa ? (Number(r.tasa)||0) : null;
+    const calcVal = conDebitoCredito ? Math.round(monto*tasa) : null;
+    const signo = cfg.resta ? -1 : 1;
+    totalMonto += signo * monto;
+    if(conDebitoCredito) totalCalc += signo * calcVal;
+    const label = cfg.label || cfg;
+    return `
+      <tr class="border-t border-gray-100">
+        <td class="py-1.5 pr-3 text-gray-700">${escapeHtml(label)}${cfg.resta ? ' <span class="text-gray-400">(resta)</span>' : ''}</td>
+        <td class="py-1.5 pr-3"><input type="text" value="${escapeAttr(r.docs||'')}" onchange="f29SetRowCampo('${seccion}', ${i}, 'docs', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs"></td>
+        <td class="py-1.5 pr-3"><input type="number" value="${monto||''}" oninput="f29SetRowCampo('${seccion}', ${i}, 'monto', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>
+        ${conTasa ? `<td class="py-1.5 pr-3"><input type="number" step="0.0001" value="${tasa}" oninput="f29SetRowCampo('${seccion}', ${i}, 'tasa', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>` : ''}
+        ${conDebitoCredito ? `<td class="py-1.5 pr-3 text-right mono text-gray-600" id="f29rowcalc-${seccion}-${i}">$${formatoCLP(calcVal)}</td>` : ''}
+      </tr>
+    `;
+  }).join('');
+
   return `
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
       <h3 class="text-sm font-bold text-gray-700 mb-1">${titulo}</h3>
@@ -4993,23 +5060,16 @@ function f29TablaFilas(titulo, subtitulo, filas, conceptos, seccion, conTasa, co
           ${conDebitoCredito ? `<th class="py-1 pr-3 font-medium text-right" style="width:130px;">${labelDebitoCredito}</th>` : ''}
         </tr></thead>
         <tbody>
-          ${conceptos.map((cfg,i) => {
-            const r = filas[i] || {};
-            const monto = Number(r.monto)||0;
-            const tasa = conTasa ? (Number(r.tasa)||0) : null;
-            const calcVal = conDebitoCredito ? Math.round(monto*tasa) : null;
-            const label = cfg.label || cfg;
-            return `
-              <tr class="border-t border-gray-100">
-                <td class="py-1.5 pr-3 text-gray-700">${escapeHtml(label)}${cfg.resta ? ' <span class="text-gray-400">(resta)</span>' : ''}</td>
-                <td class="py-1.5 pr-3"><input type="text" value="${escapeAttr(r.docs||'')}" onchange="f29SetRowCampo('${seccion}', ${i}, 'docs', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs"></td>
-                <td class="py-1.5 pr-3"><input type="number" value="${monto||''}" onchange="f29SetRowCampo('${seccion}', ${i}, 'monto', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>
-                ${conTasa ? `<td class="py-1.5 pr-3"><input type="number" step="0.0001" value="${tasa}" onchange="f29SetRowCampo('${seccion}', ${i}, 'tasa', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>` : ''}
-                ${conDebitoCredito ? `<td class="py-1.5 pr-3 text-right mono text-gray-600">$${formatoCLP(calcVal)}</td>` : ''}
-              </tr>
-            `;
-          }).join('')}
+          ${filasHtml}
         </tbody>
+        <tfoot>
+          <tr class="border-t-2 border-gray-300">
+            <td class="py-2 pr-3 font-bold text-gray-700" colspan="2">Total</td>
+            <td class="py-2 pr-3 text-right font-bold mono" id="f29subtotal-monto-${seccion}">$${formatoCLP(totalMonto)}</td>
+            ${conTasa ? `<td></td>` : ''}
+            ${conDebitoCredito ? `<td class="py-2 pr-3 text-right font-bold mono" id="f29subtotal-calc-${seccion}">$${formatoCLP(totalCalc)}</td>` : ''}
+          </tr>
+        </tfoot>
       </table>
       </div>
     </div>
@@ -5018,58 +5078,78 @@ function f29TablaFilas(titulo, subtitulo, filas, conceptos, seccion, conTasa, co
 
 function f29SeccionVentas(est){
   return `
-    ${f29TablaFilas('Ventas y Servicios Prestados — Exentos', 'No generan débito de IVA, pero suman a la base del PPM.', est.ventasExentas, F29_VENTAS_EXENTAS, 'ventasExentas', false, false, '')}
-    ${f29TablaFilas('Ventas y Servicios Prestados — Afectos (generan Débito)', 'La tasa es editable por si cambia la ley. Las notas de crédito se restan del total.', est.ventasAfectas, F29_VENTAS_AFECTAS, 'ventasAfectas', true, true, 'Débito')}
+    ${f29TablaFilas('I. Ventas y Servicios Prestados — Exentos', 'No generan débito de IVA, pero suman a la base del PPM.', est.ventasExentas, F29_VENTAS_EXENTAS, 'ventasExentas', false, false, '')}
+    ${f29TablaFilas('I. Ventas y Servicios Prestados — Afectos (generan Débito Fiscal)', 'La tasa es editable por si cambia la ley. Las notas de crédito se restan del total.', est.ventasAfectas, F29_VENTAS_AFECTAS, 'ventasAfectas', true, true, 'Débito')}
   `;
 }
 
 function f29SeccionCompras(est){
   return `
-    ${f29TablaFilas('Compras — Sin Derecho a Crédito', 'Solo referencia para cuadrar con el registro de compras (no genera crédito fiscal).', est.comprasSinDerecho, F29_COMPRAS_SIN_DERECHO, 'comprasSinDerecho', false, false, '')}
-    ${f29TablaFilas('Compras — Con Derecho a Crédito', 'Las notas de crédito recibidas se restan del total.', est.comprasConDerecho, F29_COMPRAS_CON_DERECHO, 'comprasConDerecho', true, true, 'Crédito')}
+    ${f29TablaFilas('II. Compras — Sin Derecho a Crédito', 'Solo referencia para cuadrar con el registro de compras (no genera crédito fiscal).', est.comprasSinDerecho, F29_COMPRAS_SIN_DERECHO, 'comprasSinDerecho', false, false, '')}
+    ${f29TablaFilas('II. Compras — Con Derecho a Crédito', 'Las notas de crédito recibidas se restan del total.', est.comprasConDerecho, F29_COMPRAS_CON_DERECHO, 'comprasConDerecho', true, true, 'Crédito')}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
       <h3 class="text-sm font-bold text-gray-700 mb-1">Remanente de Crédito Fiscal del mes anterior</h3>
       <p class="text-xs text-gray-400 mb-3">Se autocompleta con el remanente calculado en la estimación guardada del período anterior de este cliente (editable si hace falta corregirlo).</p>
-      <input type="number" value="${est.remanenteCreditoFiscalAnterior||''}" onchange="f29SetCampo('remanenteCreditoFiscalAnterior', this.value)" class="rounded-lg border border-gray-300 px-3 py-2 text-sm text-right" style="width:200px;">
+      <input type="number" value="${est.remanenteCreditoFiscalAnterior||''}" oninput="f29SetCampo('remanenteCreditoFiscalAnterior', this.value)" class="rounded-lg border border-gray-300 px-3 py-2 text-sm text-right" style="width:200px;">
     </div>
   `;
 }
 
-function f29SeccionRetencionesPpm(est){
+function f29SeccionRetencionesPpm(est, calc){
   const filas = F29_RETENCIONES_RENTA.map((cfg,i) => {
     const r = est.retenciones[i] || {};
+    const monto = Number(r.monto) || 0;
     if(cfg.tasa == null){
       return `
         <tr class="border-t border-gray-100">
           <td class="py-1.5 pr-3 text-gray-700">${escapeHtml(cfg.label)}</td>
-          <td class="py-1.5 pr-3 text-right" colspan="2"><input type="number" value="${r.monto||''}" placeholder="Monto retenido" onchange="f29SetRowCampo('retenciones', ${i}, 'monto', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>
+          <td class="py-1.5 pr-3" colspan="2"><input type="number" value="${r.monto||''}" placeholder="Monto retenido" oninput="f29SetRowCampo('retenciones', ${i}, 'monto', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>
+          <td class="py-1.5 pr-3 text-right mono text-gray-600" id="f29rowcalc-retenciones-${i}">$${formatoCLP(monto)}</td>
         </tr>
       `;
     }
+    const tasa = Number(r.tasa) || 0;
+    const calcVal = Math.round(monto * tasa);
     return `
       <tr class="border-t border-gray-100">
         <td class="py-1.5 pr-3 text-gray-700">${escapeHtml(cfg.label)}</td>
-        <td class="py-1.5 pr-3"><input type="number" value="${r.monto||''}" placeholder="Base imponible" onchange="f29SetRowCampo('retenciones', ${i}, 'monto', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>
-        <td class="py-1.5 pr-3"><input type="number" step="0.0001" value="${r.tasa}" onchange="f29SetRowCampo('retenciones', ${i}, 'tasa', this.value)" class="rounded-lg border border-gray-200 px-2 py-1 text-xs text-right" style="width:90px;"></td>
+        <td class="py-1.5 pr-3"><input type="number" value="${r.monto||''}" placeholder="Base imponible" oninput="f29SetRowCampo('retenciones', ${i}, 'monto', this.value)" class="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-right"></td>
+        <td class="py-1.5 pr-3"><input type="number" step="0.0001" value="${r.tasa}" oninput="f29SetRowCampo('retenciones', ${i}, 'tasa', this.value)" class="rounded-lg border border-gray-200 px-2 py-1 text-xs text-right" style="width:90px;"></td>
+        <td class="py-1.5 pr-3 text-right mono text-gray-600" id="f29rowcalc-retenciones-${i}">$${formatoCLP(calcVal)}</td>
       </tr>
     `;
   }).join('');
 
   return `
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
-      <h3 class="text-sm font-bold text-gray-700 mb-1">Retenciones de Impuesto a la Renta</h3>
+      <h3 class="text-sm font-bold text-gray-700 mb-1">III. Retenciones de Impuesto a la Renta</h3>
       <p class="text-xs text-gray-400 mb-3">Honorarios, sueldos y otras retenciones habituales. Revisa las tasas cada cierto tiempo: cambian por ley.</p>
       <table class="w-full text-sm">
-        <thead><tr class="text-left text-gray-500"><th class="py-1 pr-3 font-medium">Concepto</th><th class="py-1 pr-3 font-medium">Base imponible / Monto</th><th class="py-1 pr-3 font-medium" style="width:90px;">Tasa</th></tr></thead>
+        <thead><tr class="text-left text-gray-500">
+          <th class="py-1 pr-3 font-medium">Concepto</th>
+          <th class="py-1 pr-3 font-medium">Base imponible / Monto</th>
+          <th class="py-1 pr-3 font-medium" style="width:90px;">Tasa</th>
+          <th class="py-1 pr-3 font-medium text-right" style="width:130px;">Retención</th>
+        </tr></thead>
         <tbody>${filas}</tbody>
+        <tfoot>
+          <tr class="border-t-2 border-gray-300">
+            <td class="py-2 pr-3 font-bold text-gray-700" colspan="3">Total retenciones</td>
+            <td class="py-2 pr-3 text-right font-bold mono" id="f29subtotal-retenciones">$${formatoCLP(calc.totalRetenciones)}</td>
+          </tr>
+        </tfoot>
       </table>
 
       <div class="mt-5 pt-4 border-t border-gray-100">
         <h4 class="text-sm font-bold text-gray-700 mb-1">PPM (Pago Provisional Mensual)</h4>
         <p class="text-xs text-gray-400 mb-3">Base = ventas afectas + exentas del período. Tasa según régimen del cliente (habitual 1ª categoría: 1%).</p>
-        <div class="flex items-center gap-3">
-          <label class="text-xs text-gray-500">Tasa PPM</label>
-          <input type="number" step="0.0001" value="${est.ppmTasa}" onchange="f29SetCampo('ppmTasa', this.value)" class="rounded-lg border border-gray-200 px-2 py-1 text-xs text-right" style="width:100px;">
+        <div class="flex items-center gap-6 flex-wrap">
+          <div class="flex items-center gap-3">
+            <label class="text-xs text-gray-500">Tasa PPM</label>
+            <input type="number" step="0.0001" value="${est.ppmTasa}" oninput="f29SetCampo('ppmTasa', this.value)" class="rounded-lg border border-gray-200 px-2 py-1 text-xs text-right" style="width:100px;">
+          </div>
+          <div class="text-xs text-gray-500">Base PPM: <span class="mono font-semibold text-gray-700" id="f29PpmBase">$${formatoCLP(calc.ppmBase)}</span></div>
+          <div class="text-xs text-gray-500">PPM a pagar: <span class="mono font-semibold text-gray-700" id="f29PpmMonto">$${formatoCLP(calc.ppmMonto)}</span></div>
         </div>
       </div>
     </div>
@@ -5079,7 +5159,7 @@ function f29SeccionRetencionesPpm(est){
 function f29SeccionAjustes(est){
   return `
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
-      <h3 class="text-sm font-bold text-gray-700 mb-1">Ajustes adicionales</h3>
+      <h3 class="text-sm font-bold text-gray-700 mb-1">IV. Ajustes Adicionales</h3>
       <p class="text-xs text-gray-400 mb-3">Para casos que no están en las secciones anteriores (cambio de sujeto, créditos especiales, tributación simplificada, impuestos adicionales a bebidas/licores, etc.). Se suman o restan del total a pagar.</p>
       <div class="space-y-1.5 mb-3">
         ${(est.ajustesAdicionales||[]).length ? est.ajustesAdicionales.map((a,i) => `
@@ -5222,18 +5302,38 @@ function estimacionF29Content(verTodo){
         ` : ''}
       </div>
 
-      <div class="no-print">
-        ${f29SeccionVentas(est)}
-        ${f29SeccionCompras(est)}
-        ${f29SeccionRetencionesPpm(est)}
-        ${f29SeccionAjustes(est)}
-        <div class="flex items-center gap-3 mb-8">
-          <button onclick="guardarEstimacionF29()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Calcular y guardar estimación</button>
-          <span class="text-xs text-gray-400">El resumen de abajo se actualiza al presionar este botón.</span>
+      <div class="no-print" style="background:var(--ink);color:var(--white);border-radius:16px;padding:20px 24px;margin-bottom:24px;display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+        <div style="grid-column:span 2;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;opacity:0.6;">Estado del cálculo — se actualiza al instante mientras escribes</div>
+        <div>
+          <div style="font-size:11px;opacity:0.6;">Débito Fiscal (IVA ventas)</div>
+          <div class="mono" style="font-size:18px;font-weight:600;" id="f29BarDebito">$${formatoCLP(calc.totalDebitos)}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;opacity:0.6;">Crédito Fiscal (+ remanente)</div>
+          <div class="mono" style="font-size:18px;font-weight:600;" id="f29BarCredito">$${formatoCLP(calc.totalCreditosConRemanente)}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;opacity:0.6;">IVA Determinado</div>
+          <div class="mono" style="font-size:18px;font-weight:600;" id="f29BarIva">${calc.ivaDeterminado<0?'−':''}$${formatoCLP(Math.abs(calc.ivaDeterminado))}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;opacity:0.6;">Total estimado a pagar</div>
+          <div class="mono" style="font-size:20px;font-weight:700;color:var(--gold);" id="f29BarTotal">$${formatoCLP(Math.max(calc.totalAPagar,0))}</div>
         </div>
       </div>
 
-      ${resumenEjecutivoF29Html(cliente, estimacionF29Periodo, calc, est)}
+      <div class="no-print">
+        ${f29SeccionVentas(est)}
+        ${f29SeccionCompras(est)}
+        ${f29SeccionRetencionesPpm(est, calc)}
+        ${f29SeccionAjustes(est)}
+        <div class="flex items-center gap-3 mb-8">
+          <button onclick="guardarEstimacionF29()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Guardar estimación</button>
+          <span class="text-xs text-gray-400">Los cálculos ya se actualizan solos mientras escribes; este botón guarda la estimación y marca al cliente como "Guardado" en Confección Iva.</span>
+        </div>
+      </div>
+
+      <div id="f29ResumenCard">${resumenEjecutivoF29Html(cliente, estimacionF29Periodo, calc, est)}</div>
     </div>
   `;
 }
