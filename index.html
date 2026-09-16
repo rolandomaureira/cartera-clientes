@@ -1093,7 +1093,10 @@ function enterAsUsuario(id){
   // sucursal y carterasVisibles se copian del registro completo: sin esto,
   // carterasDeUsuario(currentUser) siempre devolvía [] para los Asistentes
   // (veían su cartera vacía sin importar lo que tuvieran asignado).
-  currentUser = { id: u.id, name: u.name, rol: u.rol, isAdmin: esRolAdmin(u.rol), sucursal: u.sucursal, carterasVisibles: u.carterasVisibles, verTodasLasCarteras: u.verTodasLasCarteras };
+  // Contabilidad tiene acceso total (mismo nivel que Administrador): la
+  // persona en ese rol es quien configura la app, así que no tiene sentido
+  // dejarla fuera de las secciones exclusivas de administrador.
+  currentUser = { id: u.id, name: u.name, rol: u.rol, isAdmin: esRolAdmin(u.rol) || esRolContabilidad(u.rol), sucursal: u.sucursal, carterasVisibles: u.carterasVisibles, verTodasLasCarteras: u.verTodasLasCarteras };
   activeFolder = 'todos';
   showWhoami();
   renderApp();
@@ -1116,11 +1119,17 @@ function showWhoami(){
 /* ---------------- MAIN APP ---------------- */
 function renderApp(){
   const app = document.getElementById('app');
-  if(currentUser.isAdmin){
+  if(esRolContabilidad(currentUser.rol)){
+    // Contabilidad tiene isAdmin=true (acceso total, ver enterAsUsuario), pero
+    // se sigue enrutando por su propio layout en vez del de Administrador:
+    // así conserva sus herramientas exclusivas (Reporte Semanal, Derivar
+    // Cartera, Configuración) ADEMÁS de todo lo que ve un Administrador
+    // (ver contabilidadLayout).
+    app.innerHTML = contabilidadLayout();
+    bindAdminEvents();
+  }else if(currentUser.isAdmin){
     app.innerHTML = adminLayout();
     bindAdminEvents();
-  }else if(esRolContabilidad(currentUser.rol)){
-    app.innerHTML = contabilidadLayout();
   }else{
     app.innerHTML = encargadoLayout(); // Encargado, Asistente, TAX
   }
@@ -1158,11 +1167,11 @@ function sectionNav(){
 
   let grupos;
   if(!currentUser.isAdmin){
-    // Encargado, Asistente, TAX y Contabilidad: mismas secciones de siempre
-    // (el resto — Facturación, Incorporar Clientes, Dashboard, Usuarios y
-    // Roles — sigue sin estar disponible para estos roles). Trabajos
-    // Especiales se suma a "Cartera" solo para TAX y Contabilidad (además
-    // del Administrador); "Administración" es exclusiva de Contabilidad.
+    // Encargado, Asistente y TAX: mismas secciones de siempre (Facturación,
+    // Incorporar Clientes, Dashboard, Usuarios y Roles siguen sin estar
+    // disponibles para estos roles). Trabajos Especiales se suma a "Cartera"
+    // solo para TAX (además del Administrador/Contabilidad, que tienen su
+    // propio grupo "Gestión" más abajo).
     grupos = [
       { key:'gestion', label:'Gestión', icon: NAV_ICONS.list, tabs: [
         {tab:'inicio', label:'Inicio'},
@@ -1177,13 +1186,6 @@ function sectionNav(){
         ...(puedeVerTodasLasCarteras(currentUser) ? [{tab:'trabajos-especiales', label:'Trabajos Especiales'}] : []),
       ]},
     ];
-    if(esRolContabilidad(currentUser.rol)){
-      grupos.push({ key:'administracion', label:'Administración', icon: NAV_ICONS.gear, tabs: [
-        {tab:'reporte-semanal', label:'Reporte Semanal'},
-        {tab:'derivar-cartera', label:'Derivar Cartera'},
-        {tab:'configuracion', label:'Configuración'},
-      ]});
-    }
   }else{
     grupos = [
       { key:'clientes', label:'Clientes', icon: NAV_ICONS.folder, tabs: [
@@ -1206,6 +1208,16 @@ function sectionNav(){
         {tab:'actividad', label:'Actividad'},
       ]},
     ];
+  }
+
+  // Contabilidad tiene acceso total (todo lo de Administrador, arriba) más
+  // sus propias herramientas de seguimiento semanal.
+  if(esRolContabilidad(currentUser.rol)){
+    grupos.push({ key:'administracion', label:'Administración', icon: NAV_ICONS.gear, tabs: [
+      {tab:'reporte-semanal', label:'Reporte Semanal'},
+      {tab:'derivar-cartera', label:'Derivar Cartera'},
+      {tab:'configuracion', label:'Configuración'},
+    ]});
   }
 
   // La pestaña activa sigue a la sección donde se está parado, salvo que se
@@ -1349,11 +1361,11 @@ function adminLayout(){
   `;
 }
 
-// Rol Contabilidad: puede asignar clientes a encargados (Cartera de Clientes,
-// vía adminMainContent con las mismas restricciones que un no-admin) y ve
-// todas las carteras/obligaciones/tareas para hacer seguimiento, pero no
-// tiene acceso a Confección Iva, Facturación, Incorporar Clientes, Dashboard
-// ni Usuarios y Roles.
+// Rol Contabilidad: acceso total (misma persona que configura la app). Tiene
+// todo lo que ve un Administrador (Facturación, Incorporar Clientes,
+// Dashboard, Usuarios y Roles, editar la plantilla de Tareas, etc.) más sus
+// herramientas propias de seguimiento (Reporte Semanal, Derivar Cartera,
+// Configuración).
 function contabilidadLayout(){
   const unassigned = clientesEnSucursalActiva().filter(c => !c.encargadoId || !state.usuarios.find(u=>u.id===c.encargadoId));
   return `
@@ -1364,18 +1376,28 @@ function contabilidadLayout(){
       <div class="main">
         ${activeTab === 'inicio'
           ? inicioContent()
+          : activeTab === 'incorporar'
+          ? incorporarClienteForm(true)
+          : activeTab === 'usuarios'
+          ? usuariosContent()
           : activeTab === 'requerimientos'
           ? requerimientosContent()
+          : activeTab === 'dashboard'
+          ? dashboardContent()
+          : activeTab === 'facturacion'
+          ? facturacionContent()
           : activeTab === 'obligaciones'
           ? obligacionesContent(true)
           : activeTab === 'f29'
           ? estimacionF29Content(true)
           : activeTab === 'tareas'
-          ? tareasContent(true, false)
+          ? tareasContent(true, true)
           : activeTab === 'trabajos-especiales'
           ? trabajosEspecialesContent()
           : activeTab === 'archivos'
           ? archivosContent()
+          : activeTab === 'actividad'
+          ? actividadContent()
           : activeTab === 'reporte-semanal'
           ? reporteSemanalContent()
           : activeTab === 'derivar-cartera'
