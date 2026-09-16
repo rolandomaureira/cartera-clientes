@@ -5146,7 +5146,10 @@ function f29SeccionRetencionesPpm(est, calc){
         <div class="flex items-center gap-6 flex-wrap">
           <div class="flex items-center gap-3">
             <label class="text-xs text-gray-500">Tasa PPM</label>
-            <input type="number" step="0.0001" value="${est.ppmTasa}" oninput="f29SetCampo('ppmTasa', this.value)" class="rounded-lg border border-gray-200 px-2 py-1 text-xs text-right" style="width:100px;">
+            <div class="flex items-center gap-1">
+              <input type="number" step="0.01" value="${(Number(est.ppmTasa)||0)*100}" oninput="f29SetCampo('ppmTasa', Number(this.value)/100)" class="rounded-lg border border-gray-200 px-2 py-1 text-xs text-right" style="width:80px;">
+              <span class="text-xs text-gray-500">%</span>
+            </div>
           </div>
           <div class="text-xs text-gray-500">Base PPM: <span class="mono font-semibold text-gray-700" id="f29PpmBase">$${formatoCLP(calc.ppmBase)}</span></div>
           <div class="text-xs text-gray-500">PPM a pagar: <span class="mono font-semibold text-gray-700" id="f29PpmMonto">$${formatoCLP(calc.ppmMonto)}</span></div>
