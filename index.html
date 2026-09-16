@@ -5189,7 +5189,7 @@ function f29SeccionAjustes(est){
 // (todo lo demás en estimacionF29Content() está envuelto en .no-print).
 function resumenEjecutivoF29Html(cliente, periodo, calc, est){
   const conceptos = [];
-  if(calc.ivaAPagar > 0) conceptos.push({ label:'IVA Formulario 29', monto: calc.ivaAPagar });
+  if(calc.ivaAPagar > 0) conceptos.push({ label:'Impuesto determinado', monto: calc.ivaAPagar });
   if(calc.ppmMonto > 0) conceptos.push({ label:'PPM (Pago Provisional Mensual)', monto: calc.ppmMonto });
   calc.retencionesDetalle.forEach(r => { if(r.monto > 0) conceptos.push({ label: r.label, monto: r.monto }); });
   calc.ajustesDetalle.forEach(a => { if(a.signado !== 0) conceptos.push({ label: a.concepto, monto: a.signado }); });
