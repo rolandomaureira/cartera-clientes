@@ -259,7 +259,11 @@
   .filter-chip.active{background:var(--ink);color:var(--white);border-color:var(--ink);}
   .filter-chip.active .count{color:var(--paper);}
   .filter-chip .count{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a8879;}
-  .main{flex:1;padding:32px 40px;}
+  /* Ancho máximo centrado para el contenido de todas las secciones (mismo
+     criterio ya usado en F-29/Configuración): en monitores grandes evita que
+     las tablas se estiren de borde a borde; en pantallas angostas no hace
+     ninguna diferencia. */
+  .main{flex:1;padding:32px 40px;max-width:1400px;margin:0 auto;width:100%;box-sizing:border-box;}
   .main-head{
     display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;
   }
@@ -2789,6 +2793,7 @@ function reporteSemanalContent(){
   const tabla = (titulo, lista) => `
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden my-6">
       <div class="p-4 border-b border-gray-100"><h3 class="text-sm font-bold text-gray-700">${titulo} (${lista.length})</h3></div>
+      <div style="overflow-x:auto;">
       <table class="w-full text-sm">
         <thead class="bg-gray-50"><tr>
           <th class="text-left px-4 py-2 font-semibold text-gray-600">Tipo</th>
@@ -2800,6 +2805,7 @@ function reporteSemanalContent(){
           ${lista.length ? lista.map(filaReq).join('') : `<tr><td colspan="4" class="px-4 py-6 text-center text-gray-400">Sin registros esta semana.</td></tr>`}
         </tbody>
       </table>
+      </div>
     </div>
   `;
 
@@ -3675,6 +3681,7 @@ function trabajosEspecialesContent(){
       </div>
 
       <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div style="overflow-x:auto;">
         <table class="w-full text-sm">
           <thead class="bg-gray-50">
             <tr>
@@ -3714,6 +3721,7 @@ function trabajosEspecialesContent(){
             }).join('') : `<tr><td colspan="8" class="px-5 py-8 text-center text-gray-400">Sin trabajos especiales asignados.</td></tr>`}
           </tbody>
         </table>
+        </div>
         ${lista.length ? `<div style="padding:10px 20px;font-size:13px;color:#6b6a5f;text-align:right;border-top:1px solid #f0f0f0;">Total: <span class="mono">${lista.reduce((s,t)=>s+(t.montoUF||0),0).toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})} UF</span></div>` : ''}
       </div>
     </div>
@@ -4023,7 +4031,8 @@ function requerimientosContent(){
       </div>
 
       <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <table class="w-full text-sm">
+        <div style="overflow-x:auto;">
+        <table class="w-full text-sm" style="min-width:920px;">
           <thead class="bg-gray-50">
             <tr>
               <th class="text-left px-5 py-3 font-semibold text-gray-600">Tipo</th>
@@ -4068,6 +4077,7 @@ function requerimientosContent(){
               `) : `<tr><td colspan="7" class="px-5 py-8 text-center text-gray-400">${visibles.length ? 'No hay requerimientos que coincidan con los filtros seleccionados.' : (currentUser.isAdmin ? 'Aún no hay requerimientos creados.' : 'No tienes requerimientos dirigidos a ti por el momento.')}</td></tr>`}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   `;
@@ -4657,6 +4667,7 @@ function facturacionContent(){
           <input type="text" id="searchBox" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" class="w-full max-w-sm rounded-xl border border-gray-300 px-4 py-2 text-sm">
         </div>
         ${isAdmin ? `<div class="px-4 pt-4">${facturaBulkBar(mes)}</div>` : ''}
+        <div style="overflow-x:auto;">
         <table class="w-full text-sm">
           <thead class="bg-gray-50">
             <tr>
@@ -4691,6 +4702,7 @@ function facturacionContent(){
             }).join('') || `<tr><td colspan="${isAdmin?5:2}" class="px-5 py-8 text-center text-gray-400">Sin clientes en esta vista.</td></tr>`}
           </tbody>
         </table>
+        </div>
         ${list.length ? `<div class="px-4">${paginationControls(page, totalPages)}</div>` : ''}
       </div>
     </div>
@@ -5635,6 +5647,7 @@ function obligacionesGeneralContent(verTodo){
       </div>
 
       <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div style="overflow-x:auto;">
         <table class="w-full text-sm">
           <thead class="bg-gray-50">
             <tr>
@@ -5669,6 +5682,7 @@ function obligacionesGeneralContent(verTodo){
             }).join('') : `<tr><td colspan="6" class="px-5 py-8 text-center text-gray-400">Sin obligaciones registradas.</td></tr>`}
           </tbody>
         </table>
+        </div>
       </div>
   `;
 }
