@@ -748,6 +748,28 @@ async function kvSet(key, value){
 // navegador (antes checkLogin() comparaba localmente contra `creds`, que se
 // descargaba completo a CUALQUIER visitante desde el primer momento). Ver
 // la acción "login" en Code.gs.
+// Pide al backend que descifre bajo demanda las claves "pesadas" (Previred,
+// Clave Única, Facturación) de UN cliente. Se usa desde el botón "Mostrar
+// claves" del detalle: la carga normal de la app ya no las descifra para
+// los 1107 clientes de una vez (ver loadState/kvGetMany), solo para el
+// cliente que realmente se está mirando.
+async function obtenerCredencialesClienteBackend(clienteId){
+  if(!BACKEND_URL) return null;
+  try{
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ accion: 'obtenerCredencialesCliente', clienteId, token: API_TOKEN })
+    });
+    const data = await res.json().catch(() => null);
+    if(!data || !data.ok) return null;
+    return data;
+  }catch(e){
+    console.error('No se pudieron obtener las claves del cliente:', e);
+    return null;
+  }
+}
+
 async function verificarLoginBackend(usuarioId, hash){
   if(!BACKEND_URL) return false;
   try{
@@ -2099,13 +2121,18 @@ function renderModal(){
         <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
           <h4 style="margin:0 0 10px;font-size:14px;">Otros datos relevantes</h4>
 
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+            <button type="button" class="btn secondary small" id="btnMostrarClaves" onclick="mostrarCredencialesCliente('${c.id}')">Mostrar claves</button>
+            <span id="mostrarClavesEstado" style="font-size:12px;color:#8a8879;">Las claves de Previred, Clave Única y Facturación están ocultas para acelerar la carga. Haz clic para verlas.</span>
+          </div>
+
           <label style="flex-direction:row;align-items:center;gap:8px;display:flex;margin-bottom:8px;">
             <input type="checkbox" id="dt_previred_activo" onchange="document.getElementById('dt_previred_fields').style.display = this.checked ? 'flex' : 'none';" ${c.datosPrevired && c.datosPrevired.activo ? 'checked' : ''} style="width:auto;">
             <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Posee trabajadores (datos Previred)</span>
           </label>
           <div id="dt_previred_fields" class="form-inline" style="display:${c.datosPrevired && c.datosPrevired.activo ? 'flex':'none'};margin-bottom:14px;">
             <input type="text" id="dt_previred_rut" placeholder="Rut Previred" value="${escapeAttr((c.datosPrevired||{}).rut||'')}">
-            <input type="text" id="dt_previred_clave" placeholder="Clave Previred" value="${escapeAttr((c.datosPrevired||{}).clave||'')}">
+            <input type="text" id="dt_previred_clave" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.datosPrevired||{}).clave||'')}" readonly>
           </div>
 
           <label style="flex-direction:row;align-items:center;gap:8px;display:flex;margin-bottom:8px;">
@@ -2114,7 +2141,7 @@ function renderModal(){
           </label>
           <div id="dt_claveunica_fields" class="form-inline" style="display:${c.claveUnica && c.claveUnica.activo ? 'flex':'none'};margin-bottom:14px;">
             <input type="text" id="dt_claveunica_rut" placeholder="Rut" value="${escapeAttr((c.claveUnica||{}).rut||'')}">
-            <input type="text" id="dt_claveunica_clave" placeholder="Clave" value="${escapeAttr((c.claveUnica||{}).clave||'')}">
+            <input type="text" id="dt_claveunica_clave" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.claveUnica||{}).clave||'')}" readonly>
           </div>
 
           <label style="flex-direction:row;align-items:center;gap:8px;display:flex;margin-bottom:8px;">
@@ -2123,8 +2150,8 @@ function renderModal(){
           </label>
           <div id="dt_factura_fields" class="form-inline" style="display:${c.datosFacturacion && c.datosFacturacion.activo ? 'flex':'none'};flex-wrap:wrap;">
             <input type="text" id="dt_factura_rut" placeholder="Rut persona que factura" value="${escapeAttr((c.datosFacturacion||{}).rutFacturador||'')}">
-            <input type="text" id="dt_factura_clave" placeholder="Clave persona que factura" value="${escapeAttr((c.datosFacturacion||{}).claveFacturador||'')}">
-            <input type="text" id="dt_factura_clave_cert" placeholder="Clave certificado digital" value="${escapeAttr((c.datosFacturacion||{}).claveCertificado||'')}">
+            <input type="text" id="dt_factura_clave" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.datosFacturacion||{}).claveFacturador||'')}" readonly>
+            <input type="text" id="dt_factura_clave_cert" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.datosFacturacion||{}).claveCertificado||'')}" readonly>
           </div>
         </div>
 
@@ -2190,6 +2217,45 @@ function mesActualISO(){
   return new Date().toISOString().slice(0,7);
 }
 
+// Trae del backend las claves de Previred/Clave Única/Facturación del
+// cliente que se está viendo (ver obtenerCredencialesClienteBackend) y las
+// muestra en sus campos, que hasta ahora estaban en blanco y de solo
+// lectura. Si no se pincha este botón, esos campos se guardan intactos
+// (ver valorClaveOculta) sin exponer ni tocar la clave real.
+async function mostrarCredencialesCliente(id){
+  const btn = document.getElementById('btnMostrarClaves');
+  const estado = document.getElementById('mostrarClavesEstado');
+  if(btn){ btn.disabled = true; btn.textContent = 'Cargando…'; }
+  const datos = await obtenerCredencialesClienteBackend(id);
+  if(!datos){
+    if(btn){ btn.disabled = false; btn.textContent = 'Mostrar claves'; }
+    showToast('No se pudieron obtener las claves. Intenta de nuevo.');
+    return;
+  }
+  [
+    ['dt_previred_clave', (datos.datosPrevired||{}).clave || ''],
+    ['dt_claveunica_clave', (datos.claveUnica||{}).clave || ''],
+    ['dt_factura_clave', (datos.datosFacturacion||{}).claveFacturador || ''],
+    ['dt_factura_clave_cert', (datos.datosFacturacion||{}).claveCertificado || '']
+  ].forEach(([elId, valor]) => {
+    const el = document.getElementById(elId);
+    if(el){ el.value = valor; el.readOnly = false; }
+  });
+  if(btn) btn.remove();
+  if(estado) estado.textContent = 'Claves mostradas.';
+}
+
+// Para los campos de clave que empiezan ocultos (readonly, value=""): si
+// nadie pinchó "Mostrar claves" se reenvía el valor cifrado original tal
+// cual (data-original) para no perderlo; si se mostraron y/o editaron, se
+// guarda lo que quedó escrito.
+function valorClaveOculta(elId){
+  const el = document.getElementById(elId);
+  if(!el) return '';
+  if(el.readOnly) return el.dataset.original || '';
+  return el.value.trim();
+}
+
 async function saveClientDetail(id){
   const c = state.clientes.find(cl => cl.id === id);
   if(!c) return;
@@ -2207,18 +2273,18 @@ async function saveClientDetail(id){
   c.datosPrevired = {
     activo: document.getElementById('dt_previred_activo').checked,
     rut: document.getElementById('dt_previred_rut').value.trim(),
-    clave: document.getElementById('dt_previred_clave').value.trim()
+    clave: valorClaveOculta('dt_previred_clave')
   };
   c.claveUnica = {
     activo: document.getElementById('dt_claveunica_activo').checked,
     rut: document.getElementById('dt_claveunica_rut').value.trim(),
-    clave: document.getElementById('dt_claveunica_clave').value.trim()
+    clave: valorClaveOculta('dt_claveunica_clave')
   };
   c.datosFacturacion = {
     activo: document.getElementById('dt_factura_activo').checked,
     rutFacturador: document.getElementById('dt_factura_rut').value.trim(),
-    claveFacturador: document.getElementById('dt_factura_clave').value.trim(),
-    claveCertificado: document.getElementById('dt_factura_clave_cert').value.trim()
+    claveFacturador: valorClaveOculta('dt_factura_clave'),
+    claveCertificado: valorClaveOculta('dt_factura_clave_cert')
   };
   const encSel = document.getElementById('dt_encargado');
   if(currentUser.isAdmin || (encSel && encSel.tagName === 'SELECT')){
