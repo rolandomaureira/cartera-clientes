@@ -45,25 +45,28 @@
   .mono{font-family:'IBM Plex Mono', monospace;}
 
   /* ---------- Top bar ---------- */
+  /* Barra superior en azul marino de marca (antes color papel): así el
+     acento principal de BPO Gestión queda presente en todas las pantallas,
+     no solo en el login. */
   .topbar{
     display:flex;
     align-items:center;
     justify-content:space-between;
     padding:18px 32px;
-    border-bottom:2px solid var(--ink);
-    background:var(--paper);
+    border-bottom:2px solid var(--navy-deep);
+    background:var(--teal-dark);
   }
   .brand{display:flex;align-items:center;gap:14px;}
   .brand-logo{
     width:42px;height:42px;border-radius:9px;
     object-fit:contain;background:#fff;
-    border:1px solid var(--line);
+    border:1px solid rgba(255,255,255,0.3);
     padding:3px;flex-shrink:0;
   }
   .brand h1{
-    font-size:22px;margin:0;font-weight:600;letter-spacing:0.2px;color:var(--teal-dark);
+    font-size:22px;margin:0;font-weight:600;letter-spacing:0.2px;color:#fff;
   }
-  .brand .sub{font-size:12px;color:#5a5a52;margin-top:2px;letter-spacing:0.5px;text-transform:uppercase;}
+  .brand .sub{font-size:12px;color:rgba(255,255,255,0.6);margin-top:2px;letter-spacing:0.5px;text-transform:uppercase;}
   .whoami{display:flex;align-items:center;gap:12px;font-size:14px;}
   .role-badge{
     font-family:'IBM Plex Mono',monospace;
@@ -75,19 +78,23 @@
   }
   .role-badge.admin{background:var(--gold);color:var(--ink);}
   .role-badge.encargado{background:var(--teal);color:var(--white);}
+  /* En la barra superior (ahora azul marino) el mismo azul se perdía contra
+     el fondo; ahí se muestra en blanco sólido. En tablas sobre fondo claro
+     (F-29 "Caso especial", rol en Configuración) sigue en azul de marca. */
+  #topbar .role-badge.encargado{background:#fff;color:var(--teal-dark);}
   .uf-badge{
-    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink);
-    background:var(--paper-2);border:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:#fff;
+    background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.25);
     padding:5px 10px;border-radius:3px;
   }
-  .uf-badge .uf-date{color:#8a8879;}
-  .uf-badge.uf-error{color:#8a8879;font-style:italic;}
+  .uf-badge .uf-date{color:rgba(255,255,255,0.55);}
+  .uf-badge.uf-error{color:rgba(255,255,255,0.55);font-style:italic;}
   .switch-btn{
-    background:none;border:1px solid var(--ink);color:var(--ink);
+    background:none;border:1px solid rgba(255,255,255,0.5);color:#fff;
     padding:6px 12px;border-radius:3px;font-size:13px;cursor:pointer;
     font-family:'IBM Plex Sans',sans-serif;
   }
-  .switch-btn:hover{background:var(--ink);color:var(--white);}
+  .switch-btn:hover{background:#fff;color:var(--teal-dark);}
 
   /* ---------- Notificaciones (campana estilo Facebook) ---------- */
   .notif-wrap{position:relative;}
@@ -95,16 +102,16 @@
     background:none;border:none;cursor:pointer;position:relative;
     padding:6px;border-radius:50%;
     display:flex;align-items:center;justify-content:center;
-    color:var(--ink);
+    color:#fff;
   }
-  .notif-bell:hover{background:var(--paper-2);}
+  .notif-bell:hover{background:rgba(255,255,255,0.12);}
   .notif-badge{
     position:absolute;top:0;right:0;
     background:var(--danger);color:var(--white);
     font-family:'IBM Plex Sans',sans-serif;font-size:10px;font-weight:700;
     min-width:16px;height:16px;line-height:16px;
     border-radius:9999px;text-align:center;padding:0 3px;
-    border:2px solid var(--paper);
+    border:2px solid var(--teal-dark);
   }
   .notif-panel{
     position:absolute;top:calc(100% + 10px);right:0;
