@@ -1727,6 +1727,7 @@ function f29ClassFor(estado){
 function f29Table(list, showEncargado){
   return `
     ${f29BulkBar()}
+    <div style="overflow-x:auto;">
     <table>
       <thead><tr>
         <th style="width:34px;"><input type="checkbox" onchange="toggleSelectAllF29(this.checked)" title="Seleccionar todos en esta página"></th>
@@ -1752,6 +1753,7 @@ function f29Table(list, showEncargado){
         `).join('')}
       </tbody>
     </table>
+    </div>
   `;
 }
 
@@ -1826,6 +1828,7 @@ function rentaTable(list, showEncargado){
   const sumaUF = list.reduce((s,c) => s + (c.rentaMontoUF||0), 0);
   return `
     ${rentaBulkBar()}
+    <div style="overflow-x:auto;">
     <table>
       <thead><tr>
         <th style="width:34px;"><input type="checkbox" onchange="toggleSelectAllRenta(this.checked)" title="Seleccionar todos en esta página"></th>
@@ -1851,6 +1854,7 @@ function rentaTable(list, showEncargado){
         `).join('')}
       </tbody>
     </table>
+    </div>
     <div style="margin-top:10px;font-size:13px;color:#6b6a5f;text-align:right;">Total: <span class="mono" id="rentaTotalUF">${sumaUF.toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})} UF</span></div>
   `;
 }
@@ -2312,6 +2316,7 @@ function archivosContent(){
       ${chip('temporal', 'Temporales')}
       ${chip('vencido', 'Vencidos')}
     </div>
+    <div style="overflow-x:auto;">
     <table>
       <thead><tr><th>Origen</th><th>Archivo</th><th></th><th>Subido</th><th></th></tr></thead>
       <tbody>
@@ -2326,6 +2331,7 @@ function archivosContent(){
         `).join('') : `<tr><td colspan="5" style="padding:32px;text-align:center;color:#8a8879;">${q || archivosFiltroTipo!=='todos' ? 'No hay archivos que coincidan con el filtro.' : 'Todavía no se ha subido ningún archivo.'}</td></tr>`}
       </tbody>
     </table>
+    </div>
     ${paginationControls(page, totalPages)}
   `;
 }
@@ -2713,6 +2719,7 @@ function colorBulkBarHtml(){
 function clientTable(list, permitirEliminar){
   if(permitirEliminar === undefined) permitirEliminar = true; // por defecto, comportamiento admin sin cambios
   return `
+    <div style="overflow-x:auto;">
     <table>
       <thead><tr>
         <th>Cliente</th><th>Rut</th><th>Clave</th><th>Encargado</th><th>Grupo</th><th></th>
@@ -2737,6 +2744,7 @@ function clientTable(list, permitirEliminar){
         `, true)}
       </tbody>
     </table>
+    </div>
   `;
 }
 
@@ -5981,6 +5989,7 @@ function actividadContent(){
         <div class="meta">Últimos ${entradas.length} guardados, más reciente primero. Registra quién guardó cada colección de datos y cuándo (no el detalle de qué cambió).</div>
       </div>
     </div>
+    <div style="overflow-x:auto;">
     <table>
       <thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Qué se guardó</th></tr></thead>
       <tbody>
@@ -5993,6 +6002,7 @@ function actividadContent(){
         `).join('') : '<tr><td colspan="3" style="color:#8a8879;">Todavía no hay actividad registrada.</td></tr>'}
       </tbody>
     </table>
+    </div>
   `;
 }
 
@@ -6013,6 +6023,7 @@ function configuracionContent(){
     </div>
 
     <div style="max-width:880px;margin:0 auto;">
+    <div style="overflow-x:auto;">
     <table>
       <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Sucursal</th><th>Correo</th><th></th></tr></thead>
       <tbody>
@@ -6042,6 +6053,7 @@ function configuracionContent(){
         `).join('')}
       </tbody>
     </table>
+    </div>
 
     <div class="manage-section">
       <h3 class="display">Asistentes de Ejecutivos</h3>
@@ -6110,6 +6122,7 @@ function usuariosContent(){
       </div>
     </div>
 
+    <div style="overflow-x:auto;">
     <table>
       <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Sucursal</th><th>Correo</th><th></th></tr></thead>
       <tbody>
@@ -6129,6 +6142,7 @@ function usuariosContent(){
         `).join('')}
       </tbody>
     </table>
+    </div>
 
     ${derivarCarteraForm()}
 
@@ -6457,6 +6471,7 @@ function clientTableReadonly(list, puedeEditarGrupo){
   const coloresMapa = puedeColor ? cargarColoresClientes() : {};
   return `
     ${puedeColor ? colorBulkBarHtml() : ''}
+    <div style="overflow-x:auto;">
     <table>
       <thead><tr>
         ${puedeColor ? `<th style="width:34px;"><input type="checkbox" onchange="toggleSelectAllClienteColor(this.checked)" title="Seleccionar todos en esta página"></th>` : ''}
@@ -6483,6 +6498,7 @@ function clientTableReadonly(list, puedeEditarGrupo){
         }, puedeEditarGrupo)}
       </tbody>
     </table>
+    </div>
   `;
 }
 
