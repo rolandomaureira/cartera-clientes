@@ -123,7 +123,7 @@
     background:#E7ECFA;
   }
   .notif-item:last-child{border-bottom:none;}
-  .notif-item:hover{background:#DCEAE5;}
+  .notif-item:hover{background:#DCE3F5;}
   .notif-avatar{
     width:36px;height:36px;border-radius:50%;flex-shrink:0;
     background:var(--teal);color:var(--white);
@@ -322,7 +322,9 @@
     border-width:1px;padding:6px 10px;
   }
   select.f29-pending{background:#F7ECD9;border-color:#D9B36C;color:#7A5A19;}
-  select.f29-guardado{background:#E8EDFC;border-color:#3E6FF0;color:#2748A8;}
+  /* "Guardado" en violeta (antes usaba el mismo azul que "Enviado"; con el
+     azul marino ahora como color de marca, ambos quedaban casi idénticos). */
+  select.f29-guardado{background:#EDE9FE;border-color:#8B5CF6;color:#5B21B6;}
   select.f29-ok{background:#E7ECFA;border-color:var(--teal);color:var(--teal-dark);}
 
   /* Onboarding form */
@@ -3185,7 +3187,9 @@ function cambiarMesCalendario(delta){
 const DIAS_SEMANA_CORTO = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 const CALENDARIO_COLOR_TIPO = {
   f29: 'background:var(--gold);color:var(--ink);',
-  acuse: 'background:var(--teal);color:var(--white);',
+  // Verde fijo (no var(--teal)): --teal ahora es azul marino de marca, y
+  // "cotizaciones" ya usa azul — con var(--teal) quedaban casi iguales.
+  acuse: 'background:#1F6F5C;color:var(--white);',
   cotizaciones: 'background:#3E6FF0;color:#fff;',
   renta: 'background:#8B5CF6;color:#fff;',
   reunion: 'background:var(--ink);color:var(--white);',
@@ -3288,7 +3292,7 @@ function calendarioMiniGrid(){
         const esHoy = fechaISO === todayISO();
         const eventosDia = porDia[d] || [];
         return `
-          <div style="min-height:30px;border-radius:5px;padding:2px 0 3px;cursor:pointer;${esHoy?'box-shadow:inset 0 0 0 1.5px #60A5FA;':''}" onclick="abrirReunionModal('${fechaISO}')" title="Agregar reunión el ${fechaISO}">
+          <div style="min-height:30px;border-radius:5px;padding:2px 0 3px;cursor:pointer;${esHoy?'box-shadow:inset 0 0 0 1.5px var(--teal-dark);':''}" onclick="abrirReunionModal('${fechaISO}')" title="Agregar reunión el ${fechaISO}">
             <div style="font-size:10px;color:#8a8879;text-align:center;">${d}</div>
             <div style="display:flex;justify-content:center;gap:2px;margin-top:2px;">
               ${eventosDia.slice(0,3).map(e => `<span onclick="event.stopPropagation(); ${e.esReunion ? `verReunion('${e.id}')` : e.esRequerimiento ? `setTab('requerimientos')` : ''}" style="display:inline-block;width:5px;height:5px;border-radius:50%;${CALENDARIO_COLOR_TIPO[e.tipo]||''}" title="${escapeAttr(e.esReunion ? `${e.hora} · ${e.label}` : e.label)}"></span>`).join('')}
@@ -3513,7 +3517,7 @@ function inicioContent(){
       return f.estado === 'Pendiente';
     });
     facturacionCard = `
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('facturacion')">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="setTab('facturacion')">
         <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Facturación pendiente · ${mesLabel(mesActual)}</div>
         <div class="text-2xl font-bold text-gray-800">${facPendientes.length}</div>
         <div class="text-xs text-gray-400 mt-1">clientes sin marcar como facturados este mes</div>
@@ -3524,7 +3528,7 @@ function inicioContent(){
   // tarjeta de respaldo cambia de etiqueta para no decir "Tu cartera" cuando
   // en realidad son los clientes de todo el sistema.
   const carteraCard = facturacionCard || `
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('cartera')">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="setTab('cartera')">
       <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">${verTodo ? 'Clientes en seguimiento' : 'Tu cartera'}</div>
       <div class="text-2xl font-bold text-gray-800">${misClientes.length}</div>
       <div class="text-xs text-gray-400 mt-1">${verTodo ? 'total en el sistema' : 'clientes asignados'}</div>
@@ -3537,24 +3541,24 @@ function inicioContent(){
       <p class="text-sm text-gray-500 mb-6">Esto es lo que tienes pendiente hoy.</p>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('requerimientos')">
-          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Requerimientos pendientes ${reqNuevos.length ? `<span class="inline-flex items-center justify-center bg-blue-600 text-white rounded-full" style="min-width:16px;height:16px;font-size:10px;padding:0 4px;">${reqNuevos.length}</span>` : ''}</div>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="setTab('requerimientos')">
+          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Requerimientos pendientes ${reqNuevos.length ? `<span class="inline-flex items-center justify-center bg-[var(--teal-dark)] text-white rounded-full" style="min-width:16px;height:16px;font-size:10px;padding:0 4px;">${reqNuevos.length}</span>` : ''}</div>
           <div class="text-2xl font-bold text-gray-800">${reqPendientes.length}</div>
           <div class="text-xs mt-1 ${reqVencidos.length ? 'text-red-500 font-semibold' : 'text-gray-400'}">${reqVencidos.length ? `${reqVencidos.length} vencido${reqVencidos.length===1?'':'s'}` : 'ninguno vencido'}</div>
         </div>
         ${currentUser.isAdmin ? `
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="irAConfeccionIva()">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="irAConfeccionIva()">
           <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">IVA (F-29) sin enviar</div>
           <div class="text-2xl font-bold text-gray-800">${f29Pendientes.length}</div>
           <div class="text-xs text-gray-400 mt-1">de la nómina vigente en tu cartera</div>
         </div>` : ''}
         ${carteraCard}
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('obligaciones')">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="setTab('obligaciones')">
           <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Obligaciones Tributarias</div>
           <div class="text-2xl font-bold text-gray-800">${obPendientes.length}</div>
           <div class="text-xs mt-1 ${obVencidas.length ? 'text-red-500 font-semibold' : 'text-gray-400'}">${obVencidas.length ? `${obVencidas.length} vencida${obVencidas.length===1?'':'s'}` : 'ninguna vencida'}</div>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-blue-400 transition-colors" onclick="setTab('tareas')">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="setTab('tareas')">
           <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Tareas mensuales incompletas</div>
           <div class="text-2xl font-bold text-gray-800">${tareasIncompletas}</div>
           <div class="text-xs text-gray-400 mt-1">de ${misClientes.length} clientes, este mes</div>
@@ -3568,7 +3572,7 @@ function inicioContent(){
           ${(inicioReqExpandido ? reqPendientes : reqPendientes.slice(0,6)).map(r => `
             <div class="flex items-center justify-between text-sm border-b border-gray-100 pb-2">
               <div>
-                ${esNoLeidoParaMi(r) ? `<span class="bg-blue-600 text-white font-semibold" style="font-size:10px;letter-spacing:0.5px;text-transform:uppercase;border-radius:9999px;padding:2px 7px;margin-right:6px;">Nuevo</span>` : ''}
+                ${esNoLeidoParaMi(r) ? `<span class="bg-[var(--teal-dark)] text-white font-semibold" style="font-size:10px;letter-spacing:0.5px;text-transform:uppercase;border-radius:9999px;padding:2px 7px;margin-right:6px;">Nuevo</span>` : ''}
                 <span class="font-medium text-gray-800">${escapeHtml(r.tipo)}</span>
                 <span class="text-gray-400 ml-2">creado ${escapeHtml(r.fechaCreacion||'—')}</span>
                 ${r.descripcion ? `<div style="font-size:12px;color:#9ca3af;margin-top:2px;">${escapeHtml(r.descripcion)}</div>` : ''}
@@ -3582,7 +3586,7 @@ function inicioContent(){
             </div>
           `).join('')}
         </div>
-        ${reqPendientes.length > 6 ? `<button onclick="toggleInicioReqExpandido()" class="text-blue-600 hover:text-blue-800 text-xs font-semibold mt-4">${inicioReqExpandido ? 'Mostrar menos' : `Desplegar los ${reqPendientes.length} pendientes`}</button>` : ''}
+        ${reqPendientes.length > 6 ? `<button onclick="toggleInicioReqExpandido()" class="text-[var(--teal-dark)] hover:text-[var(--ink)] text-xs font-semibold mt-4">${inicioReqExpandido ? 'Mostrar menos' : `Desplegar los ${reqPendientes.length} pendientes`}</button>` : ''}
       </div>
       ` : `
       <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 text-center text-gray-400 text-sm">
@@ -3658,7 +3662,7 @@ function trabajosEspecialesContent(){
             <input type="number" id="teMontoUF" min="0" step="0.1" placeholder="Ej: 3.5" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
           </div>
           <div class="md:col-span-2">
-            <button onclick="submitTrabajoEspecial()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Asignar trabajo</button>
+            <button onclick="submitTrabajoEspecial()" class="bg-[var(--teal-dark)] hover:bg-[var(--ink)] text-white font-semibold px-6 py-3 rounded-xl transition-colors">Asignar trabajo</button>
           </div>
         </div>
       </div>
@@ -3753,7 +3757,7 @@ function trabajoArchivosViewHtml(t){
   return `
     <div class="flex flex-wrap items-center gap-1.5">
       ${archivos.map(a => `
-        <a href="${escapeAttr(a.url)}" target="_blank" rel="noopener" class="inline-flex items-center bg-gray-100 rounded-full px-2.5 py-1 text-xs text-blue-600 hover:underline max-w-[140px] truncate">${escapeHtml(a.nombre)}</a>
+        <a href="${escapeAttr(a.url)}" target="_blank" rel="noopener" class="inline-flex items-center bg-gray-100 rounded-full px-2.5 py-1 text-xs text-[var(--teal-dark)] hover:underline max-w-[140px] truncate">${escapeHtml(a.nombre)}</a>
       `).join('')}
     </div>
   `;
@@ -3842,7 +3846,7 @@ function misTrabajosEspecialesContent(){
         }).join('') : `<p class="text-xs text-gray-400">Sin trabajos especiales por ahora.</p>`}
       </div>
       <details class="border-t border-gray-100 pt-3">
-        <summary class="text-xs font-semibold text-blue-600 cursor-pointer select-none">+ Agregar un trabajo especial propio</summary>
+        <summary class="text-xs font-semibold text-[var(--teal-dark)] cursor-pointer select-none">+ Agregar un trabajo especial propio</summary>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
           <div class="md:col-span-2">
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Título</label>
@@ -3868,7 +3872,7 @@ function misTrabajosEspecialesContent(){
             <input type="number" id="mteMontoUF" min="0" step="0.1" placeholder="Ej: 3.5" class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm">
           </div>
           <div class="md:col-span-2">
-            <button onclick="submitMiTrabajoEspecial()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">Agregar trabajo</button>
+            <button onclick="submitMiTrabajoEspecial()" class="bg-[var(--teal-dark)] hover:bg-[var(--ink)] text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors">Agregar trabajo</button>
           </div>
         </div>
       </details>
@@ -3952,13 +3956,13 @@ function requerimientosContent(){
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Tipo de Requerimiento</label>
-            <select id="reqTipo" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <select id="reqTipo" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[var(--teal-dark)]">
               ${REQ_TIPOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
             </select>
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Fecha de Creación</label>
-            <input type="date" id="reqFechaCreacion" value="${todayISO()}" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <input type="date" id="reqFechaCreacion" value="${todayISO()}" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[var(--teal-dark)]">
           </div>
           <div id="reqDirigidoAWrap">
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Dirigido a</label>
@@ -3966,11 +3970,11 @@ function requerimientosContent(){
           </div>
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Fecha Límite <span class="text-red-500">*</span></label>
-            <input type="date" id="reqFechaRespuesta" required class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <input type="date" id="reqFechaRespuesta" required class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[var(--teal-dark)]">
           </div>
           <div class="md:col-span-2">
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Descripción de lo solicitado</label>
-            <textarea id="reqDescripcion" rows="3" placeholder="Detalla qué se necesita…" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400" style="resize:vertical;"></textarea>
+            <textarea id="reqDescripcion" rows="3" placeholder="Detalla qué se necesita…" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[var(--teal-dark)]" style="resize:vertical;"></textarea>
           </div>
           <div class="md:col-span-2">
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Estado del Requisito</label>
@@ -3979,7 +3983,7 @@ function requerimientosContent(){
             </select>
           </div>
           <div class="md:col-span-2">
-            <button onclick="submitRequerimiento()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Crear requerimiento</button>
+            <button onclick="submitRequerimiento()" class="bg-[var(--teal-dark)] hover:bg-[var(--ink)] text-white font-semibold px-6 py-3 rounded-xl transition-colors">Crear requerimiento</button>
           </div>
         </div>
       </div>
@@ -3987,20 +3991,20 @@ function requerimientosContent(){
       <div class="flex flex-wrap items-end gap-3 mb-4">
         <div>
           <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Dirigido a</label>
-          <select onchange="setRequerimientosFiltroDirigidoA(this.value)" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <select onchange="setRequerimientosFiltroDirigidoA(this.value)" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[var(--teal-dark)]">
             <option value="todos">Todos</option>
             ${personasDirigidoA.map(u => `<option value="${u.id}" ${requerimientosFiltroDirigidoA===u.id?'selected':''}>${escapeHtml(u.name)}</option>`).join('')}
           </select>
         </div>
         <div>
           <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Vence desde</label>
-          <input type="date" value="${requerimientosFiltroFechaDesde}" onchange="setRequerimientosFiltroFecha('desde', this.value)" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <input type="date" value="${requerimientosFiltroFechaDesde}" onchange="setRequerimientosFiltroFecha('desde', this.value)" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[var(--teal-dark)]">
         </div>
         <div>
           <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Vence hasta</label>
-          <input type="date" value="${requerimientosFiltroFechaHasta}" onchange="setRequerimientosFiltroFecha('hasta', this.value)" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <input type="date" value="${requerimientosFiltroFechaHasta}" onchange="setRequerimientosFiltroFecha('hasta', this.value)" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[var(--teal-dark)]">
         </div>
-        ${hayFiltrosExtra ? `<button onclick="limpiarFiltrosRequerimientos()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold pb-2">Limpiar filtros</button>` : ''}
+        ${hayFiltrosExtra ? `<button onclick="limpiarFiltrosRequerimientos()" class="text-xs text-[var(--teal-dark)] hover:text-[var(--ink)] font-semibold pb-2">Limpiar filtros</button>` : ''}
       </div>
 
       <div class="flex flex-wrap gap-2 mb-4">
@@ -4028,7 +4032,7 @@ function requerimientosContent(){
             ${rows.length ? filasRequerimientosConEncabezado(rows, r => `
                 <tr class="border-t border-gray-100">
                   <td class="px-5 py-3 text-gray-800">
-                    ${esNoLeidoParaMi(r) ? `<span class="bg-blue-600 text-white font-semibold" style="font-size:10px;letter-spacing:0.5px;text-transform:uppercase;border-radius:9999px;padding:2px 7px;margin-right:6px;">Nuevo</span>` : ''}${escapeHtml(r.tipo)}
+                    ${esNoLeidoParaMi(r) ? `<span class="bg-[var(--teal-dark)] text-white font-semibold" style="font-size:10px;letter-spacing:0.5px;text-transform:uppercase;border-radius:9999px;padding:2px 7px;margin-right:6px;">Nuevo</span>` : ''}${escapeHtml(r.tipo)}
                     ${r.descripcion ? `<div style="font-size:12px;color:#9ca3af;margin-top:3px;max-width:220px;white-space:normal;">${escapeHtml(r.descripcion)}</div>` : ''}
                   </td>
                   <td class="px-5 py-3 text-gray-500">
@@ -4049,7 +4053,7 @@ function requerimientosContent(){
                         <option value="administracion">Administración</option>
                         <option value="tax">Rol TAX</option>
                       </select>
-                      <button onclick="derivarRequerimiento('${r.id}', document.getElementById('derivarSel_${r.id}').value)" class="text-blue-600 hover:text-blue-800 text-xs font-semibold mr-3">Derivar</button>
+                      <button onclick="derivarRequerimiento('${r.id}', document.getElementById('derivarSel_${r.id}').value)" class="text-[var(--teal-dark)] hover:text-[var(--ink)] text-xs font-semibold mr-3">Derivar</button>
                     ` : ''}
                     <button onclick="removeRequerimiento('${r.id}')" class="text-red-500 hover:text-red-700 text-xs font-semibold">Eliminar</button>
                   </td>
@@ -4236,7 +4240,7 @@ function dashboardFlujoUF(sumaUFMensual){
     return `
       <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
         <h3 class="text-sm font-bold text-gray-700 mb-2">Flujo de caja estimado (UF → CLP)</h3>
-        <p class="text-sm text-red-500">No se pudo obtener el historial de la UF (revisa tu conexión). <button onclick="cargarUFAnual(${year})" class="text-blue-600 underline">Reintentar</button></p>
+        <p class="text-sm text-[var(--danger)]">No se pudo obtener el historial de la UF (revisa tu conexión). <button onclick="cargarUFAnual(${year})" class="text-[var(--teal-dark)] underline">Reintentar</button></p>
       </div>
     `;
   }
@@ -4280,9 +4284,9 @@ function dashboardFlujoUF(sumaUFMensual){
       <p class="text-xs text-gray-400 mb-5">Cada mes usa la UF de su último día disponible. Los meses aún no transcurridos (en gris) se proyectan con la última UF conocida ($${formatoCLP(ultimaUFConocida)}).</p>
 
       <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-        <div class="bg-blue-50 rounded-xl p-4">
-          <div class="text-xs font-semibold uppercase text-blue-700 mb-1">Acumulado real (a la fecha)</div>
-          <div class="text-xl font-bold text-blue-900">$${formatoCLP(acumuladoReal)}</div>
+        <div class="bg-[#E7ECFA] rounded-xl p-4">
+          <div class="text-xs font-semibold uppercase text-[var(--teal-dark)] mb-1">Acumulado real (a la fecha)</div>
+          <div class="text-xl font-bold text-[var(--teal-dark)]">$${formatoCLP(acumuladoReal)}</div>
         </div>
         <div class="bg-gray-50 rounded-xl p-4">
           <div class="text-xs font-semibold uppercase text-gray-500 mb-1">Proyectado resto del año</div>
@@ -4299,7 +4303,7 @@ function dashboardFlujoUF(sumaUFMensual){
           <div class="flex items-center gap-3">
             <div class="w-20 text-xs text-gray-500">${f.mes}</div>
             <div class="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
-              <div class="${f.esProyectado?'bg-gray-300':'bg-blue-500'} h-4 rounded-full" style="width:${(f.clp/maxClp)*100}%"></div>
+              <div class="${f.esProyectado?'bg-gray-300':'bg-[var(--teal-dark)]'} h-4 rounded-full" style="width:${(f.clp/maxClp)*100}%"></div>
             </div>
             <div class="w-40 text-xs text-right ${f.esProyectado?'text-gray-400 italic':'text-gray-700'}">$${formatoCLP(f.clp)}${f.esProyectado?' (proy.)':(f.esReal?' (real)':' (estimado)')}</div>
           </div>
@@ -4410,7 +4414,7 @@ function dashboardContent(){
           ${regimenOrdenado.map(([r,n]) => `
             <div class="mb-3">
               <div class="flex justify-between text-xs text-gray-600 mb-1"><span>${escapeHtml(r)}</span><span>${n}</span></div>
-              <div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-blue-500 h-2 rounded-full" style="width:${(n/maxRegimen)*100}%"></div></div>
+              <div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-[var(--teal-dark)] h-2 rounded-full" style="width:${(n/maxRegimen)*100}%"></div></div>
             </div>
           `).join('')}
         </div>
@@ -5282,7 +5286,7 @@ function resumenEjecutivoF29Html(cliente, periodo, calc, est){
     </div>
 
     <div class="no-print" style="max-width:720px;margin:16px auto 0;display:flex;justify-content:flex-end;">
-      <button id="f29BotonPdf" onclick="descargarResumenF29Pdf()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Descargar PDF</button>
+      <button id="f29BotonPdf" onclick="descargarResumenF29Pdf()" class="bg-[var(--teal-dark)] hover:bg-[var(--ink)] text-white font-semibold px-6 py-3 rounded-xl transition-colors">Descargar PDF</button>
     </div>
   `;
 }
@@ -5373,7 +5377,7 @@ function estimacionF29Content(verTodo){
         ${historial.length ? `
         <div class="mt-4 flex flex-wrap gap-2 items-center">
           <span class="text-xs text-gray-400">Historial de este cliente:</span>
-          ${historial.map(h => `<button onclick="setEstimacionF29Periodo('${h.periodo}')" class="text-xs px-2.5 py-1 rounded-full border ${h.periodo===estimacionF29Periodo?'bg-blue-50 border-blue-300 text-blue-700 font-semibold':'border-gray-200 text-gray-500 hover:border-gray-300'}">${periodoLabel(h.periodo)}</button>`).join('')}
+          ${historial.map(h => `<button onclick="setEstimacionF29Periodo('${h.periodo}')" class="text-xs px-2.5 py-1 rounded-full border ${h.periodo===estimacionF29Periodo?'bg-[#E7ECFA] border-[var(--teal)] text-[var(--teal-dark)] font-semibold':'border-gray-200 text-gray-500 hover:border-gray-300'}">${periodoLabel(h.periodo)}</button>`).join('')}
         </div>
         ` : ''}
       </div>
@@ -5404,7 +5408,7 @@ function estimacionF29Content(verTodo){
         ${f29SeccionRetencionesPpm(est, calc)}
         ${f29SeccionAjustes(est)}
         <div class="flex items-center gap-3 mb-8">
-          <button onclick="guardarEstimacionF29()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Guardar estimación</button>
+          <button onclick="guardarEstimacionF29()" class="bg-[var(--teal-dark)] hover:bg-[var(--ink)] text-white font-semibold px-6 py-3 rounded-xl transition-colors">Guardar estimación</button>
           <span class="text-xs text-gray-400">Los cálculos ya se actualizan solos mientras escribes; este botón guarda la estimación y marca al cliente como "Guardado" en Confección Iva.</span>
         </div>
       </div>
@@ -5618,7 +5622,7 @@ function obligacionesGeneralContent(verTodo){
             <input type="date" id="obFechaLimite" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
           </div>
           <div class="md:col-span-2">
-            <button onclick="submitObligacion()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition-colors">Agregar obligación</button>
+            <button onclick="submitObligacion()" class="bg-[var(--teal-dark)] hover:bg-[var(--ink)] text-white font-semibold px-6 py-3 rounded-xl transition-colors">Agregar obligación</button>
           </div>
         </div>
       </div>
@@ -6070,7 +6074,7 @@ function configuracionContent(){
 function usuariosContent(){
   const usuariosOrdenados = [...state.usuarios].sort((a,b) => a.name.localeCompare(b.name, 'es'));
   const avisoBackend = !BACKEND_URL ? `
-    <div style="background:#FBE9E7;border:1px solid #E0846B;color:#8A3A22;padding:14px 18px;border-radius:6px;margin-bottom:20px;font-size:13px;">
+    <div style="background:#FBE9E7;border:1px solid var(--danger);color:var(--danger);padding:14px 18px;border-radius:6px;margin-bottom:20px;font-size:13px;">
       <b>Backend compartido sin configurar.</b> Los datos de esta copia solo viven en este navegador y no se comparten con el resto del equipo. Configura <code>BACKEND_URL</code> siguiendo <code>backend-sheets/README.md</code>.
     </div>
   ` : '';
