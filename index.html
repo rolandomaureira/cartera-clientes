@@ -527,7 +527,7 @@ function carterasDeUsuario(u){
 function carterasDisponibles(sucursal){
   const ids = new Set(state.clientes.map(c => c.encargadoId).filter(Boolean));
   let opciones = state.usuarios.filter(u => ids.has(u.id));
-  if(sucursal) opciones = opciones.filter(u => u.sucursal === sucursal);
+  if(sucursal) opciones = opciones.filter(u => u.sucursal === sucursal || u.sucursal === 'Ambas');
   return opciones;
 }
 
@@ -6017,6 +6017,7 @@ function configuracionContent(){
                 : `<select onchange="actualizarPerfilSucursal('${u.id}', this.value)">
                      <option value="Concepcion" ${u.sucursal==='Concepcion'?'selected':''}>Concepción</option>
                      <option value="Temuco" ${u.sucursal==='Temuco'?'selected':''}>Temuco</option>
+                     <option value="Ambas" ${u.sucursal==='Ambas'?'selected':''}>Ambas</option>
                    </select>`}
             </td>
             <td><input type="email" value="${escapeAttr(u.email||'')}" placeholder="Para avisos" onchange="actualizarPerfilEmail('${u.id}', this.value)" style="min-width:180px;"></td>
@@ -6070,6 +6071,7 @@ function configuracionContent(){
         <select id="newUserSucursal">
           <option value="Concepcion">Concepción</option>
           <option value="Temuco">Temuco</option>
+          <option value="Ambas">Ambas</option>
         </select>
         <button class="btn" onclick="addUsuario()">Crear (genera clave)</button>
       </div>
@@ -6154,6 +6156,7 @@ function usuariosContent(){
         <select id="newUserSucursal">
           <option value="Concepcion">Concepción</option>
           <option value="Temuco">Temuco</option>
+          <option value="Ambas">Ambas</option>
         </select>
         <button class="btn" onclick="addUsuario()">Crear (genera clave)</button>
       </div>
