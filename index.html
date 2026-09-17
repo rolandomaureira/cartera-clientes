@@ -701,6 +701,28 @@ async function kvGet(key){
   }
 }
 
+// Trae varias colecciones en UNA sola llamada al backend (en vez de una
+// petición HTTP por colección, como hacía antes loadState() con Promise.all
+// de kvGet). Esas ~9 llamadas simultáneas contra el mismo despliegue de
+// Apps Script se pisaban/encolaban entre sí y eran la causa principal de la
+// demora al cargar la app. Requiere que Code.gs soporte el parámetro
+// "keys" (coma-separado) en doGet — ver comentario ahí.
+async function kvGetMany(keys){
+  if(!BACKEND_URL) return {};
+  try{
+    const res = await fetch(`${BACKEND_URL}?keys=${encodeURIComponent(keys.join(','))}&token=${encodeURIComponent(API_TOKEN)}`, { cache: 'no-store' });
+    const data = await res.json();
+    if(data && data.__rateLimited__){
+      showToast('Demasiadas solicitudes seguidas. Espera un momento y reintenta.');
+      return {};
+    }
+    return data || {};
+  }catch(e){
+    console.error('No se pudo leer del backend (lote):', e);
+    return {};
+  }
+}
+
 async function kvSet(key, value){
   if(!BACKEND_URL) return false;
   try{
@@ -796,17 +818,17 @@ async function loadState(){
   state = {};
   const seed = seedData();
 
-  // Todas las colecciones (+ config) se piden en paralelo: son llaves
-  // independientes, no hay que esperarlas en serie.
-  const [valores, configRes] = await Promise.all([
-    Promise.all(COLECCIONES_ESTADO.map(nombre => kvGet(nombre))),
-    kvGet('config'),
-  ]);
+  // Antes: 9 llamadas HTTP en paralelo (una por colección + config), cada
+  // una contra el mismo despliegue de Apps Script — se pisaban/encolaban
+  // entre sí y eran la causa principal de la demora al entrar. Ahora: una
+  // sola llamada en lote (ver kvGetMany / Code.gs).
+  const llaves = COLECCIONES_ESTADO.concat(['config']);
+  const valores = await kvGetMany(llaves);
 
-  COLECCIONES_ESTADO.forEach((nombre, i) => {
-    const res = valores[i];
+  COLECCIONES_ESTADO.forEach((nombre) => {
+    const raw = valores[nombre];
     try{
-      state[nombre] = res ? JSON.parse(res.value) : (seed[nombre] || valorPorDefectoColeccion(nombre));
+      state[nombre] = raw ? JSON.parse(raw) : (seed[nombre] || valorPorDefectoColeccion(nombre));
     }catch(e){
       state[nombre] = seed[nombre] || valorPorDefectoColeccion(nombre);
     }
@@ -814,7 +836,7 @@ async function loadState(){
   });
 
   try{
-    const config = configRes ? JSON.parse(configRes.value) : null;
+    const config = valores.config ? JSON.parse(valores.config) : null;
     state.tareasPlantilla = (config && config.tareasPlantilla) || seed.tareasPlantilla || valorPorDefectoConfig().tareasPlantilla;
     state.declaracionesJuradasPlantilla = (config && config.declaracionesJuradasPlantilla) || seed.declaracionesJuradasPlantilla || valorPorDefectoConfig().declaracionesJuradasPlantilla;
   }catch(e){
