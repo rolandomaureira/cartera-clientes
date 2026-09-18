@@ -747,35 +747,29 @@ async function kvSet(key, value){
   }
 }
 
-// Guardado de "clientes" con control de versión: manda la huella
-// (clientesVersion) de lo que cargamos, y el backend rechaza el guardado si
-// alguien más ya guardó una versión distinta mientras tanto — en vez de
-// sobrescribir en silencio el cambio de esa otra persona (ver comentario en
-// la declaración de clientesVersion).
-async function kvSetClientes(value){
-  if(!BACKEND_URL) return { ok:false, conflicto:false };
+// Guarda solo los registros que cambiaron o se borraron de una colección
+// (ver ID_POR_COLECCION_MERGE / calcularDiffColeccion), en vez de mandar la
+// colección completa. El backend fusiona esto en lo que ya está guardado por
+// id, sin tocar los registros que nadie tocó: así dos personas editando
+// clientes (o requerimientos, reuniones, etc.) distintos al mismo tiempo no
+// se pisan entre sí. Reemplaza el guardado de "clientes" completo de antes.
+async function kvMergeColeccion(key, cambios, eliminados){
+  if(!BACKEND_URL) return false;
   try{
     const res = await fetch(BACKEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ key: 'clientes', value, version: clientesVersion, token: API_TOKEN })
+      body: JSON.stringify({ accion: 'mergeColeccion', key, cambios, eliminados, token: API_TOKEN })
     });
     const data = await res.json().catch(() => null);
     if(data && data.error === 'rate_limited'){
       showToast('Demasiadas solicitudes seguidas. Espera un momento; tu cambio se reintentará.');
-      return { ok:false, conflicto:false };
+      return false;
     }
-    if(data && data.error === 'conflicto_version'){
-      return { ok:false, conflicto:true };
-    }
-    if(data && data.ok){
-      clientesVersion = data.version || clientesVersion;
-      return { ok:true, conflicto:false };
-    }
-    return { ok:false, conflicto:false };
+    return !!(data && data.ok);
   }catch(e){
-    console.error('No se pudo guardar los clientes en el backend:', e);
-    return { ok:false, conflicto:false };
+    console.error('No se pudo guardar los cambios en el backend:', e);
+    return false;
   }
 }
 
@@ -853,14 +847,50 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // cambio de clientes, o viceversa — queda resuelto.
 const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29'];
 
-// Huella de la última versión de "clientes" que sabemos que está guardada en
-// el backend (ver kvSetClientes). Como cada guardado reescribe la colección
-// completa de 1107 clientes de una sola vez, si dos personas editan clientes
-// distintos casi al mismo tiempo, la segunda en guardar podía pisar en
-// silencio el cambio de la primera. Con esto, antes de guardar el backend
-// compara esta huella contra la actual: si no coinciden, avisa en vez de
-// sobrescribir a ciegas.
-let clientesVersion = null;
+// Colecciones que se guardan por FUSIÓN (merge) en vez de mandar el arreglo
+// completo cada vez: el backend solo toca, por id, los registros que de
+// verdad cambiaron o se borraron (ver calcularDiffColeccion / mergeColeccion
+// en el backend). Esto es lo que permite que dos personas editen registros
+// distintos de la misma colección (dos clientes, dos requerimientos, etc.)
+// al mismo tiempo sin que el guardado de una borre el cambio de la otra —
+// antes cada guardado reescribía TODA la colección de una sola vez, y la
+// segunda persona en guardar pisaba en silencio lo que la primera acababa de
+// guardar. auditoria (log de actividad) y config (ajustes globales) quedan
+// afuera: son de bajo riesgo de choque y se siguen guardando completas.
+const ID_POR_COLECCION_MERGE = {
+  clientes: true, usuarios: true, requerimientos: true, obligaciones: true,
+  reuniones: true, trabajosEspeciales: true, estimacionesF29: true
+};
+
+// Copia de cada colección tal como sabemos que está guardada en el backend
+// (recién cargada, o recién confirmado el guardado). Al guardar se compara
+// la lista actual contra esta base para saber qué registros cambiaron,
+// se agregaron o se borraron — eso es lo único que se manda, no la
+// colección completa. SIEMPRE se guarda como copia profunda: si guardara la
+// misma referencia que usa la app, cualquier edición en pantalla también
+// "editaría" la base sin querer, y nunca se detectaría ningún cambio.
+let baseSnapshots = {};
+
+function actualizarBaseSnapshot(nombre, valor){
+  baseSnapshots[nombre] = JSON.parse(JSON.stringify(valor || []));
+}
+
+function calcularDiffColeccion(nombre, listaActual){
+  const base = baseSnapshots[nombre] || [];
+  const baseMapa = new Map(base.map(r => [r.id, r]));
+  const actualIds = new Set();
+  const cambios = [];
+  (listaActual || []).forEach(registro => {
+    if(!registro || !registro.id) return;
+    actualIds.add(registro.id);
+    const anterior = baseMapa.get(registro.id);
+    if(!anterior || JSON.stringify(anterior) !== JSON.stringify(registro)){
+      cambios.push(registro);
+    }
+  });
+  const eliminados = base.filter(r => !actualIds.has(r.id)).map(r => r.id);
+  return { cambios, eliminados };
+}
 
 function valorPorDefectoColeccion(nombre){
   if(nombre === 'usuarios') return [];
@@ -891,7 +921,6 @@ async function loadState(){
   // sola llamada en lote (ver kvGetMany / Code.gs).
   const llaves = COLECCIONES_ESTADO.concat(['config']);
   const valores = await kvGetMany(llaves);
-  clientesVersion = valores['clientes__version'] || null;
 
   COLECCIONES_ESTADO.forEach((nombre) => {
     const raw = valores[nombre];
@@ -901,6 +930,7 @@ async function loadState(){
       state[nombre] = seed[nombre] || valorPorDefectoColeccion(nombre);
     }
     if(!state[nombre]) state[nombre] = valorPorDefectoColeccion(nombre);
+    if(ID_POR_COLECCION_MERGE[nombre]) actualizarBaseSnapshot(nombre, state[nombre]);
   });
 
   try{
@@ -920,11 +950,20 @@ async function loadState(){
 function crearGuardadoColeccion(nombreLlave, obtenerValor, mensajeError){
   const debouncer = makeDebouncer(async () => {
     try{
-      if(nombreLlave === 'clientes'){
-        const resultado = await kvSetClientes(JSON.stringify(obtenerValor()));
-        if(resultado.conflicto){
-          showToast('Alguien más guardó cambios en clientes justo ahora. Recarga la página antes de seguir editando para no perder tu cambio.');
-        }else if(!resultado.ok && BACKEND_URL){
+      if(ID_POR_COLECCION_MERGE[nombreLlave]){
+        const listaActual = obtenerValor();
+        const { cambios, eliminados } = calcularDiffColeccion(nombreLlave, listaActual);
+        if(!cambios.length && !eliminados.length) return;
+        // Copia profunda ANTES de esperar la respuesta: si mientras se guarda
+        // alguien sigue editando en pantalla, la base tiene que quedar
+        // marcada con lo que de verdad se mandó, no con lo que haya en
+        // pantalla cuando responda el backend (si no, el próximo cambio
+        // parecería "ya guardado" y nunca se enviaría).
+        const snapshotEnviado = JSON.parse(JSON.stringify(listaActual));
+        const ok = await kvMergeColeccion(nombreLlave, cambios, eliminados);
+        if(ok){
+          baseSnapshots[nombreLlave] = snapshotEnviado;
+        }else if(BACKEND_URL){
           showToast(mensajeError);
         }
         return;
