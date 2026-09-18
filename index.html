@@ -52,6 +52,8 @@
     display:flex;
     align-items:center;
     justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px 16px;
     padding:18px 32px;
     border-bottom:2px solid var(--navy-deep);
     background:var(--teal-dark);
@@ -67,7 +69,7 @@
     font-size:22px;margin:0;font-weight:600;letter-spacing:0.2px;color:#fff;
   }
   .brand .sub{font-size:12px;color:rgba(255,255,255,0.6);margin-top:2px;letter-spacing:0.5px;text-transform:uppercase;}
-  .whoami{display:flex;align-items:center;gap:12px;font-size:14px;}
+  .whoami{display:flex;align-items:center;gap:12px;font-size:14px;flex-wrap:wrap;}
   .role-badge{
     font-family:'IBM Plex Mono',monospace;
     font-size:11px;
@@ -438,6 +440,8 @@
     .nav-pills{display:flex;width:100%;overflow-x:auto;}
     .nav-columns{gap:16px 28px;}
     .main{padding:24px 18px;}
+    .topbar{padding:14px 16px;}
+    .whoami{gap:8px;font-size:13px;}
   }
 
   /* ---------- Impresión (usada por "Descargar PDF" del Reporte Semanal) ---------- */
@@ -743,6 +747,38 @@ async function kvSet(key, value){
   }
 }
 
+// Guardado de "clientes" con control de versión: manda la huella
+// (clientesVersion) de lo que cargamos, y el backend rechaza el guardado si
+// alguien más ya guardó una versión distinta mientras tanto — en vez de
+// sobrescribir en silencio el cambio de esa otra persona (ver comentario en
+// la declaración de clientesVersion).
+async function kvSetClientes(value){
+  if(!BACKEND_URL) return { ok:false, conflicto:false };
+  try{
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ key: 'clientes', value, version: clientesVersion, token: API_TOKEN })
+    });
+    const data = await res.json().catch(() => null);
+    if(data && data.error === 'rate_limited'){
+      showToast('Demasiadas solicitudes seguidas. Espera un momento; tu cambio se reintentará.');
+      return { ok:false, conflicto:false };
+    }
+    if(data && data.error === 'conflicto_version'){
+      return { ok:false, conflicto:true };
+    }
+    if(data && data.ok){
+      clientesVersion = data.version || clientesVersion;
+      return { ok:true, conflicto:false };
+    }
+    return { ok:false, conflicto:false };
+  }catch(e){
+    console.error('No se pudo guardar los clientes en el backend:', e);
+    return { ok:false, conflicto:false };
+  }
+}
+
 // Verifica usuario+clave contra el backend: el backend compara el hash y
 // responde solo ok/no-ok, sin exponer nunca el mapa completo de claves al
 // navegador (antes checkLogin() comparaba localmente contra `creds`, que se
@@ -817,6 +853,15 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // cambio de clientes, o viceversa — queda resuelto.
 const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29'];
 
+// Huella de la última versión de "clientes" que sabemos que está guardada en
+// el backend (ver kvSetClientes). Como cada guardado reescribe la colección
+// completa de 1107 clientes de una sola vez, si dos personas editan clientes
+// distintos casi al mismo tiempo, la segunda en guardar podía pisar en
+// silencio el cambio de la primera. Con esto, antes de guardar el backend
+// compara esta huella contra la actual: si no coinciden, avisa en vez de
+// sobrescribir a ciegas.
+let clientesVersion = null;
+
 function valorPorDefectoColeccion(nombre){
   if(nombre === 'usuarios') return [];
   if(nombre === 'clientes') return [];
@@ -846,6 +891,7 @@ async function loadState(){
   // sola llamada en lote (ver kvGetMany / Code.gs).
   const llaves = COLECCIONES_ESTADO.concat(['config']);
   const valores = await kvGetMany(llaves);
+  clientesVersion = valores['clientes__version'] || null;
 
   COLECCIONES_ESTADO.forEach((nombre) => {
     const raw = valores[nombre];
@@ -874,6 +920,15 @@ async function loadState(){
 function crearGuardadoColeccion(nombreLlave, obtenerValor, mensajeError){
   const debouncer = makeDebouncer(async () => {
     try{
+      if(nombreLlave === 'clientes'){
+        const resultado = await kvSetClientes(JSON.stringify(obtenerValor()));
+        if(resultado.conflicto){
+          showToast('Alguien más guardó cambios en clientes justo ahora. Recarga la página antes de seguir editando para no perder tu cambio.');
+        }else if(!resultado.ok && BACKEND_URL){
+          showToast(mensajeError);
+        }
+        return;
+      }
       const ok = await kvSet(nombreLlave, JSON.stringify(obtenerValor()));
       if(!ok && BACKEND_URL) showToast(mensajeError);
     }catch(e){
@@ -1229,18 +1284,27 @@ const NAV_ICONS = {
 };
 
 
+// Al elegir una pestaña superior (Clientes/Gestión/Sistema/Administración) se
+// navega de una vez a la primera sección de ese grupo. Antes solo se
+// resaltaba el grupo sin cambiar el contenido, y la pantalla se quedaba
+// pegada en la sección anterior hasta hacer un segundo clic en una
+// sub-pestaña — parecía que el botón no hacía nada.
 function setNavGrupoActivo(key){
+  const grupos = construirGruposNav();
+  const grupo = grupos.find(g => g.key === key);
   navGrupoPreview = key;
-  renderApp();
+  if(grupo && !grupo.tabs.some(t => t.tab === activeTab)){
+    setTab(grupo.tabs[0].tab);
+  }else{
+    renderApp();
+  }
 }
 
 // Navegación de secciones en dos niveles (mismo patrón que la home de banca
 // en línea de Banco de Chile): una fila de pestañas tipo píldora, cada una
 // un grupo de secciones con su ícono, y debajo un panel con las secciones
 // de la pestaña activa repartidas en columnas de a lo más 4 enlaces.
-function sectionNav(){
-  const link = (tab, label) => `<div class="nav-link ${activeTab===tab?'active':''}" onclick="setTab('${tab}')">${label}</div>`;
-
+function construirGruposNav(){
   let grupos;
   if(!currentUser.isAdmin){
     // Encargado, Asistente y TAX: mismas secciones de siempre (Facturación,
@@ -1295,6 +1359,13 @@ function sectionNav(){
       {tab:'configuracion', label:'Configuración'},
     ]});
   }
+
+  return grupos;
+}
+
+function sectionNav(){
+  const link = (tab, label) => `<div class="nav-link ${activeTab===tab?'active':''}" onclick="setTab('${tab}')">${label}</div>`;
+  const grupos = construirGruposNav();
 
   // La pestaña activa sigue a la sección donde se está parado, salvo que se
   // haya elegido otra a mano (navGrupoPreview) sin haber navegado todavía.
@@ -2123,7 +2194,7 @@ function renderModal(){
 
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
             <button type="button" class="btn secondary small" id="btnMostrarClaves" onclick="mostrarCredencialesCliente('${c.id}')">Mostrar claves</button>
-            <span id="mostrarClavesEstado" style="font-size:12px;color:#8a8879;">Las claves de Previred, Clave Única y Facturación están ocultas para acelerar la carga. Haz clic para verlas.</span>
+            <span id="mostrarClavesEstado" style="font-size:12px;color:#8a8879;">Las claves de Previred, Clave Única y Facturación están ocultas por defecto. Haz clic para verlas solo cuando las necesites.</span>
           </div>
 
           <label style="flex-direction:row;align-items:center;gap:8px;display:flex;margin-bottom:8px;">
