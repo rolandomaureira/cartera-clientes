@@ -512,14 +512,38 @@ function clearBulkSelections(){ f29Selected.clear(); facturaSelected.clear(); re
 // Sub-pestaña activa dentro de "Obligaciones Tributarias".
 let obligacionesSubTab = 'confeccion-iva';
 
-const ROLES_DISPONIBLES = ['Administrador', 'Contabilidad', 'TAX', 'Encargado', 'Asistente'];
+const ROLES_DISPONIBLES = ['Administrador', 'Contabilidad', 'TAX', 'Encargado', 'Asistente', 'Encargado Remuneraciones', 'Asistente Remuneraciones'];
 function esRolAdmin(rol){ return typeof rol === 'string' && rol.startsWith('Administrador'); }
-function esRolAsistente(rol){ return typeof rol === 'string' && rol.startsWith('Asistente'); }
+// Igualdad exacta (antes era rol.startsWith('Asistente')): con 'Asistente
+// Remuneraciones' agregado a ROLES_DISPONIBLES, el prefijo también lo habría
+// atrapado a él, mezclándolo con el Asistente contable de siempre en
+// carterasDeUsuario() y en el panel "Asistentes de Ejecutivos". Remuneraciones
+// tiene su propio helper (ver esRolAsistenteRemuneraciones).
+function esRolAsistente(rol){ return rol === 'Asistente'; }
+function esRolAsistenteRemuneraciones(rol){ return rol === 'Asistente Remuneraciones'; }
+function esRolEncargadoRemuneraciones(rol){ return rol === 'Encargado Remuneraciones'; }
 function esRolContabilidad(rol){ return rol === 'Contabilidad'; }
 
 // Eduardo Llanos (dueño): id fijo usado para marcar reuniones de su agenda
 // personal aparte del calendario general (ver agendaEduardoContent()).
 const EDUARDO_ID = 'u_04addb';
+
+// Administrador y Contabilidad ven también todas las carteras de
+// Remuneraciones (misma cartera separada, ver clientesRemuneraciones).
+function puedeVerTodasLasCarterasRemuneraciones(u){
+  return !!u.isAdmin || esRolContabilidad(u.rol) || !!u.verTodasLasCarterasRemuneraciones;
+}
+
+// Mismo patrón que carterasDeUsuario(), pero para la cartera de
+// Remuneraciones (separada de la contable): un Asistente Remuneraciones solo
+// ve lo que tenga en carterasVisiblesRemuneraciones; un Encargado
+// Remuneraciones, la suya propia. Deliberadamente no incluye TAX (es un rol
+// específico del lado contable).
+function carterasDeUsuarioRemuneraciones(u){
+  if(esRolAsistenteRemuneraciones(u.rol)) return u.carterasVisiblesRemuneraciones || [];
+  if(esRolEncargadoRemuneraciones(u.rol)) return [u.id];
+  return [];
+}
 
 // Administrador, Contabilidad y TAX ven todas las carteras (de todos los
 // encargados, ambas sucursales) en vez de estar acotados a la suya propia.
@@ -879,7 +903,7 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // requeriría filas individuales por registro, un cambio más grande), pero
 // el caso que causó problemas — un cambio en usuarios pisado por un
 // cambio de clientes, o viceversa — queda resuelto.
-const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29', 'propuestas'];
+const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones'];
 
 // Colecciones que se guardan por FUSIÓN (merge) en vez de mandar el arreglo
 // completo cada vez: el backend solo toca, por id, los registros que de
@@ -893,7 +917,8 @@ const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligacio
 // afuera: son de bajo riesgo de choque y se siguen guardando completas.
 const ID_POR_COLECCION_MERGE = {
   clientes: true, usuarios: true, requerimientos: true, obligaciones: true,
-  reuniones: true, trabajosEspeciales: true, estimacionesF29: true, propuestas: true
+  reuniones: true, trabajosEspeciales: true, estimacionesF29: true, propuestas: true,
+  clientesRemuneraciones: true
 };
 
 // Copia de cada colección tal como sabemos que está guardada en el backend
@@ -936,6 +961,7 @@ function valorPorDefectoColeccion(nombre){
   if(nombre === 'auditoria') return [];
   if(nombre === 'estimacionesF29') return [];
   if(nombre === 'propuestas') return [];
+  if(nombre === 'clientesRemuneraciones') return [];
   return [];
 }
 
@@ -1020,6 +1046,7 @@ const reunionesSaveDebouncer = crearGuardadoColeccion('reuniones', () => state.r
 const trabajosEspecialesSaveDebouncer = crearGuardadoColeccion('trabajosEspeciales', () => state.trabajosEspeciales, 'No se pudo guardar el trabajo especial. Intenta de nuevo.');
 const estimacionesF29SaveDebouncer = crearGuardadoColeccion('estimacionesF29', () => state.estimacionesF29, 'No se pudo guardar la estimación F-29. Intenta de nuevo.');
 const propuestasSaveDebouncer = crearGuardadoColeccion('propuestas', () => state.propuestas, 'No se pudo guardar la propuesta. Intenta de nuevo.');
+const clientesRemuneracionesSaveDebouncer = crearGuardadoColeccion('clientesRemuneraciones', () => state.clientesRemuneraciones, 'No se pudo guardar el cliente de remuneraciones. Intenta de nuevo.');
 const configSaveDebouncer = crearGuardadoColeccion('config', () => ({ tareasPlantilla: state.tareasPlantilla, declaracionesJuradasPlantilla: state.declaracionesJuradasPlantilla }), 'No se pudo guardar la configuración. Intenta de nuevo.');
 const auditoriaSaveDebouncer = crearGuardadoColeccion('auditoria', () => state.auditoria, 'No se pudo guardar el registro de actividad.');
 
@@ -1041,6 +1068,7 @@ async function saveReuniones(){ registrarAuditoria('reuniones'); reunionesSaveDe
 async function saveTrabajosEspeciales(){ registrarAuditoria('trabajosEspeciales'); trabajosEspecialesSaveDebouncer.run(); }
 async function saveEstimacionesF29(){ registrarAuditoria('estimacionesF29'); estimacionesF29SaveDebouncer.run(); }
 async function savePropuestas(){ registrarAuditoria('propuestas'); propuestasSaveDebouncer.run(); }
+async function saveClientesRemuneraciones(){ registrarAuditoria('clientesRemuneraciones'); clientesRemuneracionesSaveDebouncer.run(); }
 async function saveConfig(){ registrarAuditoria('config'); configSaveDebouncer.run(); }
 
 let creds = null; // { usuarios: { id: hash } }
@@ -1099,6 +1127,7 @@ function flushPendingSaves(){
   trabajosEspecialesSaveDebouncer.flush();
   estimacionesF29SaveDebouncer.flush();
   propuestasSaveDebouncer.flush();
+  clientesRemuneracionesSaveDebouncer.flush();
   configSaveDebouncer.flush();
   auditoriaSaveDebouncer.flush();
   credsSaveDebouncer.flush();
@@ -1384,6 +1413,20 @@ function setNavGrupoActivo(key){
 // de la pestaña activa repartidas en columnas de a lo más 4 enlaces.
 function construirGruposNav(){
   let grupos;
+  // Encargado/Asistente Remuneraciones: cartera de Remuneraciones separada de
+  // la contable, sin nada del lado contable (ver
+  // puedeVerTodasLasCarterasRemuneraciones/carterasDeUsuarioRemuneraciones).
+  // Se resuelve antes que cualquier otra cosa para que NUNCA caigan en los
+  // grupos de abajo, pensados para Encargado/Asistente/TAX contables.
+  if(esRolEncargadoRemuneraciones(currentUser.rol) || esRolAsistenteRemuneraciones(currentUser.rol)){
+    return [
+      { key:'remuneraciones', label:'Remuneraciones', icon: NAV_ICONS.folder, tabs: [
+        {tab:'cartera-remuneraciones', label:'Cartera de Remuneraciones'},
+        {tab:'trabajos-especiales-remuneraciones', label:'Trabajos Especiales'},
+        {tab:'facturacion-remuneraciones', label:'Facturación'},
+      ]},
+    ];
+  }
   if(!currentUser.isAdmin){
     // Encargado, Asistente y TAX: mismas secciones de siempre (Facturación,
     // Incorporar Clientes, Dashboard, Usuarios y Roles siguen sin estar
@@ -1429,6 +1472,17 @@ function construirGruposNav(){
         {tab:'actividad', label:'Actividad'},
       ]},
     ];
+  }
+
+  // Administrador y Contabilidad además ven la sección Remuneraciones (la
+  // misma cartera separada que ven Encargado/Asistente Remuneraciones arriba,
+  // pero con visión completa — ver puedeVerTodasLasCarterasRemuneraciones).
+  if(currentUser.isAdmin){
+    grupos.push({ key:'remuneraciones', label:'Remuneraciones', icon: NAV_ICONS.folder, tabs: [
+      {tab:'cartera-remuneraciones', label:'Cartera de Remuneraciones'},
+      {tab:'trabajos-especiales-remuneraciones', label:'Trabajos Especiales'},
+      {tab:'facturacion-remuneraciones', label:'Facturación'},
+    ]});
   }
 
   // Contabilidad tiene acceso total (todo lo de Administrador, arriba) más
@@ -1575,6 +1629,12 @@ function adminLayout(){
           ? cobranzaContent()
           : activeTab === 'propuestas'
           ? propuestasContent()
+          : activeTab === 'cartera-remuneraciones'
+          ? carteraRemuneracionesContent()
+          : activeTab === 'trabajos-especiales-remuneraciones'
+          ? trabajosEspecialesContent('remuneraciones')
+          : activeTab === 'facturacion-remuneraciones'
+          ? facturacionRemuneracionesContent()
           : activeTab === 'obligaciones'
           ? obligacionesContent(true)
           : activeTab === 'f29'
@@ -1624,6 +1684,12 @@ function contabilidadLayout(){
           ? cobranzaContent()
           : activeTab === 'propuestas'
           ? propuestasContent()
+          : activeTab === 'cartera-remuneraciones'
+          ? carteraRemuneracionesContent()
+          : activeTab === 'trabajos-especiales-remuneraciones'
+          ? trabajosEspecialesContent('remuneraciones')
+          : activeTab === 'facturacion-remuneraciones'
+          ? facturacionRemuneracionesContent()
           : activeTab === 'obligaciones'
           ? obligacionesContent(true)
           : activeTab === 'f29'
@@ -4149,15 +4215,25 @@ function trabajoEstadoClass(estado){
   return `${base} ${TRABAJO_ESTADO_CLASS[estado] || TRABAJO_ESTADO_CLASS['Pendiente']}`;
 }
 
-function trabajosEspecialesContent(){
-  const lista = [...state.trabajosEspeciales].sort((a,b) => (a.fechaLimite||'').localeCompare(b.fechaLimite||''));
+// 'linea' separa Trabajos Especiales de Contabilidad de los de Remuneraciones
+// (cartera de clientes totalmente aparte, ver clientesRemuneraciones) sin
+// duplicar esta colección: un trabajo especial no tiene ningún campo propio
+// de contabilidad, así que un simple discriminador alcanza. Los registros
+// existentes (de antes de esta línea) no traen 'linea' — se tratan como
+// 'contabilidad' por defecto, nunca se pierden ni cambian de pestaña.
+function lineaTrabajo(t){ return (t && t.linea) || 'contabilidad'; }
+
+function trabajosEspecialesContent(linea){
+  linea = linea || 'contabilidad';
+  const clientesLinea = linea === 'remuneraciones' ? (state.clientesRemuneraciones||[]) : state.clientes;
+  const lista = state.trabajosEspeciales.filter(t => lineaTrabajo(t) === linea).sort((a,b) => (a.fechaLimite||'').localeCompare(b.fechaLimite||''));
   const hoy = todayISO();
   const usuariosOrdenados = [...state.usuarios].sort((a,b) => a.name.localeCompare(b.name, 'es'));
 
   return `
     <div class="max-w-5xl">
       <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
-        <h2 class="text-2xl font-bold text-gray-800 mb-1">Trabajos Especiales</h2>
+        <h2 class="text-2xl font-bold text-gray-800 mb-1">Trabajos Especiales${linea==='remuneraciones' ? ' (Remuneraciones)' : ''}</h2>
         <p class="text-sm text-gray-500 mb-6">Asigna trabajos puntuales (fuera de la checklist mensual) a cualquier persona del equipo. La persona asignada lo ve reflejado en su pestaña Tareas.</p>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div class="md:col-span-2">
@@ -4172,7 +4248,7 @@ function trabajosEspecialesContent(){
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Cliente (opcional)</label>
             <select id="teCliente" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
               <option value="">Sin cliente asociado</option>
-              ${state.clientes.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+              ${clientesLinea.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
             </select>
           </div>
           <div>
@@ -4190,7 +4266,7 @@ function trabajosEspecialesContent(){
             <input type="number" id="teMontoUF" min="0" step="0.1" placeholder="Ej: 3.5" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
           </div>
           <div class="md:col-span-2">
-            <button onclick="submitTrabajoEspecial()" class="bg-[var(--teal-dark)] hover:bg-[var(--ink)] text-white font-semibold px-6 py-3 rounded-xl transition-colors">Asignar trabajo</button>
+            <button onclick="submitTrabajoEspecial('${linea}')" class="bg-[var(--teal-dark)] hover:bg-[var(--ink)] text-white font-semibold px-6 py-3 rounded-xl transition-colors">Asignar trabajo</button>
           </div>
         </div>
       </div>
@@ -4213,7 +4289,7 @@ function trabajosEspecialesContent(){
           <tbody>
             ${lista.length ? lista.map(t => {
               const asignado = state.usuarios.find(u=>u.id===t.asignadoA);
-              const cli = state.clientes.find(c=>c.id===t.clienteId);
+              const cli = clientesLinea.find(c=>c.id===t.clienteId);
               const vencido = t.fechaLimite && t.fechaLimite < hoy && t.estado !== 'Completado';
               return `
                 <tr class="border-t border-gray-100">
@@ -4243,7 +4319,8 @@ function trabajosEspecialesContent(){
   `;
 }
 
-async function submitTrabajoEspecial(){
+async function submitTrabajoEspecial(linea){
+  linea = linea || 'contabilidad';
   const titulo = document.getElementById('teTitulo').value.trim();
   const descripcion = document.getElementById('teDescripcion').value.trim();
   const clienteId = document.getElementById('teCliente').value || null;
@@ -4254,7 +4331,7 @@ async function submitTrabajoEspecial(){
   if(!titulo) return showToast('Escribe un título para el trabajo.');
   if(!asignadoA) return showToast('Selecciona a quién se asigna.');
   state.trabajosEspeciales.push({
-    id: uid('te'), titulo, descripcion, clienteId, asignadoA, montoUF,
+    id: uid('te'), titulo, descripcion, clienteId, asignadoA, montoUF, linea,
     asignadoPor: currentUser.id, fechaCreacion: todayISO(), fechaLimite, estado: 'Pendiente', archivos: []
   });
   await saveTrabajosEspeciales();
@@ -5334,6 +5411,217 @@ async function quitarArchivoPropuesta(propuestaId, index){
   await savePropuestas();
   renderApp();
 }
+
+// ==================== REMUNERACIONES (cartera separada) ====================
+// Segunda línea de negocio, completamente aparte de la cartera contable:
+// otra colección (clientesRemuneraciones, ver COLECCIONES_ESTADO/
+// ID_POR_COLECCION_MERGE), porque un cliente de remuneraciones no necesita
+// régimen tributario, F-29 ni las claves cifradas de un cliente contable.
+// Reutiliza sí mismo mecanismo de guardado por fusión, y reutiliza
+// facturaDisplay/resumenFacturacion (genéricos: solo esperan
+// .facturacion/.valorServicioMensual en el objeto, no específicamente
+// state.clientes) para la vista de Facturación de esta cartera.
+let facturacionRemuneracionesMes = null;
+
+function carteraRemuneracionesContent(){
+  const verTodo = puedeVerTodasLasCarterasRemuneraciones(currentUser);
+  const misCarteras = carterasDeUsuarioRemuneraciones(currentUser);
+  const lista = verTodo ? (state.clientesRemuneraciones||[]) : (state.clientesRemuneraciones||[]).filter(c => misCarteras.includes(c.encargadoId));
+  const usuariosOrdenados = [...state.usuarios].sort((a,b) => a.name.localeCompare(b.name, 'es'));
+
+  const filaEditable = c => `
+    <tr>
+      <td class="client-name">${escapeHtml(c.name)}</td>
+      <td>${escapeHtml(c.rut)}</td>
+      <td>
+        <select onchange="guardarCampoClienteRemuneraciones('${c.id}', 'encargadoId', this.value || null)">
+          <option value="">Sin asignar</option>
+          ${usuariosOrdenados.map(u=>`<option value="${u.id}" ${c.encargadoId===u.id?'selected':''}>${escapeHtml(u.name)}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="number" min="0" step="0.1" value="${c.valorServicioMensual!=null?c.valorServicioMensual:''}" style="max-width:80px;" onchange="guardarCampoClienteRemuneraciones('${c.id}', 'valorServicioMensual', parseFloat(this.value)||0)"></td>
+      <td><input type="text" value="${escapeAttr(c.telefonoContacto||'')}" onchange="guardarCampoClienteRemuneraciones('${c.id}', 'telefonoContacto', this.value.trim())"></td>
+      <td><input type="text" value="${escapeAttr(c.correoContacto||'')}" onchange="guardarCampoClienteRemuneraciones('${c.id}', 'correoContacto', this.value.trim())"></td>
+      <td class="row-actions"><button class="btn danger small" onclick="eliminarClienteRemuneraciones('${c.id}')">Eliminar</button></td>
+    </tr>
+  `;
+
+  const filaSoloLectura = c => {
+    const enc = state.usuarios.find(u=>u.id===c.encargadoId);
+    return `
+    <tr>
+      <td class="client-name">${escapeHtml(c.name)}</td>
+      <td>${escapeHtml(c.rut)}</td>
+      <td>${enc?escapeHtml(enc.name):'Sin asignar'}</td>
+      <td>${c.valorServicioMensual!=null?c.valorServicioMensual:'—'}</td>
+      <td>${escapeHtml(c.telefonoContacto||'—')}</td>
+      <td>${escapeHtml(c.correoContacto||'—')}</td>
+    </tr>
+  `;
+  };
+
+  return `
+    <div class="main-head">
+      <div>
+        <h2 class="display">Cartera de Remuneraciones</h2>
+        <div class="meta">${lista.length} cliente${lista.length===1?'':'s'} · ${verTodo ? 'todos los clientes de Remuneraciones' : 'tu cartera de Remuneraciones'}</div>
+      </div>
+    </div>
+    ${verTodo ? `
+    <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:18px;">
+      <h4 style="margin:0 0 10px;font-size:14px;">Incorporar cliente de Remuneraciones</h4>
+      <div class="onboard-grid">
+        <label>Razón social
+          <input type="text" id="cr_name" placeholder="Nombre o razón social">
+        </label>
+        <label>Rut
+          <input type="text" id="cr_rut" placeholder="12.345.678-9">
+        </label>
+        <label>Encargado
+          <select id="cr_encargado">
+            <option value="">Sin asignar</option>
+            ${usuariosOrdenados.map(u=>`<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('')}
+          </select>
+        </label>
+        <label>Valor servicio mensual (UF)
+          <input type="number" id="cr_valor_mensual" min="0" step="0.1" placeholder="Ej: 3">
+        </label>
+        <label>Teléfono de contacto
+          <input type="text" id="cr_telefono">
+        </label>
+        <label>Correo de contacto
+          <input type="text" id="cr_correo">
+        </label>
+      </div>
+      <button class="btn" onclick="submitIncorporarClienteRemuneraciones()">Incorporar cliente</button>
+    </div>
+    ` : ''}
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Cliente</th><th>Rut</th><th>Encargado</th><th>Valor (UF)</th><th>Teléfono</th><th>Correo</th>${verTodo?'<th></th>':''}</tr></thead>
+      <tbody>
+        ${lista.length ? lista.map(verTodo ? filaEditable : filaSoloLectura).join('') : `<tr><td colspan="${verTodo?7:6}" style="padding:32px;text-align:center;color:#8a8879;">Sin clientes de Remuneraciones.</td></tr>`}
+      </tbody>
+    </table>
+    </div>
+  `;
+}
+
+async function submitIncorporarClienteRemuneraciones(){
+  const name = document.getElementById('cr_name').value.trim();
+  const rut = document.getElementById('cr_rut').value.trim();
+  const encargadoId = document.getElementById('cr_encargado').value || null;
+  const valorParsed = parseFloat(document.getElementById('cr_valor_mensual').value);
+  const telefonoContacto = document.getElementById('cr_telefono').value.trim();
+  const correoContacto = document.getElementById('cr_correo').value.trim();
+  if(!name) return showToast('Escribe la razón social del cliente.');
+  if(!rut) return showToast('Escribe el RUT del cliente.');
+  if(!state.clientesRemuneraciones) state.clientesRemuneraciones = [];
+  state.clientesRemuneraciones.push({
+    id: uid('cr'), name, rut, encargadoId,
+    valorServicioMensual: isNaN(valorParsed) ? null : valorParsed,
+    telefonoContacto, correoContacto, facturacion: {}
+  });
+  await saveClientesRemuneraciones();
+  showToast('Cliente de Remuneraciones incorporado.');
+  renderApp();
+}
+
+async function guardarCampoClienteRemuneraciones(id, campo, valor){
+  const c = (state.clientesRemuneraciones||[]).find(x => x.id === id);
+  if(!c) return;
+  c[campo] = valor;
+  await saveClientesRemuneraciones();
+}
+
+async function eliminarClienteRemuneraciones(id){
+  if(!confirm('¿Eliminar este cliente de Remuneraciones? Esta acción no se puede deshacer.')) return;
+  state.clientesRemuneraciones = (state.clientesRemuneraciones||[]).filter(c => c.id !== id);
+  await saveClientesRemuneraciones();
+  renderApp();
+  showToast('Cliente de Remuneraciones eliminado.');
+}
+
+function facturacionRemuneracionesContent(){
+  if(!facturacionRemuneracionesMes) facturacionRemuneracionesMes = new Date().toISOString().slice(0,7);
+  const mes = facturacionRemuneracionesMes;
+  const meses = mesesDesdeEnero2026();
+  const verTodo = puedeVerTodasLasCarterasRemuneraciones(currentUser);
+  const misCarteras = carterasDeUsuarioRemuneraciones(currentUser);
+  const base = verTodo ? (state.clientesRemuneraciones||[]) : (state.clientesRemuneraciones||[]).filter(c => misCarteras.includes(c.encargadoId));
+  const resumen = resumenFacturacion(base, mes);
+
+  return `
+    <div class="main-head">
+      <div>
+        <h2 class="display">Facturación · Remuneraciones</h2>
+        <div class="meta">${verTodo ? 'Estado de facturación por cliente, mes a mes.' : 'Estado de facturación de tu cartera este mes (solo lectura).'}</div>
+      </div>
+      <select onchange="facturacionRemuneracionesMes=this.value; renderApp();">
+        ${meses.map(m => `<option value="${m}" ${m===mes?'selected':''}>${mesLabel(m)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin:16px 0;">
+      <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;min-width:150px;">
+        <div style="font-size:11px;color:#8a8879;text-transform:uppercase;">Esperado</div>
+        <div style="font-size:20px;font-weight:700;">${resumen.esperado.toFixed(1)} UF</div>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;min-width:150px;">
+        <div style="font-size:11px;color:#8a8879;text-transform:uppercase;">Facturado</div>
+        <div style="font-size:20px;font-weight:700;color:#2e7d32;">${resumen.facturado.toFixed(1)} UF</div>
+      </div>
+      <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;min-width:150px;">
+        <div style="font-size:11px;color:#8a8879;text-transform:uppercase;">% Facturado</div>
+        <div style="font-size:20px;font-weight:700;">${resumen.pct}%</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Cliente</th><th>Encargado</th><th>Valor (UF)</th><th>Estado</th></tr></thead>
+      <tbody>
+        ${base.length ? base.map(c => {
+          const enc = state.usuarios.find(u=>u.id===c.encargadoId);
+          const f = facturaDisplay(c, mes);
+          return `
+          <tr>
+            <td class="client-name">${escapeHtml(c.name)}</td>
+            <td>${enc?escapeHtml(enc.name):'Sin asignar'}</td>
+            <td>${verTodo ? `<input type="number" min="0" step="0.1" value="${f.montoUF}" style="max-width:80px;" onchange="setFacturaMontoRemuneraciones('${c.id}', '${mes}', this.value)">` : f.montoUF}</td>
+            <td>${verTodo ? `
+              <select onchange="setFacturaEstadoRemuneraciones('${c.id}', '${mes}', this.value)">
+                ${['Pendiente','Facturado','No Aplica'].map(e=>`<option value="${e}" ${f.estado===e?'selected':''}>${e}</option>`).join('')}
+              </select>
+            ` : escapeHtml(f.estado)}</td>
+          </tr>
+        `;
+        }).join('') : `<tr><td colspan="4" style="padding:32px;text-align:center;color:#8a8879;">Sin clientes de Remuneraciones.</td></tr>`}
+      </tbody>
+    </table>
+    </div>
+  `;
+}
+
+async function setFacturaEstadoRemuneraciones(clienteId, mes, estado){
+  const c = (state.clientesRemuneraciones||[]).find(c => c.id === clienteId);
+  if(!c) return;
+  if(!c.facturacion) c.facturacion = {};
+  const actual = c.facturacion[mes] || { montoUF: c.valorServicioMensual || 0 };
+  c.facturacion[mes] = { montoUF: actual.montoUF, estado };
+  await saveClientesRemuneraciones();
+  renderApp();
+}
+
+async function setFacturaMontoRemuneraciones(clienteId, mes, valor){
+  const c = (state.clientesRemuneraciones||[]).find(c => c.id === clienteId);
+  if(!c) return;
+  if(!c.facturacion) c.facturacion = {};
+  const actual = c.facturacion[mes] || { estado: 'Pendiente' };
+  const monto = parseFloat(valor);
+  c.facturacion[mes] = { estado: actual.estado, montoUF: isNaN(monto) ? 0 : monto };
+  await saveClientesRemuneraciones();
+  renderApp();
+}
+// ==================== FIN REMUNERACIONES ====================
 
 function facturacionContent(){
   if(!facturacionMes) facturacionMes = new Date().toISOString().slice(0,7);
@@ -6917,6 +7205,33 @@ function usuariosContent(){
     </div>
 
     <div class="manage-section">
+      <h3 class="display">Accesos a cartera de Remuneraciones (rol Asistente Remuneraciones)</h3>
+      <p style="font-size:13px;color:#6b6a5f;margin-bottom:14px;">Mismo mecanismo que el de arriba, pero para la cartera separada de Remuneraciones — un Asistente Remuneraciones solo ve las carteras que le otorgues aquí.</p>
+      ${state.usuarios.filter(u=>esRolAsistenteRemuneraciones(u.rol)).map(u => {
+        const disponibles = carterasDisponiblesRemuneraciones().filter(c => !(u.carterasVisiblesRemuneraciones||[]).includes(c.id));
+        return `
+        <div style="padding:14px 0;border-bottom:1px solid var(--line);">
+          <div style="font-weight:600;margin-bottom:8px;">${escapeHtml(u.name)} <span style="font-weight:400;color:#6b6a5f;font-size:13px;">(${escapeHtml(u.rol)})</span></div>
+          <div style="margin-bottom:10px;">
+            ${(u.carterasVisiblesRemuneraciones||[]).map(id => {
+              const enc = state.usuarios.find(x=>x.id===id);
+              return `<span class="encargado-chip">${escapeHtml(enc?enc.name:'—')}
+                <button onclick="quitarCarteraVisibleRemuneraciones('${u.id}','${id}')" title="Quitar acceso">×</button>
+              </span>`;
+            }).join('') || '<span style="font-size:13px;color:#8a8879;">Sin carteras asignadas.</span>'}
+          </div>
+          <div class="form-inline" style="max-width:420px;">
+            <select id="addCarteraRemu_${u.id}">
+              ${disponibles.length ? disponibles.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') : '<option value="">No hay más carteras para agregar</option>'}
+            </select>
+            <button class="btn secondary small" ${disponibles.length?'':'disabled'} onclick="agregarCarteraVisibleRemuneraciones('${u.id}')">Agregar acceso</button>
+          </div>
+        </div>
+      `;
+      }).join('') || '<div style="font-size:13px;color:#8a8879;">No hay usuarios con rol Asistente Remuneraciones aún.</div>'}
+    </div>
+
+    <div class="manage-section">
       <h3 class="display">Crear nuevo usuario</h3>
       <div class="form-inline" style="max-width:520px;">
         <input type="text" id="newUserName" placeholder="Nombre completo">
@@ -7131,6 +7446,36 @@ async function quitarCarteraVisible(usuarioId, carteraId){
   showToast('Acceso quitado.');
 }
 
+// Mismo patrón que carterasDisponibles(), pero para la cartera separada de
+// Remuneraciones: personas que efectivamente tienen clientes de
+// Remuneraciones bajo su propio id, ofrecibles como acceso a un Asistente
+// Remuneraciones.
+function carterasDisponiblesRemuneraciones(){
+  const ids = new Set((state.clientesRemuneraciones||[]).map(c => c.encargadoId).filter(Boolean));
+  return state.usuarios.filter(u => ids.has(u.id));
+}
+
+async function agregarCarteraVisibleRemuneraciones(usuarioId){
+  const sel = document.getElementById('addCarteraRemu_' + usuarioId);
+  if(!sel || !sel.value) return;
+  const u = state.usuarios.find(u => u.id === usuarioId);
+  if(!u) return;
+  if(!u.carterasVisiblesRemuneraciones) u.carterasVisiblesRemuneraciones = [];
+  if(!u.carterasVisiblesRemuneraciones.includes(sel.value)) u.carterasVisiblesRemuneraciones.push(sel.value);
+  await saveUsuarios();
+  renderApp();
+  showToast('Acceso otorgado.');
+}
+
+async function quitarCarteraVisibleRemuneraciones(usuarioId, carteraId){
+  const u = state.usuarios.find(u => u.id === usuarioId);
+  if(!u) return;
+  u.carterasVisiblesRemuneraciones = (u.carterasVisiblesRemuneraciones||[]).filter(id => id !== carteraId);
+  await saveUsuarios();
+  renderApp();
+  showToast('Acceso quitado.');
+}
+
 async function removeUsuario(id){
   const u = state.usuarios.find(u => u.id === id);
   if(!u) return;
@@ -7175,7 +7520,10 @@ function encargadoLayout(){
     : activeTab === 'f29' ? estimacionF29Content(verTodo)
     : activeTab === 'tareas' ? tareasContent(verTodo, false)
     : activeTab === 'archivos' ? archivosContent()
-    : activeTab === 'trabajos-especiales' ? trabajosEspecialesContent() : `
+    : activeTab === 'trabajos-especiales' ? trabajosEspecialesContent()
+    : activeTab === 'cartera-remuneraciones' ? carteraRemuneracionesContent()
+    : activeTab === 'trabajos-especiales-remuneraciones' ? trabajosEspecialesContent('remuneraciones')
+    : activeTab === 'facturacion-remuneraciones' ? facturacionRemuneracionesContent() : `
       <div class="main-head">
         <div>
           <h2 class="display">${verTodo ? 'Cartera de Clientes' : 'Tu cartera'}</h2>
