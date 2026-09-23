@@ -8216,7 +8216,7 @@ function f29SeccionCompras(est){
   return `
     ${f29TablaFilas('II. Compras — Sin Derecho a Crédito', 'Solo referencia para cuadrar con el registro de compras (no genera crédito fiscal).', est.comprasSinDerecho, F29_COMPRAS_SIN_DERECHO, 'comprasSinDerecho', false, false, '')}
     ${f29TablaFilas('II. Compras — Con Derecho a Crédito', 'Las notas de crédito recibidas se restan del total.', est.comprasConDerecho, F29_COMPRAS_CON_DERECHO, 'comprasConDerecho', true, true, 'Crédito')}
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
+    <div class="panel">
       <h3 class="text-sm font-bold text-gray-700 mb-1">Remanente de Crédito Fiscal del mes anterior</h3>
       <p class="text-xs text-gray-400 mb-3">Se autocompleta con el remanente calculado en la estimación guardada del período anterior de este cliente (editable si hace falta corregirlo).</p>
       <input type="number" value="${est.remanenteCreditoFiscalAnterior||''}" oninput="f29SetCampo('remanenteCreditoFiscalAnterior', this.value)" class="rounded-lg border border-gray-300 px-3 py-2 text-sm text-right" style="width:200px;">
@@ -8455,12 +8455,14 @@ function estimacionF29Content(verTodo){
 
   return `
     <div class="max-w-5xl">
-      <div class="mb-1 no-print">
-        <h2 class="text-2xl font-bold text-gray-800 mb-1">F-29</h2>
-        <p class="text-sm text-gray-500">Estimación de impuestos mensuales (IVA, PPM y retenciones) por cliente, con resumen ejecutivo listo para enviar.</p>
+      <div class="main-head no-print">
+        <div>
+          <h2 class="display">F-29</h2>
+          <div class="meta">Estimación de impuestos mensuales (IVA, PPM y retenciones) por cliente, con resumen ejecutivo listo para enviar.</div>
+        </div>
       </div>
 
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 my-6 no-print">
+      <div class="panel no-print">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Cliente</label>
@@ -8484,7 +8486,7 @@ function estimacionF29Content(verTodo){
         ${historial.length ? `
         <div class="mt-4 flex flex-wrap gap-2 items-center">
           <span class="text-xs text-gray-400">Historial de este cliente:</span>
-          ${historial.map(h => `<button onclick="setEstimacionF29Periodo('${h.periodo}')" class="text-xs px-2.5 py-1 rounded-full border ${h.periodo===estimacionF29Periodo?'bg-[#E7ECFA] border-[var(--teal)] text-[var(--teal-dark)] font-semibold':'border-gray-200 text-gray-500 hover:border-gray-300'}">${periodoLabel(h.periodo)}</button>`).join('')}
+          ${historial.map(h => `<button onclick="setEstimacionF29Periodo('${h.periodo}')" class="filter-chip ${h.periodo===estimacionF29Periodo?'active':''}">${periodoLabel(h.periodo)}</button>`).join('')}
         </div>
         ` : ''}
       </div>
@@ -8515,7 +8517,7 @@ function estimacionF29Content(verTodo){
         ${f29SeccionRetencionesPpm(est, calc)}
         ${f29SeccionAjustes(est)}
         <div class="flex items-center gap-3 mb-8">
-          <button onclick="guardarEstimacionF29()" class="bg-[var(--teal-dark)] hover:bg-[var(--ink)] text-white font-semibold px-6 py-3 rounded-xl transition-colors">Guardar estimación</button>
+          <button onclick="guardarEstimacionF29()" class="btn">Guardar estimación</button>
           <span class="text-xs text-gray-400">Los cálculos ya se actualizan solos mientras escribes; este botón guarda la estimación y marca al cliente como "Guardado" en Confección Iva.</span>
         </div>
       </div>
