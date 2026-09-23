@@ -5160,7 +5160,7 @@ function dashboardFlujoUF(sumaUFMensual){
 
   if(!ufAnualCache[year]){
     return `
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+      <div class="panel" style="margin-bottom:32px;">
         <h3 class="text-sm font-bold text-gray-700 mb-2">Flujo de caja estimado (UF → CLP)</h3>
         <p class="text-sm text-gray-400">Cargando valores históricos de la UF…</p>
       </div>
@@ -5170,7 +5170,7 @@ function dashboardFlujoUF(sumaUFMensual){
   const serie = ufAnualCache[year];
   if(!serie.length){
     return `
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+      <div class="panel" style="margin-bottom:32px;">
         <h3 class="text-sm font-bold text-gray-700 mb-2">Flujo de caja estimado (UF → CLP)</h3>
         <p class="text-sm text-[var(--danger)]">No se pudo obtener el historial de la UF (revisa tu conexión). <button onclick="cargarUFAnual(${year})" class="text-[var(--teal-dark)] underline">Reintentar</button></p>
       </div>
@@ -5209,7 +5209,7 @@ function dashboardFlujoUF(sumaUFMensual){
   const maxClp = Math.max(1, ...filas.map(f=>f.clp));
 
   return `
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+    <div class="panel" style="margin-bottom:32px;">
       <div class="flex items-center justify-between mb-1">
         <h3 class="text-sm font-bold text-gray-700">Flujo de caja estimado (UF → CLP), ${year}</h3>
       </div>
@@ -5314,34 +5314,41 @@ function dashboardContent(){
   const sinValor = total - conValor.length;
   const sinGrupo = total - clientesConGrupo;
 
-  const card = (label, value, sub) => `
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-      <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">${label}</div>
-      <div class="text-2xl font-bold text-gray-800">${value}</div>
-      ${sub ? `<div class="text-xs text-gray-400 mt-1">${sub}</div>` : ''}
+  const card = (label, value, sub, icon, color) => `
+    <div class="stat">
+      <div class="chip chip-${color}">${ICONS_DOC[icon]}</div>
+      <div>
+        <div class="v" style="font-size:1.25rem;">${value}</div>
+        <div class="l">${label}</div>
+        ${sub ? `<div style="font-size:0.72rem;margin-top:2px;color:#9a9689;">${sub}</div>` : ''}
+      </div>
     </div>
   `;
 
   return `
     <div class="max-w-5xl">
-      <h2 class="text-2xl font-bold text-gray-800 mb-1">Dashboard</h2>
-      <p class="text-sm text-gray-500 mb-6">Panorama general de la cartera para análisis financiero.</p>
+      <div class="main-head">
+        <div>
+          <h2 class="display">Dashboard</h2>
+          <div class="meta">Panorama general de la cartera para análisis financiero.</div>
+        </div>
+      </div>
 
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        ${card('Total clientes', total, `Concepción ${porSucursal.Concepcion} · Temuco ${porSucursal.Temuco}`)}
-        ${card('Nómina IVA vigente', nomina.length, `${f29Enviados} enviados · ${f29Guardados} guardados · ${f29Pendientes} pendientes (${pctEnviado}% enviado)`)}
-        ${card('Cartera mensual (UF)', `${sumaUFMensual.toLocaleString('es-CL', {minimumFractionDigits:1, maximumFractionDigits:1})} UF`, `Concepción ${sumaUFConcepcion.toFixed(1)} UF · Temuco ${sumaUFTemuco.toFixed(1)} UF`)}
-        ${card(`Servicios extraordinarios ${anioActual}`, `${extraordinariosUF.toFixed(1)} UF`, 'Trabajos puntuales (fuera del mensual)')}
-        ${card('Requerimientos pendientes', reqPendientes.length, reqVencidos.length ? `${reqVencidos.length} vencidos` : 'Ninguno vencido')}
-        ${card('Archivos cargados', totalArchivos, archivosVencidos ? `${archivosVencidos} temporales vencidos` : 'Sin temporales vencidos')}
-        ${card('Sin valor mensual cargado', sinValor, sinValor ? 'Dato clave para el flujo' : 'Todos con valor cargado')}
-        ${card('Sin grupo asignado', sinGrupo, clientesConGrupo ? `${clientesConGrupo} con grupo cargado` : 'Ningún cliente con grupo todavía')}
+      <div class="stats">
+        ${card('Total clientes', total, `Concepción ${porSucursal.Concepcion} · Temuco ${porSucursal.Temuco}`, 'users', 'teal')}
+        ${card('Nómina IVA vigente', nomina.length, `${f29Enviados} enviados · ${f29Guardados} guardados · ${f29Pendientes} pendientes (${pctEnviado}% enviado)`, 'percent', 'orange')}
+        ${card('Cartera mensual (UF)', `${sumaUFMensual.toLocaleString('es-CL', {minimumFractionDigits:1, maximumFractionDigits:1})} UF`, `Concepción ${sumaUFConcepcion.toFixed(1)} UF · Temuco ${sumaUFTemuco.toFixed(1)} UF`, 'trend', 'green')}
+        ${card(`Servicios extraordinarios ${anioActual}`, `${extraordinariosUF.toFixed(1)} UF`, 'Trabajos puntuales (fuera del mensual)', 'star', 'purple')}
+        ${card('Requerimientos pendientes', reqPendientes.length, reqVencidos.length ? `${reqVencidos.length} vencidos` : 'Ninguno vencido', 'clipboard', 'blue')}
+        ${card('Archivos cargados', totalArchivos, archivosVencidos ? `${archivosVencidos} temporales vencidos` : 'Sin temporales vencidos', 'doc', 'cyan')}
+        ${card('Sin valor mensual cargado', sinValor, sinValor ? 'Dato clave para el flujo' : 'Todos con valor cargado', 'info', 'amber')}
+        ${card('Sin grupo asignado', sinGrupo, clientesConGrupo ? `${clientesConGrupo} con grupo cargado` : 'Ningún cliente con grupo todavía', 'info', 'slate')}
       </div>
 
       ${dashboardFlujoUF(sumaUFMensual)}
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <div class="panel">
           <h3 class="text-sm font-bold text-gray-700 mb-4">Clientes por régimen tributario</h3>
           ${regimenOrdenado.map(([r,n]) => `
             <div class="mb-3">
@@ -5350,7 +5357,7 @@ function dashboardContent(){
             </div>
           `).join('')}
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <div class="panel">
           <h3 class="text-sm font-bold text-gray-700 mb-4">Clientes por encargado</h3>
           ${porEncargado.map(({u,n}) => `
             <div class="mb-3">
@@ -5362,7 +5369,7 @@ function dashboardContent(){
       </div>
 
       ${grupoOrdenado.length ? `
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+      <div class="panel" style="margin-bottom:32px;">
         <h3 class="text-sm font-bold text-gray-700 mb-1">Clientes por grupo</h3>
         <p class="text-xs text-gray-400 mb-4">Top ${grupoOrdenado.length} grupos con más empresas (columna "Grupo" de la restructuración de carteras).</p>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8">
@@ -5376,7 +5383,7 @@ function dashboardContent(){
       </div>
       ` : ''}
 
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+      <div class="panel">
         <h3 class="text-sm font-bold text-gray-700 mb-4">Completitud de datos</h3>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div class="text-gray-600">Sin régimen tributario: <span class="font-bold text-gray-800">${sinRegimen}</span></div>
