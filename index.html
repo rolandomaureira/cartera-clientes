@@ -4836,7 +4836,7 @@ function filasRequerimientosConEncabezado(list, renderFila){
     const cat = categoriaUrgenciaRequerimiento(r);
     if(cat !== catAnterior){
       catAnterior = cat;
-      filas += `<tr><td colspan="7" class="px-5 py-2 bg-gray-100 font-semibold text-xs uppercase tracking-wide text-gray-500 border-t-2 border-gray-200">${ETIQUETA_URGENCIA_REQUERIMIENTO[cat]}</td></tr>`;
+      filas += `<tr><td colspan="7" style="padding:8px 16px;background:var(--paper-2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#6b6a5f;border-top:2px solid var(--ink);">${ETIQUETA_URGENCIA_REQUERIMIENTO[cat]}</td></tr>`;
     }
     filas += renderFila(r);
   });
@@ -4862,7 +4862,7 @@ function requerimientosContent(){
   const conteoPorCategoria = { vencido: 0, proximo: 0, pendiente: 0, resuelto: 0 };
   porPersonaYFecha.forEach(r => { conteoPorCategoria[categoriaUrgenciaRequerimiento(r)]++; });
   const chipUrgencia = (valor, etiqueta, n) => `
-    <button onclick="setRequerimientosFiltroUrgencia('${valor}')" class="px-3 py-1.5 rounded-full text-xs font-semibold border ${requerimientosFiltroUrgencia===valor ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}">${etiqueta} <span class="${requerimientosFiltroUrgencia===valor?'text-gray-300':'text-gray-400'}">${n}</span></button>
+    <button onclick="setRequerimientosFiltroUrgencia('${valor}')" class="filter-chip ${requerimientosFiltroUrgencia===valor?'active':''}">${etiqueta} <span class="count">${n}</span></button>
   `;
   // Opciones del selector "Dirigido a": solo personas que de verdad aparecen
   // como destinatario en algo que este usuario puede ver (no la lista
@@ -4875,10 +4875,13 @@ function requerimientosContent(){
 
   return `
     <div class="max-w-4xl">
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
-        <h2 class="text-2xl font-bold text-gray-800 mb-1">Requerimientos</h2>
-        <p class="text-sm text-gray-500 mb-6">Crea y da seguimiento a solicitudes internas (contables, tributarias o administrativas). ${puedeVerTodasLasCarteras(currentUser) ? 'Ves todos los requerimientos del sistema.' : 'Ves los que creaste, los dirigidos a ti, y los de tu encargado/asistente relacionado.'}</p>
-
+      <div class="main-head">
+        <div>
+          <h2 class="display">Requerimientos</h2>
+          <div class="meta">Crea y da seguimiento a solicitudes internas (contables, tributarias o administrativas). ${puedeVerTodasLasCarteras(currentUser) ? 'Ves todos los requerimientos del sistema.' : 'Ves los que creaste, los dirigidos a ti, y los de tu encargado/asistente relacionado.'}</div>
+        </div>
+      </div>
+      <div class="panel">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Tipo de Requerimiento</label>
@@ -4941,54 +4944,52 @@ function requerimientosContent(){
         ${chipUrgencia('resuelto', 'Resueltos', conteoPorCategoria.resuelto)}
       </div>
 
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div style="overflow-x:auto;">
-        <table class="w-full text-sm" style="min-width:920px;">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Tipo</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Creación</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Dirigido a</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Vencimiento</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Estado</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Días restantes</th>
-              <th class="px-5 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.length ? filasRequerimientosConEncabezado(rows, r => `
-                <tr class="border-t border-gray-100">
-                  <td class="px-5 py-3 text-gray-800">
-                    ${esNoLeidoParaMi(r) ? `<span class="bg-[var(--teal-dark)] text-white font-semibold" style="font-size:10px;letter-spacing:0.5px;text-transform:uppercase;border-radius:9999px;padding:2px 7px;margin-right:6px;">Nuevo</span>` : ''}${escapeHtml(r.tipo)}
-                    ${r.descripcion ? `<div style="font-size:12px;color:#9ca3af;margin-top:3px;max-width:220px;white-space:normal;">${escapeHtml(r.descripcion)}</div>` : ''}
-                  </td>
-                  <td class="px-5 py-3 text-gray-500">
-                    ${escapeHtml(r.fechaCreacion || '—')}
-                    ${nombreCreador(r) ? `<div style="font-size:11px;color:#9ca3af;margin-top:2px;">por ${escapeHtml(nombreCreador(r))}</div>` : ''}
-                  </td>
-                  <td class="px-5 py-3 text-gray-800">${escapeHtml(nombresDirigidoA(r))}</td>
-                  <td class="px-5 py-3 text-gray-500">${escapeHtml(r.fechaRespuesta || '—')}</td>
-                  <td class="px-5 py-3">
-                    <select onchange="this.className = reqEstadoClass(this.value); updateRequerimientoEstado('${r.id}', this.value)" class="${reqEstadoClass(r.estado)}">
-                      ${REQ_ESTADOS.map(e=>`<option value="${e}" ${r.estado===e?'selected':''}>${e}</option>`).join('')}
+      <div style="overflow-x:auto;">
+      <table style="min-width:920px;">
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Creación</th>
+            <th>Dirigido a</th>
+            <th>Vencimiento</th>
+            <th>Estado</th>
+            <th>Días restantes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.length ? filasRequerimientosConEncabezado(rows, r => `
+              <tr>
+                <td>
+                  ${esNoLeidoParaMi(r) ? `<span class="bg-[var(--teal-dark)] text-white font-semibold" style="font-size:10px;letter-spacing:0.5px;text-transform:uppercase;border-radius:9999px;padding:2px 7px;margin-right:6px;">Nuevo</span>` : ''}${escapeHtml(r.tipo)}
+                  ${r.descripcion ? `<div style="font-size:12px;color:#9ca3af;margin-top:3px;max-width:220px;white-space:normal;">${escapeHtml(r.descripcion)}</div>` : ''}
+                </td>
+                <td>
+                  ${escapeHtml(r.fechaCreacion || '—')}
+                  ${nombreCreador(r) ? `<div style="font-size:11px;color:#9ca3af;margin-top:2px;">por ${escapeHtml(nombreCreador(r))}</div>` : ''}
+                </td>
+                <td>${escapeHtml(nombresDirigidoA(r))}</td>
+                <td>${escapeHtml(r.fechaRespuesta || '—')}</td>
+                <td>
+                  <select onchange="this.className = reqEstadoClass(this.value); updateRequerimientoEstado('${r.id}', this.value)" class="${reqEstadoClass(r.estado)}">
+                    ${REQ_ESTADOS.map(e=>`<option value="${e}" ${r.estado===e?'selected':''}>${e}</option>`).join('')}
+                  </select>
+                </td>
+                <td>${badgeDiasFaltantes(r)}</td>
+                <td style="text-align:right;white-space:nowrap;">
+                  ${puedeDerivarTax(r) ? `
+                    <select id="derivarSel_${r.id}" style="margin-right:6px;">
+                      <option value="administracion">Administración</option>
+                      <option value="tax">Rol TAX</option>
                     </select>
-                  </td>
-                  <td class="px-5 py-3">${badgeDiasFaltantes(r)}</td>
-                  <td class="px-5 py-3 text-right whitespace-nowrap">
-                    ${puedeDerivarTax(r) ? `
-                      <select id="derivarSel_${r.id}" class="text-xs rounded-lg border border-gray-300 px-2 py-1 mr-1">
-                        <option value="administracion">Administración</option>
-                        <option value="tax">Rol TAX</option>
-                      </select>
-                      <button onclick="derivarRequerimiento('${r.id}', document.getElementById('derivarSel_${r.id}').value)" class="text-[var(--teal-dark)] hover:text-[var(--ink)] text-xs font-semibold mr-3">Derivar</button>
-                    ` : ''}
-                    <button onclick="removeRequerimiento('${r.id}')" class="text-red-500 hover:text-red-700 text-xs font-semibold">Eliminar</button>
-                  </td>
-                </tr>
-              `) : `<tr><td colspan="7" class="px-5 py-8 text-center text-gray-400">${visibles.length ? 'No hay requerimientos que coincidan con los filtros seleccionados.' : (currentUser.isAdmin ? 'Aún no hay requerimientos creados.' : 'No tienes requerimientos dirigidos a ti por el momento.')}</td></tr>`}
-          </tbody>
-        </table>
-        </div>
+                    <button onclick="derivarRequerimiento('${r.id}', document.getElementById('derivarSel_${r.id}').value)" class="btn secondary small" style="margin-right:8px;">Derivar</button>
+                  ` : ''}
+                  <button onclick="removeRequerimiento('${r.id}')" class="btn danger small">Eliminar</button>
+                </td>
+              </tr>
+            `) : `<tr><td colspan="7" style="text-align:center;color:#8a8879;padding:40px 20px;">${visibles.length ? 'No hay requerimientos que coincidan con los filtros seleccionados.' : (currentUser.isAdmin ? 'Aún no hay requerimientos creados.' : 'No tienes requerimientos dirigidos a ti por el momento.')}</td></tr>`}
+        </tbody>
+      </table>
       </div>
     </div>
   `;
