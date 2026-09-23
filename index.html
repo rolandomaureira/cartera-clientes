@@ -281,8 +281,10 @@
   .btn.danger{background:none;color:var(--danger);border:1px solid var(--danger);}
   .btn.danger:hover{background:var(--danger);color:var(--white);}
   .btn.small{padding:5px 10px;font-size:12px;}
+  .btn.ghost{background:none;border:1px solid var(--line);color:var(--teal-dark);}
+  .btn.ghost:hover{background:var(--paper-2);border-color:var(--teal-dark);}
 
-  table{width:100%;border-collapse:collapse;background:var(--white);border:1px solid var(--line);border-radius:6px;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;background:var(--white);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,0.03), 0 1px 6px rgba(16,24,40,0.05);}
   thead th{
     text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;
     color:#6b6a5f;padding:12px 16px;border-bottom:2px solid var(--ink);background:var(--paper-2);
@@ -474,6 +476,7 @@
   .chip-slate{ background:#EAEDF1; color:#4A4F5E; }
   .chip-cyan{ background:#E1EEF2; color:#1E6B85; }
   .chip-navy{ background:#E3E7F2; color:var(--teal-dark); }
+  .chip-red{ background:#FBE9E7; color:var(--danger); }
 
   .stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-bottom:22px; }
   .stat{ display:flex; align-items:center; gap:14px; background:var(--white); border:1px solid var(--line); border-radius:16px; padding:16px 18px; box-shadow:0 1px 2px rgba(16,24,40,0.03), 0 1px 6px rgba(16,24,40,0.05); }
@@ -494,6 +497,14 @@
   .msg-doc{ padding:9px 13px; border-radius:4px; margin-bottom:12px; font-size:0.88rem; }
   .msg-doc.error{ background:#FBE9E7; color:var(--danger); border:1px solid #E8C4BC; }
   .msg-doc.ok{ background:#E3F0E8; color:#2F6B4F; border:1px solid #C3DDCB; }
+
+  /* Badge de estado reutilizable fuera de Memos y Propuestas: mismo look de
+     chip pero como pastilla con texto (no ícono), para <select>/<span> de
+     estado en el resto de la app. Sin selector "select." para que también
+     sirva en los <span> de solo lectura (ej. Facturación en modo Encargado). */
+  .estado-pill{ display:inline-block; font-family:'IBM Plex Sans',sans-serif; font-weight:600; font-size:12px; border-radius:20px; border:1px solid var(--line); padding:5px 12px; background:var(--white); }
+  select.estado-pill{ cursor:pointer; }
+  .panel, .card{ background:var(--white); border:1px solid var(--line); border-radius:16px; padding:16px 18px; box-shadow:0 1px 2px rgba(16,24,40,0.03), 0 1px 6px rgba(16,24,40,0.05); margin-bottom:18px; }
 
   /* ---- Editor por bloques ---- */
   .editor-layout{ display:grid; grid-template-columns:minmax(380px, 520px) 1fr; gap:20px; align-items:start; }
@@ -527,6 +538,12 @@
   .preview-bar{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
   .saved-info{ font-size:0.78rem; color:#6b6a5f; margin-left:auto; }
   .preview-scroll{ max-height:calc(100vh - 110px); overflow:auto; padding:4px 4px 20px; }
+  .editor-pane{ display:flex; flex-direction:column; gap:14px; }
+  .hint{ font-size:0.78rem; color:#6b6a5f; line-height:1.4; }
+  .row{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:10px; }
+  .row .grow, .field.grow{ flex:1; }
+  .field{ display:flex; flex-direction:column; gap:4px; font-size:0.78rem; color:#6b6a5f; }
+  .field input, .field select{ font-size:14px; color:var(--ink); }
 
   /* ---- Documento (hoja impresa/exportada) ---- */
   .paper{
@@ -982,10 +999,8 @@ async function kvMergeColeccion(key, cambios, eliminados){
 // el mismo número. Nunca se calcula localmente (tipo max(existentes)+1):
 // bajo concurrencia real eso sí podría repetirse. Devuelve null si algo
 // falla — quien llama debe abortar y avisar, nunca inventar un número.
-// Sin llamadas dentro de este archivo por ahora (el control de Propuestas
-// que vivía acá se reemplazó por memos.html, que hoy numera en localStorage
-// propio) — se deja porque memos.html podría conectarse a este mismo
-// correlativo compartido más adelante en vez de numerar solo por navegador.
+// El contador es por año (ver Code.gs), reiniciando en enero de cada año.
+// Usado por crearYAbrirDocumento() en el módulo de Memos y Propuestas.
 async function obtenerCorrelativo(tipo, anio){
   if(!BACKEND_URL) return null;
   try{
@@ -3596,14 +3611,15 @@ function reporteSemanalContent(){
 }
 
 const REQ_ESTADOS = ['Pendiente', 'En trámite', 'Resuelto'];
-const REQ_ESTADO_BASE_CLASS = 'rounded-full text-xs font-semibold px-3 py-1.5 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1';
-const REQ_ESTADO_COLOR_CLASS = {
-  'Pendiente': 'bg-red-100 text-red-700 border-red-300 focus:ring-red-300',
-  'En trámite': 'bg-yellow-100 text-yellow-800 border-yellow-300 focus:ring-yellow-300',
-  'Resuelto': 'bg-green-100 text-green-700 border-green-300 focus:ring-green-300',
-};
+// Reemplaza las pastillas Tailwind rojo/amarillo/verde por el sistema de
+// chips de Memos y Propuestas (mismo criterio para Trabajos Especiales,
+// Facturación y Obligaciones Tributarias: ver estadoPillClass más abajo).
+function estadoPillClass(mapa, estado, porDefecto){
+  return `estado-pill ${mapa[estado] || mapa[porDefecto]}`;
+}
+const REQ_ESTADO_CLASS = { 'Pendiente': 'chip-red', 'En trámite': 'chip-amber', 'Resuelto': 'chip-green' };
 function reqEstadoClass(estado){
-  return `${REQ_ESTADO_BASE_CLASS} ${REQ_ESTADO_COLOR_CLASS[estado] || 'bg-gray-100 text-gray-700 border-gray-300'}`;
+  return estadoPillClass(REQ_ESTADO_CLASS, estado, 'Pendiente');
 }
 
 function todayISO(){
@@ -4516,14 +4532,9 @@ function toggleInicioReqExpandido(){
 // de la checklist mensual de Tareas) a cualquier persona del equipo; la
 // persona asignada lo ve reflejado en su propia pestaña Tareas.
 const TRABAJO_ESTADOS = ['Pendiente', 'En proceso', 'Completado'];
-const TRABAJO_ESTADO_CLASS = {
-  'Completado': 'bg-green-100 text-green-700 border-green-300 focus:ring-green-300',
-  'En proceso': 'bg-yellow-100 text-yellow-800 border-yellow-300 focus:ring-yellow-300',
-  'Pendiente': 'bg-red-100 text-red-700 border-red-300 focus:ring-red-300',
-};
+const TRABAJO_ESTADO_CLASS = { 'Completado': 'chip-green', 'En proceso': 'chip-amber', 'Pendiente': 'chip-red' };
 function trabajoEstadoClass(estado){
-  const base = 'rounded-full text-xs font-semibold px-3 py-1.5 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1';
-  return `${base} ${TRABAJO_ESTADO_CLASS[estado] || TRABAJO_ESTADO_CLASS['Pendiente']}`;
+  return estadoPillClass(TRABAJO_ESTADO_CLASS, estado, 'Pendiente');
 }
 
 // 'linea' separa Trabajos Especiales de Contabilidad de los de Remuneraciones
@@ -5378,14 +5389,9 @@ function dashboardContent(){
 
 /* ---------------- FACTURACIÓN (Tailwind) ---------------- */
 const FACTURA_ESTADOS = ['Pendiente', 'Facturado', 'No Aplica'];
-const FACTURA_ESTADO_CLASS = {
-  'Facturado': 'bg-green-100 text-green-700 border-green-300 focus:ring-green-300',
-  'Pendiente': 'bg-yellow-100 text-yellow-800 border-yellow-300 focus:ring-yellow-300',
-  'No Aplica': 'bg-gray-100 text-gray-500 border-gray-300 focus:ring-gray-300',
-};
+const FACTURA_ESTADO_CLASS = { 'Facturado': 'chip-green', 'Pendiente': 'chip-amber', 'No Aplica': 'chip-slate' };
 function facturaEstadoClass(estado){
-  const base = 'rounded-full text-xs font-semibold px-3 py-1.5 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1';
-  return `${base} ${FACTURA_ESTADO_CLASS[estado] || FACTURA_ESTADO_CLASS['Pendiente']}`;
+  return estadoPillClass(FACTURA_ESTADO_CLASS, estado, 'Pendiente');
 }
 
 function mesesDesdeEnero2026(){
@@ -7807,14 +7813,9 @@ async function aplicarAccionMasivaFacturacion(mes){
 /* ---------------- OBLIGACIONES TRIBUTARIAS (más allá del IVA) ---------------- */
 const OBLIGACION_TIPOS = ['PPM', 'Renta Anual', 'Declaración Jurada', 'F-50', 'Cotizaciones Previsionales', 'Otro'];
 const OBLIGACION_ESTADOS = ['Pendiente', 'En trámite', 'Presentado'];
-const OBLIGACION_ESTADO_CLASS = {
-  'Presentado': 'bg-green-100 text-green-700 border-green-300 focus:ring-green-300',
-  'En trámite': 'bg-yellow-100 text-yellow-800 border-yellow-300 focus:ring-yellow-300',
-  'Pendiente': 'bg-red-100 text-red-700 border-red-300 focus:ring-red-300',
-};
+const OBLIGACION_ESTADO_CLASS = { 'Presentado': 'chip-green', 'En trámite': 'chip-amber', 'Pendiente': 'chip-red' };
 function obligacionEstadoClass(estado){
-  const base = 'rounded-full text-xs font-semibold px-3 py-1.5 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1';
-  return `${base} ${OBLIGACION_ESTADO_CLASS[estado] || OBLIGACION_ESTADO_CLASS['Pendiente']}`;
+  return estadoPillClass(OBLIGACION_ESTADO_CLASS, estado, 'Pendiente');
 }
 
 /* ==================== F-29 (estimación de impuestos mensuales) ====================
