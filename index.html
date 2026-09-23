@@ -329,17 +329,6 @@
   .tab-item:hover{color:var(--ink);}
   .tab-item.active{color:var(--ink);border-bottom-color:var(--teal);}
 
-  /* F-29 status select */
-  select.f29-select{
-    font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:12px;
-    border-width:1px;padding:6px 10px;
-  }
-  select.f29-pending{background:#F7ECD9;border-color:#D9B36C;color:#7A5A19;}
-  /* "Guardado" en violeta (antes usaba el mismo azul que "Enviado"; con el
-     azul marino ahora como color de marca, ambos quedaban casi idénticos). */
-  select.f29-guardado{background:#EDE9FE;border-color:#8B5CF6;color:#5B21B6;}
-  select.f29-ok{background:#E7ECFA;border-color:var(--teal);color:var(--teal-dark);}
-
   /* Onboarding form */
   .onboard-card{
     background:var(--white);border:1px solid var(--line);border-radius:6px;
@@ -2308,9 +2297,9 @@ async function aplicarAccionMasivaF29(estado){
 // como pendiente en los contadores de "sin enviar" (Inicio, nómina, etc.):
 // solo cambia lo que se ve en el selector de esta tabla.
 function f29ClassFor(estado){
-  if(estado === 'enviado') return 'f29-ok';
-  if(estado === 'guardado') return 'f29-guardado';
-  return 'f29-pending';
+  if(estado === 'enviado') return 'chip-blue';
+  if(estado === 'guardado') return 'chip-purple';
+  return 'chip-amber';
 }
 
 function f29Table(list, showEncargado){
@@ -2330,9 +2319,9 @@ function f29Table(list, showEncargado){
             <td class="mono">${escapeHtml(c.rut||'—')}</td>
             <td class="mono">${escapeHtml(c.clave||'—')}</td>
             ${showEncargado ? `<td>${escapeHtml((state.usuarios.find(e=>e.id===c.encargadoId)||{}).name || "Sin asignar")}</td>` : ''}
-            <td>${c.f29Requerido ? '<span class="role-badge admin" style="background:var(--gold);">En nómina</span>' : (c.f29CasoEspecialMes===mesActualISO() ? '<span class="role-badge encargado">Caso especial</span>' : '')}</td>
+            <td>${c.f29Requerido ? '<span class="pill" style="background:#FBEEE0;color:var(--gold);">En nómina</span>' : (c.f29CasoEspecialMes===mesActualISO() ? '<span class="pill" style="background:#E1EEEC;color:#1E6B63;">Caso especial</span>' : '')}</td>
             <td>
-              <select class="f29-select ${f29ClassFor(c.f29Estado)}" onchange="this.className = 'f29-select ' + f29ClassFor(this.value); setF29Status('${c.id}', this.value)">
+              <select class="estado-pill ${f29ClassFor(c.f29Estado)}" onchange="this.className = 'estado-pill ' + f29ClassFor(this.value); setF29Status('${c.id}', this.value)">
                 <option value="no_enviado" ${c.f29Estado!=='enviado' && c.f29Estado!=='guardado'?'selected':''}>No enviado</option>
                 <option value="guardado" ${c.f29Estado==='guardado'?'selected':''}>Guardado</option>
                 <option value="enviado" ${c.f29Estado==='enviado'?'selected':''}>Enviado</option>
@@ -2431,10 +2420,10 @@ function rentaTable(list, showEncargado){
             <td class="mono">${escapeHtml(c.rut||'—')}</td>
             <td class="mono">${escapeHtml(c.clave||'—')}</td>
             ${showEncargado ? `<td>${escapeHtml((state.usuarios.find(e=>e.id===c.encargadoId)||{}).name || "Sin asignar")}</td>` : ''}
-            <td>${c.rentaRequerido ? '<span class="role-badge admin" style="background:var(--gold);">En nómina</span>' : ''}</td>
+            <td>${c.rentaRequerido ? '<span class="pill" style="background:#FBEEE0;color:var(--gold);">En nómina</span>' : ''}</td>
             <td><input type="number" min="0" step="0.1" value="${c.rentaMontoUF!=null?c.rentaMontoUF:''}" placeholder="UF" style="width:80px;" onchange="setRentaMontoUF('${c.id}', this.value)"></td>
             <td>
-              <select class="f29-select ${c.rentaEstado==='enviado'?'f29-ok':'f29-pending'}" onchange="this.className = 'f29-select ' + (this.value==='enviado'?'f29-ok':'f29-pending'); setRentaStatus('${c.id}', this.value)">
+              <select class="estado-pill ${f29ClassFor(c.rentaEstado)}" onchange="this.className = 'estado-pill ' + f29ClassFor(this.value); setRentaStatus('${c.id}', this.value)">
                 <option value="no_enviado" ${c.rentaEstado!=='enviado'?'selected':''}>No enviado</option>
                 <option value="enviado" ${c.rentaEstado==='enviado'?'selected':''}>Enviado</option>
               </select>
@@ -8546,8 +8535,12 @@ function obligacionesScope(verTodo){
 function obligacionesContent(verTodo){
   return `
     <div class="max-w-6xl">
-      <h2 class="text-2xl font-bold text-gray-800 mb-1">Obligaciones Tributarias</h2>
-      <p class="text-sm text-gray-500">IVA mensual, Declaración de Renta, Declaraciones Juradas y otros trámites con fecha límite.</p>
+      <div class="main-head" style="margin-bottom:0;">
+        <div>
+          <h2 class="display">Obligaciones Tributarias</h2>
+          <div class="meta">IVA mensual, Declaración de Renta, Declaraciones Juradas y otros trámites con fecha límite.</div>
+        </div>
+      </div>
       ${obligacionesSubTabBar()}
       <div class="mt-6">
         ${obligacionesSubTab === 'confeccion-iva' ? confeccionIvaContent(verTodo)
@@ -8611,63 +8604,61 @@ function declaracionesJuradasContent(verTodo){
   const puedeEditarPlantilla = currentUser.isAdmin;
 
   return `
-    <div class="flex items-center justify-between mb-1 flex-wrap gap-3">
-      <p class="text-sm text-gray-500">Empresas con régimen tributario definido (excluye sin régimen y "Persona Natural"). Declaraciones juradas de renta más comunes por año tributario.</p>
-      <select onchange="flushPendingSaves(); declaracionesJuradasAnio=this.value; tablePage=1; renderApp();" class="rounded-xl border border-gray-300 px-4 py-2 text-sm">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:16px;">
+      <div class="meta" style="max-width:640px;">Empresas con régimen tributario definido (excluye sin régimen y "Persona Natural"). Declaraciones juradas de renta más comunes por año tributario.</div>
+      <select onchange="flushPendingSaves(); declaracionesJuradasAnio=this.value; tablePage=1; renderApp();">
         ${anios.map(a => `<option value="${a}" ${a===anio?'selected':''}>${a}</option>`).join('')}
       </select>
     </div>
 
     ${puedeEditarPlantilla ? `
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 my-6">
+    <div class="panel">
       <h3 class="text-sm font-bold text-gray-700 mb-3">Declaraciones juradas a seguir (aplica a todas las empresas de esta lista)</h3>
-      <div class="flex flex-wrap gap-2 mb-3">
-        ${plantilla.map((t,i) => `<span class="inline-flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5 text-xs">${escapeHtml(t)} <button onclick="quitarDeclaracionJuradaPlantilla(${i})" class="text-red-500 font-bold">×</button></span>`).join('')}
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+        ${plantilla.map((t,i) => `<span class="pill" style="background:var(--paper-2);color:var(--ink);display:inline-flex;align-items:center;gap:8px;padding:6px 10px;">${escapeHtml(t)} <button onclick="quitarDeclaracionJuradaPlantilla(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-weight:700;padding:0;">×</button></span>`).join('')}
       </div>
-      <div class="flex gap-2">
-        <input type="text" id="nuevaDJInput" placeholder="Ej: DJ 1835 – Arriendo de bienes raíces" class="flex-1 rounded-xl border border-gray-300 px-4 py-2 text-sm">
-        <button onclick="agregarDeclaracionJuradaPlantilla()" class="bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold px-4 py-2 rounded-xl">Agregar</button>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="nuevaDJInput" placeholder="Ej: DJ 1835 – Arriendo de bienes raíces" style="flex:1;">
+        <button onclick="agregarDeclaracionJuradaPlantilla()" class="btn">Agregar</button>
       </div>
     </div>
-    ` : `<div class="my-6"></div>`}
+    ` : `<div style="margin:24px 0;"></div>`}
 
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-      <div class="p-4 border-b border-gray-100">
-        <input type="text" id="searchBox" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" class="w-full max-w-sm rounded-xl border border-gray-300 px-4 py-2 text-sm">
-      </div>
-      <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="text-left px-5 py-3 font-semibold text-gray-600 whitespace-nowrap">Cliente</th>
-            <th class="text-left px-3 py-3 font-semibold text-gray-600 whitespace-nowrap">Régimen</th>
-            ${plantilla.map(t=>`<th class="text-center px-2 py-3 font-semibold text-gray-600 align-bottom" style="max-width:110px;font-size:11px;line-height:1.3;overflow-wrap:break-word;text-transform:none;" title="${escapeAttr(t)}">${escapeHtml(t)}</th>`).join('')}
-            <th class="text-center px-3 py-3 font-semibold text-gray-600">%</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${pageItems.length ? pageItems.map(c => {
-            const registro = ((c.declaracionesJuradas||{})[anio]) || {};
-            const hechas = plantilla.filter(t => registro[t]).length;
-            const pct = plantilla.length ? Math.round((hechas/plantilla.length)*100) : 0;
-            return `
-              <tr class="border-t border-gray-100">
-                <td class="px-5 py-3 text-gray-800 whitespace-nowrap">${escapeHtml(c.name)}</td>
-                <td class="px-3 py-3 text-gray-500" style="font-size:12px;">${escapeHtml(c.regimenTributario)}</td>
-                ${plantilla.map((t, idx) => `
-                  <td class="text-center px-2 py-3" style="max-width:110px;">
-                    <input type="checkbox" ${registro[t]?'checked':''} onchange="toggleDeclaracionJurada('${c.id}','${anio}', ${idx}, this.checked)" class="w-4 h-4">
-                  </td>
-                `).join('')}
-                <td class="text-center px-3 py-3 font-semibold ${pct===100?'text-green-600':'text-gray-500'}" id="djPct_${c.id}_${anio}">${pct}%</td>
-              </tr>
-            `;
-          }).join('') : `<tr><td colspan="${plantilla.length+3}" class="px-5 py-8 text-center text-gray-400">${q ? 'Sin resultados.' : 'No hay empresas con régimen tributario definido en esta vista.'}</td></tr>`}
-        </tbody>
-      </table>
-      </div>
-      ${list.length ? `<div class="px-4 pb-4">${paginationControls(page, totalPages)}</div>` : ''}
+    <div class="panel" style="padding:16px 18px;">
+      <input type="text" id="searchBox" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" style="width:100%;max-width:320px;">
     </div>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Régimen</th>
+          ${plantilla.map(t=>`<th style="text-align:center;max-width:110px;font-size:11px;line-height:1.3;overflow-wrap:break-word;text-transform:none;" title="${escapeAttr(t)}">${escapeHtml(t)}</th>`).join('')}
+          <th style="text-align:center;">%</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${pageItems.length ? pageItems.map(c => {
+          const registro = ((c.declaracionesJuradas||{})[anio]) || {};
+          const hechas = plantilla.filter(t => registro[t]).length;
+          const pct = plantilla.length ? Math.round((hechas/plantilla.length)*100) : 0;
+          return `
+            <tr>
+              <td style="white-space:nowrap;">${escapeHtml(c.name)}</td>
+              <td style="font-size:12px;color:#6b6a5f;">${escapeHtml(c.regimenTributario)}</td>
+              ${plantilla.map((t, idx) => `
+                <td style="text-align:center;max-width:110px;">
+                  <input type="checkbox" ${registro[t]?'checked':''} onchange="toggleDeclaracionJurada('${c.id}','${anio}', ${idx}, this.checked)">
+                </td>
+              `).join('')}
+              <td style="text-align:center;font-weight:600;color:${pct===100?'#2F6B4F':'#6b6a5f'};" id="djPct_${c.id}_${anio}">${pct}%</td>
+            </tr>
+          `;
+        }).join('') : `<tr><td colspan="${plantilla.length+3}" style="text-align:center;color:#8a8879;padding:40px 20px;">${q ? 'Sin resultados.' : 'No hay empresas con régimen tributario definido en esta vista.'}</td></tr>`}
+      </tbody>
+    </table>
+    </div>
+    ${list.length ? paginationControls(page, totalPages) : ''}
   `;
 }
 
@@ -8688,7 +8679,7 @@ async function toggleDeclaracionJurada(clienteId, anio, idx, checked){
   const pctCell = document.getElementById(`djPct_${clienteId}_${anio}`);
   if(pctCell){
     pctCell.textContent = pct + '%';
-    pctCell.className = `text-center px-3 py-3 font-semibold ${pct===100?'text-green-600':'text-gray-500'}`;
+    pctCell.style.color = pct===100 ? '#2F6B4F' : '#6b6a5f';
   }
 }
 
@@ -8715,73 +8706,65 @@ function obligacionesGeneralContent(verTodo){
   const hoy = todayISO();
 
   return `
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
+      <div class="panel" style="margin-top:16px;">
         <h3 class="text-sm font-bold text-gray-700 mb-1">Otras obligaciones</h3>
         <p class="text-sm text-gray-500 mb-6">PPM, F-50, cotizaciones previsionales y otros trámites puntuales con fecha límite (registro libre, distinto de las nóminas estructuradas de Confección Iva, Declaración Renta y Declaraciones Juradas).</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Cliente</label>
-            <select id="obCliente" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
+        <div class="onboard-grid" style="margin-bottom:0;">
+          <label>Cliente
+            <select id="obCliente">
               ${scope.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') || '<option value="">Sin clientes disponibles</option>'}
             </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Tipo de obligación</label>
-            <select id="obTipo" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
+          </label>
+          <label>Tipo de obligación
+            <select id="obTipo">
               ${OBLIGACION_TIPOS.map(t=>`<option value="${t}">${t}</option>`).join('')}
             </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Período</label>
-            <input type="text" id="obPeriodo" placeholder="Ej: Julio 2026, o Anual 2026" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Fecha límite</label>
-            <input type="date" id="obFechaLimite" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
-          </div>
-          <div class="md:col-span-2">
-            <button onclick="submitObligacion()" class="bg-[var(--teal-dark)] hover:bg-[var(--ink)] text-white font-semibold px-6 py-3 rounded-xl transition-colors">Agregar obligación</button>
-          </div>
+          </label>
+          <label>Período
+            <input type="text" id="obPeriodo" placeholder="Ej: Julio 2026, o Anual 2026">
+          </label>
+          <label>Fecha límite
+            <input type="date" id="obFechaLimite">
+          </label>
         </div>
+        <button onclick="submitObligacion()" class="btn" style="margin-top:8px;">Agregar obligación</button>
       </div>
 
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div style="overflow-x:auto;">
-        <table class="w-full text-sm">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Cliente</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Tipo</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Período</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Fecha límite</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Estado</th>
-              <th class="px-5 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${lista.length ? lista.map(o => {
-              const cli = state.clientes.find(c=>c.id===o.clienteId);
-              const vencido = o.fechaLimite && o.fechaLimite < hoy && o.estado !== 'Presentado';
-              return `
-                <tr class="border-t border-gray-100">
-                  <td class="px-5 py-3 text-gray-800">${escapeHtml(cli?cli.name:'—')}</td>
-                  <td class="px-5 py-3 text-gray-600">${escapeHtml(o.tipo)}</td>
-                  <td class="px-5 py-3 text-gray-500">${escapeHtml(o.periodo||'—')}</td>
-                  <td class="px-5 py-3 ${vencido?'text-red-600 font-semibold':'text-gray-500'}">${escapeHtml(o.fechaLimite||'—')}${vencido?' (vencido)':''}</td>
-                  <td class="px-5 py-3">
-                    <select onchange="this.className = obligacionEstadoClass(this.value); setObligacionEstado('${o.id}', this.value)" class="${obligacionEstadoClass(o.estado)}">
-                      ${OBLIGACION_ESTADOS.map(e=>`<option value="${e}" ${o.estado===e?'selected':''}>${e}</option>`).join('')}
-                    </select>
-                  </td>
-                  <td class="px-5 py-3 text-right">
-                    <button onclick="removeObligacion('${o.id}')" class="text-red-500 hover:text-red-700 text-xs font-semibold">Eliminar</button>
-                  </td>
-                </tr>
-              `;
-            }).join('') : `<tr><td colspan="6" class="px-5 py-8 text-center text-gray-400">Sin obligaciones registradas.</td></tr>`}
-          </tbody>
-        </table>
-        </div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Tipo</th>
+            <th>Período</th>
+            <th>Fecha límite</th>
+            <th>Estado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lista.length ? lista.map(o => {
+            const cli = state.clientes.find(c=>c.id===o.clienteId);
+            const vencido = o.fechaLimite && o.fechaLimite < hoy && o.estado !== 'Presentado';
+            return `
+              <tr>
+                <td>${escapeHtml(cli?cli.name:'—')}</td>
+                <td>${escapeHtml(o.tipo)}</td>
+                <td>${escapeHtml(o.periodo||'—')}</td>
+                <td style="${vencido?'color:var(--danger);font-weight:600;':''}">${escapeHtml(o.fechaLimite||'—')}${vencido?' (vencido)':''}</td>
+                <td>
+                  <select onchange="this.className = obligacionEstadoClass(this.value); setObligacionEstado('${o.id}', this.value)" class="${obligacionEstadoClass(o.estado)}">
+                    ${OBLIGACION_ESTADOS.map(e=>`<option value="${e}" ${o.estado===e?'selected':''}>${e}</option>`).join('')}
+                  </select>
+                </td>
+                <td style="text-align:right;">
+                  <button onclick="removeObligacion('${o.id}')" class="btn danger small">Eliminar</button>
+                </td>
+              </tr>
+            `;
+          }).join('') : `<tr><td colspan="6" style="text-align:center;color:#8a8879;padding:40px 20px;">Sin obligaciones registradas.</td></tr>`}
+        </tbody>
+      </table>
       </div>
   `;
 }
