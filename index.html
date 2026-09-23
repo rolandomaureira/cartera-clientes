@@ -4551,9 +4551,13 @@ function trabajosEspecialesContent(linea){
 
   return `
     <div class="max-w-5xl">
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
-        <h2 class="text-2xl font-bold text-gray-800 mb-1">Trabajos Especiales${linea==='remuneraciones' ? ' (Remuneraciones)' : ''}</h2>
-        <p class="text-sm text-gray-500 mb-6">Asigna trabajos puntuales (fuera de la checklist mensual) a cualquier persona del equipo. La persona asignada lo ve reflejado en su pestaña Tareas.</p>
+      <div class="main-head">
+        <div>
+          <h2 class="display">Trabajos Especiales${linea==='remuneraciones' ? ' (Remuneraciones)' : ''}</h2>
+          <div class="meta">Asigna trabajos puntuales (fuera de la checklist mensual) a cualquier persona del equipo. La persona asignada lo ve reflejado en su pestaña Tareas.</div>
+        </div>
+      </div>
+      <div class="panel">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div class="md:col-span-2">
             <label class="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Título</label>
@@ -4590,50 +4594,48 @@ function trabajosEspecialesContent(linea){
         </div>
       </div>
 
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div style="overflow-x:auto;">
-        <table class="w-full text-sm">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Título</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Cliente</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Asignado a</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Fecha límite</th>
-              <th class="text-right px-5 py-3 font-semibold text-gray-600">Monto (UF)</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Estado</th>
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Archivos</th>
-              <th class="px-5 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${lista.length ? lista.map(t => {
-              const asignado = state.usuarios.find(u=>u.id===t.asignadoA);
-              const cli = clientesLinea.find(c=>c.id===t.clienteId);
-              const vencido = t.fechaLimite && t.fechaLimite < hoy && t.estado !== 'Completado';
-              return `
-                <tr class="border-t border-gray-100">
-                  <td class="px-5 py-3 text-gray-800">${escapeHtml(t.titulo)}${t.descripcion?`<div class="text-xs text-gray-400 mt-0.5">${escapeHtml(t.descripcion)}</div>`:''}</td>
-                  <td class="px-5 py-3 text-gray-600">${cli?escapeHtml(cli.name):'—'}</td>
-                  <td class="px-5 py-3 text-gray-600">${asignado?escapeHtml(asignado.name):'—'}</td>
-                  <td class="px-5 py-3 ${vencido?'text-red-600 font-semibold':'text-gray-500'}">${escapeHtml(t.fechaLimite||'—')}${vencido?' (vencido)':''}</td>
-                  <td class="px-5 py-3 text-right mono">${t.montoUF!=null ? t.montoUF.toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1}) : '—'}</td>
-                  <td class="px-5 py-3">
-                    <select onchange="this.className = trabajoEstadoClass(this.value); setTrabajoEspecialEstado('${t.id}', this.value)" class="${trabajoEstadoClass(t.estado)}">
-                      ${TRABAJO_ESTADOS.map(e=>`<option value="${e}" ${t.estado===e?'selected':''}>${e}</option>`).join('')}
-                    </select>
-                  </td>
-                  <td class="px-5 py-3">${trabajoArchivosViewHtml(t)}</td>
-                  <td class="px-5 py-3 text-right">
-                    <button onclick="removeTrabajoEspecial('${t.id}')" class="text-red-500 hover:text-red-700 text-xs font-semibold">Eliminar</button>
-                  </td>
-                </tr>
-              `;
-            }).join('') : `<tr><td colspan="8" class="px-5 py-8 text-center text-gray-400">Sin trabajos especiales asignados.</td></tr>`}
-          </tbody>
-        </table>
-        </div>
-        ${lista.length ? `<div style="padding:10px 20px;font-size:13px;color:#6b6a5f;text-align:right;border-top:1px solid #f0f0f0;">Total: <span class="mono">${lista.reduce((s,t)=>s+(t.montoUF||0),0).toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})} UF</span></div>` : ''}
+      <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Título</th>
+            <th>Cliente</th>
+            <th>Asignado a</th>
+            <th>Fecha límite</th>
+            <th style="text-align:right;">Monto (UF)</th>
+            <th>Estado</th>
+            <th>Archivos</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lista.length ? lista.map(t => {
+            const asignado = state.usuarios.find(u=>u.id===t.asignadoA);
+            const cli = clientesLinea.find(c=>c.id===t.clienteId);
+            const vencido = t.fechaLimite && t.fechaLimite < hoy && t.estado !== 'Completado';
+            return `
+              <tr>
+                <td>${escapeHtml(t.titulo)}${t.descripcion?`<div style="font-size:12px;color:#9ca3af;margin-top:2px;">${escapeHtml(t.descripcion)}</div>`:''}</td>
+                <td>${cli?escapeHtml(cli.name):'—'}</td>
+                <td>${asignado?escapeHtml(asignado.name):'—'}</td>
+                <td style="${vencido?'color:var(--danger);font-weight:600;':''}">${escapeHtml(t.fechaLimite||'—')}${vencido?' (vencido)':''}</td>
+                <td class="mono" style="text-align:right;">${t.montoUF!=null ? t.montoUF.toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1}) : '—'}</td>
+                <td>
+                  <select onchange="this.className = trabajoEstadoClass(this.value); setTrabajoEspecialEstado('${t.id}', this.value)" class="${trabajoEstadoClass(t.estado)}">
+                    ${TRABAJO_ESTADOS.map(e=>`<option value="${e}" ${t.estado===e?'selected':''}>${e}</option>`).join('')}
+                  </select>
+                </td>
+                <td>${trabajoArchivosViewHtml(t)}</td>
+                <td style="text-align:right;">
+                  <button onclick="removeTrabajoEspecial('${t.id}')" class="btn danger small">Eliminar</button>
+                </td>
+              </tr>
+            `;
+          }).join('') : `<tr><td colspan="8" style="text-align:center;color:#8a8879;padding:40px 20px;">Sin trabajos especiales asignados.</td></tr>`}
+        </tbody>
+      </table>
       </div>
+      ${lista.length ? `<div style="padding:10px 20px;font-size:13px;color:#6b6a5f;text-align:right;border-top:1px solid var(--line);">Total: <span class="mono">${lista.reduce((s,t)=>s+(t.montoUF||0),0).toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})} UF</span></div>` : ''}
     </div>
   `;
 }
@@ -4744,7 +4746,7 @@ function misTrabajosEspecialesContent(){
     .sort((a,b) => (a.fechaLimite||'').localeCompare(b.fechaLimite||''));
   const hoy = todayISO();
   return `
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 my-6">
+    <div class="panel" style="margin-top:24px;">
       <h3 class="text-sm font-bold text-gray-700 mb-3">Mis trabajos especiales</h3>
       <div class="space-y-2 ${propios.length ? 'mb-4' : ''}">
         ${propios.length ? propios.map(t => {
