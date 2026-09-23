@@ -242,7 +242,7 @@
   .nav-columns{display:flex;flex-wrap:wrap;gap:10px 40px;}
   .nav-link{
     display:block;padding:6px 0;cursor:pointer;font-size:14px;color:var(--ink);
-    line-height:1.4;white-space:nowrap;text-decoration:none;
+    line-height:1.4;white-space:nowrap;
   }
   .nav-link:hover{color:var(--teal-dark);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;}
   .nav-link.active{color:var(--teal-dark);font-weight:600;}
@@ -1486,7 +1486,6 @@ function construirGruposNav(){
         {tab:'archivos', label:'Archivos'},
         {tab:'facturacion', label:'Facturación'},
         {tab:'cobranza', label:'Cobranza'},
-        {tab:'memos-propuestas', label:'Memos y Propuestas', href:'memos.html'},
         {tab:'incorporar', label:'Incorporar Clientes'},
       ]},
       { key:'gestion', label:'Gestión', icon: NAV_ICONS.list, tabs: [
@@ -1540,12 +1539,7 @@ function construirGruposNav(){
 }
 
 function sectionNav(){
-  // it.href: enlace a una herramienta aparte (ej. Memos y Propuestas, otra
-  // página del mismo sitio) en vez de una pestaña interna — no pasa por
-  // setTab()/activeTab, es navegación real a otra URL.
-  const link = (it) => it.href
-    ? `<a class="nav-link" href="${escapeAttr(it.href)}">${it.label}</a>`
-    : `<div class="nav-link ${activeTab===it.tab?'active':''}" onclick="setTab('${it.tab}')">${it.label}</div>`;
+  const link = (tab, label) => `<div class="nav-link ${activeTab===tab?'active':''}" onclick="setTab('${tab}')">${label}</div>`;
   const grupos = construirGruposNav();
 
   // La pestaña activa sigue a la sección donde se está parado, salvo que se
@@ -1565,7 +1559,7 @@ function sectionNav(){
     </div>
     <div class="nav-panel-title">${grupoActivo.label}</div>
     <div class="nav-columns">
-      ${grupoActivo.tabs.map(it => link(it)).join('')}
+      ${grupoActivo.tabs.map(it => link(it.tab, it.label)).join('')}
     </div>
   `;
 }
