@@ -9185,7 +9185,7 @@ function configuracionContent(){
 function usuariosContent(){
   const usuariosOrdenados = [...state.usuarios].sort((a,b) => a.name.localeCompare(b.name, 'es'));
   const avisoBackend = !BACKEND_URL ? `
-    <div style="background:#FBE9E7;border:1px solid var(--danger);color:var(--danger);padding:14px 18px;border-radius:6px;margin-bottom:20px;font-size:13px;">
+    <div class="msg-doc error" style="margin-bottom:20px;">
       <b>Backend compartido sin configurar.</b> Los datos de esta copia solo viven en este navegador y no se comparten con el resto del equipo. Configura <code>BACKEND_URL</code> siguiendo <code>backend-sheets/README.md</code>.
     </div>
   ` : '';
