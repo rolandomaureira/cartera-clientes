@@ -242,7 +242,7 @@
   .nav-columns{display:flex;flex-wrap:wrap;gap:10px 40px;}
   .nav-link{
     display:block;padding:6px 0;cursor:pointer;font-size:14px;color:var(--ink);
-    line-height:1.4;white-space:nowrap;
+    line-height:1.4;white-space:nowrap;text-decoration:none;
   }
   .nav-link:hover{color:var(--teal-dark);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;}
   .nav-link.active{color:var(--teal-dark);font-weight:600;}
@@ -812,6 +812,10 @@ async function kvMergeColeccion(key, cambios, eliminados){
 // el mismo número. Nunca se calcula localmente (tipo max(existentes)+1):
 // bajo concurrencia real eso sí podría repetirse. Devuelve null si algo
 // falla — quien llama debe abortar y avisar, nunca inventar un número.
+// Sin llamadas dentro de este archivo por ahora (el control de Propuestas
+// que vivía acá se reemplazó por memos.html, que hoy numera en localStorage
+// propio) — se deja porque memos.html podría conectarse a este mismo
+// correlativo compartido más adelante en vez de numerar solo por navegador.
 async function obtenerCorrelativo(tipo){
   if(!BACKEND_URL) return null;
   try{
@@ -1482,7 +1486,7 @@ function construirGruposNav(){
         {tab:'archivos', label:'Archivos'},
         {tab:'facturacion', label:'Facturación'},
         {tab:'cobranza', label:'Cobranza'},
-        {tab:'propuestas', label:'Propuestas'},
+        {tab:'memos-propuestas', label:'Memos y Propuestas', href:'memos.html'},
         {tab:'incorporar', label:'Incorporar Clientes'},
       ]},
       { key:'gestion', label:'Gestión', icon: NAV_ICONS.list, tabs: [
@@ -1536,7 +1540,12 @@ function construirGruposNav(){
 }
 
 function sectionNav(){
-  const link = (tab, label) => `<div class="nav-link ${activeTab===tab?'active':''}" onclick="setTab('${tab}')">${label}</div>`;
+  // it.href: enlace a una herramienta aparte (ej. Memos y Propuestas, otra
+  // página del mismo sitio) en vez de una pestaña interna — no pasa por
+  // setTab()/activeTab, es navegación real a otra URL.
+  const link = (it) => it.href
+    ? `<a class="nav-link" href="${escapeAttr(it.href)}">${it.label}</a>`
+    : `<div class="nav-link ${activeTab===it.tab?'active':''}" onclick="setTab('${it.tab}')">${it.label}</div>`;
   const grupos = construirGruposNav();
 
   // La pestaña activa sigue a la sección donde se está parado, salvo que se
@@ -1556,7 +1565,7 @@ function sectionNav(){
     </div>
     <div class="nav-panel-title">${grupoActivo.label}</div>
     <div class="nav-columns">
-      ${grupoActivo.tabs.map(it => link(it.tab, it.label)).join('')}
+      ${grupoActivo.tabs.map(it => link(it)).join('')}
     </div>
   `;
 }
@@ -1664,8 +1673,6 @@ function adminLayout(){
           ? facturacionContent()
           : activeTab === 'cobranza'
           ? cobranzaContent()
-          : activeTab === 'propuestas'
-          ? propuestasContent()
           : activeTab === 'cartera-remuneraciones'
           ? carteraRemuneracionesContent()
           : activeTab === 'trabajos-especiales-remuneraciones'
@@ -1721,8 +1728,6 @@ function contabilidadLayout(){
           ? facturacionContent()
           : activeTab === 'cobranza'
           ? cobranzaContent()
-          : activeTab === 'propuestas'
-          ? propuestasContent()
           : activeTab === 'cartera-remuneraciones'
           ? carteraRemuneracionesContent()
           : activeTab === 'trabajos-especiales-remuneraciones'
@@ -5271,190 +5276,6 @@ function cobranzaContent(){
     </div>
     ${paginationControls(page, totalPages)}
   `;
-}
-
-// Control de Propuestas: N° de Propuesta y N° de Memo son dos secuencias
-// independientes, asignadas por el backend bajo lock (ver
-// obtenerCorrelativo/asignarCorrelativo) para que nunca se repitan aunque
-// dos personas creen una propuesta casi al mismo segundo. El N° de Memo se
-// asigna aparte (botón por fila), porque en la práctica no toda propuesta
-// tiene memo desde el día uno.
-function propuestasContent(){
-  const list = (state.propuestas||[]).slice().sort((a,b) => (b.numeroPropuesta||0) - (a.numeroPropuesta||0));
-  return `
-    <div class="main-head">
-      <div>
-        <h2 class="display">Propuestas</h2>
-        <div class="meta">Control de N° de Memo y N° de Propuesta.</div>
-      </div>
-    </div>
-    <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:18px;">
-      <h4 style="margin:0 0 10px;font-size:14px;">Nueva propuesta</h4>
-      <div class="onboard-grid">
-        <label>Cliente
-          <select id="propClienteSelect" onchange="document.getElementById('propClienteNombreWrap').style.display = this.value ? 'none' : 'flex';">
-            <option value="">Prospecto (aún no es cliente)</option>
-            ${state.clientes.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
-          </select>
-        </label>
-        <label id="propClienteNombreWrap">Nombre del prospecto
-          <input type="text" id="propClienteNombre" placeholder="Razón social del prospecto">
-        </label>
-        <label>Fecha
-          <input type="date" id="propFecha" value="${todayISO()}">
-        </label>
-        <label>Responsable
-          <select id="propResponsable">
-            ${state.usuarios.map(u=>`<option value="${u.id}" ${u.id===currentUser.id?'selected':''}>${escapeHtml(u.name)}</option>`).join('')}
-          </select>
-        </label>
-        <label>Servicio / alcance
-          <input type="text" id="propServicio" placeholder="Ej: Contabilidad mensual + F-29">
-        </label>
-        <label>Monto (UF)
-          <input type="number" id="propMonto" min="0" step="0.1" placeholder="Ej: 8">
-        </label>
-        <label>Estado
-          <select id="propEstado">
-            <option value="Enviada">Enviada</option>
-            <option value="Aprobada">Aprobada</option>
-            <option value="Rechazada">Rechazada</option>
-            <option value="En espera">En espera</option>
-          </select>
-        </label>
-      </div>
-      <button class="btn" id="propSubmitBtn" onclick="submitPropuesta()">Crear propuesta</button>
-    </div>
-    <div style="overflow-x:auto;">
-    <table>
-      <thead><tr><th>N° Propuesta</th><th>N° Memo</th><th>Cliente/Prospecto</th><th>Fecha</th><th>Responsable</th><th>Servicio</th><th>Monto (UF)</th><th>Estado</th><th>Archivos</th></tr></thead>
-      <tbody>
-        ${list.length ? list.map(p => {
-          const responsableNombre = (state.usuarios.find(u=>u.id===p.responsable)||{}).name || '—';
-          const clienteNombre = p.clienteId ? ((state.clientes.find(c=>c.id===p.clienteId)||{}).name || p.clienteNombre) : p.clienteNombre;
-          return `
-          <tr>
-            <td class="mono">N° ${p.numeroPropuesta}</td>
-            <td>${p.numeroMemo != null ? `N° ${p.numeroMemo}` : `<button class="btn secondary small" onclick="asignarNumeroMemo('${p.id}')">Asignar N° Memo</button>`}</td>
-            <td class="client-name">${escapeHtml(clienteNombre||'—')}</td>
-            <td>${escapeHtml(p.fecha||'')}</td>
-            <td>${escapeHtml(responsableNombre)}</td>
-            <td>${escapeHtml(p.servicio||'—')}</td>
-            <td>${p.montoUF != null ? p.montoUF : '—'}</td>
-            <td>
-              <select onchange="setPropuestaEstado('${p.id}', this.value)">
-                ${['Enviada','Aprobada','Rechazada','En espera'].map(e=>`<option value="${e}" ${p.estado===e?'selected':''}>${e}</option>`).join('')}
-              </select>
-            </td>
-            <td>
-              ${(p.archivos||[]).map((a,i)=>`<div style="display:flex;align-items:center;gap:4px;font-size:12px;"><a href="${escapeAttr(a.url)}" target="_blank" rel="noopener" style="color:var(--teal-dark);text-decoration:underline;">${escapeHtml(a.nombre)}</a><button onclick="quitarArchivoPropuesta('${p.id}', ${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;">×</button></div>`).join('')}
-              <div class="form-inline" style="margin-top:4px;">
-                <input type="file" id="propArchivoInput_${p.id}" style="max-width:130px;font-size:11px;">
-                <button class="btn secondary small" onclick="subirArchivoPropuesta('${p.id}')">Adjuntar</button>
-              </div>
-            </td>
-          </tr>
-        `;
-        }).join('') : `<tr><td colspan="9" style="padding:32px;text-align:center;color:#8a8879;">Aún no hay propuestas creadas.</td></tr>`}
-      </tbody>
-    </table>
-    </div>
-  `;
-}
-
-async function submitPropuesta(){
-  const clienteSel = document.getElementById('propClienteSelect');
-  const clienteId = clienteSel ? clienteSel.value : '';
-  const clienteNombre = clienteId
-    ? ((state.clientes.find(c=>c.id===clienteId)||{}).name || '')
-    : document.getElementById('propClienteNombre').value.trim();
-  const fecha = document.getElementById('propFecha').value;
-  const responsable = document.getElementById('propResponsable').value || currentUser.id;
-  const servicio = document.getElementById('propServicio').value.trim();
-  const montoInput = document.getElementById('propMonto').value;
-  const monto = parseFloat(montoInput);
-  const estado = document.getElementById('propEstado').value;
-
-  if(!clienteId && !clienteNombre) return showToast('Selecciona un cliente o escribe el nombre del prospecto.');
-  if(!fecha) return showToast('Selecciona una fecha.');
-
-  const boton = document.getElementById('propSubmitBtn');
-  if(boton){ boton.disabled = true; boton.textContent = 'Creando…'; }
-  try{
-    const numero = await obtenerCorrelativo('propuesta');
-    if(numero == null){ showToast('No se pudo asignar el número de propuesta. Intenta de nuevo.'); return; }
-    if(!state.propuestas) state.propuestas = [];
-    state.propuestas.push({
-      id: uid('prop'), numeroPropuesta: numero, numeroMemo: null,
-      clienteId: clienteId || null, clienteNombre,
-      fecha, responsable, estado: estado || 'Enviada',
-      servicio, montoUF: isNaN(monto) ? null : monto, archivos: [], creadoPor: currentUser.id
-    });
-    await savePropuestas();
-    renderApp();
-    showToast(`Propuesta N° ${numero} creada.`);
-  }finally{
-    if(boton){ boton.disabled = false; boton.textContent = 'Crear propuesta'; }
-  }
-}
-
-async function asignarNumeroMemo(id){
-  const p = (state.propuestas||[]).find(x => x.id === id);
-  if(!p || p.numeroMemo != null) return;
-  const numero = await obtenerCorrelativo('memo');
-  if(numero == null) return showToast('No se pudo asignar el número de memo. Intenta de nuevo.');
-  p.numeroMemo = numero;
-  await savePropuestas();
-  renderApp();
-  showToast(`N° Memo ${numero} asignado.`);
-}
-
-async function setPropuestaEstado(id, estado){
-  const p = (state.propuestas||[]).find(x => x.id === id);
-  if(!p) return;
-  p.estado = estado;
-  await savePropuestas();
-  renderApp();
-}
-
-async function subirArchivoPropuesta(propuestaId){
-  const input = document.getElementById('propArchivoInput_' + propuestaId);
-  const file = input && input.files && input.files[0];
-  if(!file){ showToast('Elige un archivo primero.'); return; }
-  const LIMITE_BYTES = 5 * 1024 * 1024;
-  if(file.size > LIMITE_BYTES){ showToast('El archivo es muy grande (máx. 5 MB).'); return; }
-  const p = (state.propuestas||[]).find(x => x.id === propuestaId);
-  if(!p) return;
-  try{
-    const contenidoBase64 = await leerArchivoComoBase64(file);
-    const res = await fetch(BACKEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        accion: 'subirArchivo', token: API_TOKEN,
-        clienteId: p.clienteId || 'propuestas', clienteNombre: p.clienteNombre || 'Propuestas',
-        nombreArchivo: file.name, mimeType: file.type || 'application/octet-stream', contenidoBase64
-      })
-    });
-    const data = await res.json();
-    if(!data || !data.ok){ showToast('No se pudo subir el archivo.'); return; }
-    if(!p.archivos) p.archivos = [];
-    p.archivos.push({ nombre: data.nombre || file.name, url: data.url, driveFileId: data.id, fecha: todayISO(), subidoPor: currentUser.name, categoria: 'Propuesta' });
-    await savePropuestas();
-    renderApp();
-    showToast('Archivo adjuntado.');
-  }catch(err){
-    console.error('Error al subir archivo de propuesta:', err);
-    showToast('Error al subir el archivo.');
-  }
-}
-
-async function quitarArchivoPropuesta(propuestaId, index){
-  const p = (state.propuestas||[]).find(x => x.id === propuestaId);
-  if(!p || !p.archivos) return;
-  p.archivos.splice(index, 1);
-  await savePropuestas();
-  renderApp();
 }
 
 // ==================== REMUNERACIONES (cartera separada) ====================
