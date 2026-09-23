@@ -449,6 +449,176 @@
     .main{ padding:0 !important; }
     body{ background:#fff !important; }
   }
+
+  /* ===================================================================
+     MEMOS Y PROPUESTAS — editor de documentos (memos, circulares y
+     propuestas de servicio). Reutiliza las variables de marca ya
+     definidas arriba (--ink/--teal-dark/--navy-deep/--gold/--line/
+     --danger/--paper-2), no introduce paleta propia. Los nombres de
+     clase (.stat, .tpl, .chip, .block, .paper, etc.) no existían antes
+     en este archivo — se verificó que no chocan con nada.
+     =================================================================== */
+  svg.i{ width:20px; height:20px; display:block; flex-shrink:0; }
+  .chip{ display:inline-flex; align-items:center; justify-content:center; border-radius:12px; flex-shrink:0; }
+  .chip svg.i{ width:54%; height:54%; }
+  .chip.sm{ width:30px; height:30px; border-radius:9px; }
+  .chip.sm svg.i{ width:60%; height:60%; }
+  .chip-blue{ background:#E7ECFA; color:var(--teal-dark); }
+  .chip-green{ background:#E3F0E8; color:#2F6B4F; }
+  .chip-purple{ background:#EDE7F5; color:#6B4FA0; }
+  .chip-orange{ background:#FBEEE0; color:var(--gold); }
+  .chip-teal{ background:#E1EEEC; color:#1E6B63; }
+  .chip-indigo{ background:#E7E9F5; color:#4A4F8F; }
+  .chip-pink{ background:#F5E7EE; color:#A0456F; }
+  .chip-amber{ background:#FBF1DC; color:#8a5a00; }
+  .chip-slate{ background:#EAEDF1; color:#4A4F5E; }
+  .chip-cyan{ background:#E1EEF2; color:#1E6B85; }
+  .chip-navy{ background:#E3E7F2; color:var(--teal-dark); }
+
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-bottom:22px; }
+  .stat{ display:flex; align-items:center; gap:14px; background:var(--white); border:1px solid var(--line); border-radius:16px; padding:16px 18px; box-shadow:0 1px 2px rgba(16,24,40,0.03), 0 1px 6px rgba(16,24,40,0.05); }
+  .stat .chip{ width:48px; height:48px; }
+  .stat .v{ font-family:'IBM Plex Mono',monospace; font-size:1.5rem; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; line-height:1.15; }
+  .stat .l{ font-size:0.78rem; color:#6b6a5f; }
+  .tpl-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; }
+  .tpl{ display:flex; flex-direction:column; align-items:flex-start; gap:9px; border:1px solid var(--line); border-radius:16px; padding:14px 16px; cursor:pointer; background:var(--white); text-align:left; font-family:inherit; color:var(--ink); box-shadow:0 1px 2px rgba(16,24,40,0.03); transition:transform .15s, box-shadow .15s, border-color .15s; }
+  .tpl:hover{ transform:translateY(-2px); border-color:transparent; box-shadow:0 8px 18px rgba(16,24,40,0.1); }
+  .tpl strong{ display:block; color:var(--teal-dark); font-size:0.9rem; margin-bottom:3px; }
+  .tpl span{ font-size:0.78rem; color:#6b6a5f; line-height:1.35; }
+  .tpl-head{ display:flex; justify-content:space-between; align-items:center; margin:18px 0 10px; }
+  .tpl-head h3{ margin:0; display:flex; align-items:center; gap:9px; font-size:1rem; }
+
+  .pill{ display:inline-block; padding:2px 9px; border-radius:10px; font-size:0.72rem; font-weight:600; white-space:nowrap; }
+  .pill.memo{ background:#E3E7F2; color:var(--teal-dark); }
+  .pill.propuesta{ background:#EDE7F5; color:#6B4FA0; }
+  .msg-doc{ padding:9px 13px; border-radius:4px; margin-bottom:12px; font-size:0.88rem; }
+  .msg-doc.error{ background:#FBE9E7; color:var(--danger); border:1px solid #E8C4BC; }
+  .msg-doc.ok{ background:#E3F0E8; color:#2F6B4F; border:1px solid #C3DDCB; }
+
+  /* ---- Editor por bloques ---- */
+  .editor-layout{ display:grid; grid-template-columns:minmax(380px, 520px) 1fr; gap:20px; align-items:start; }
+  @media (max-width:1050px){ .editor-layout{ grid-template-columns:1fr; } }
+  .meta-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin-bottom:14px; }
+  .meta-grid .full{ grid-column:1 / -1; }
+  .meta-grid label, .cierre-grid label{ display:flex; flex-direction:column; gap:4px; font-size:0.78rem; color:#6b6a5f; text-transform:none; letter-spacing:normal; font-weight:400; margin-bottom:0; }
+  .cierre-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; }
+  .cierre-grid .full{ grid-column:1 / -1; }
+  .block{ border:1px solid var(--line); border-left:4px solid #9fb3cc; border-radius:4px; padding:8px 10px; margin-bottom:8px; background:var(--white); }
+  .block.focus{ border-left-color:var(--gold); box-shadow:0 0 0 2px #F1E6CE; }
+  .block-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; gap:6px; }
+  .block-head .tipo{ font-size:0.72rem; font-weight:600; text-transform:uppercase; color:#6b6a5f; letter-spacing:0.04em; }
+  .block-head .ctl button{ background:none; border:1px solid var(--line); border-radius:3px; cursor:pointer; padding:1px 6px; font-size:0.78rem; color:var(--teal-dark); }
+  .block-head .ctl button:hover{ background:var(--paper-2); }
+  .block-head .ctl button.del{ color:var(--danger); }
+  .block .inl{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:0.82rem; margin-top:6px; }
+  .block input[type=text], .block input[type=number], .block textarea{ width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:4px; font-family:inherit; font-size:0.85rem; }
+  .add-bar{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .add-bar button{ background:var(--white); border:1px dashed #9fb3cc; color:var(--teal-dark); border-radius:4px; padding:5px 9px; cursor:pointer; font-size:0.8rem; font-family:inherit; }
+  .add-bar button:hover{ border-style:solid; background:var(--paper-2); }
+  .hon-group{ border:1px solid var(--line); border-radius:4px; padding:8px; margin-bottom:8px; background:#fafbfc; }
+  .hon-group table{ width:100%; border-collapse:collapse; margin-top:6px; }
+  .hon-group td{ padding:2px 3px; }
+  .hon-group td input{ width:100%; padding:4px 6px; border:1px solid var(--line); border-radius:4px; }
+  .hon-group td.uf input{ text-align:right; }
+  .hon-sub{ text-align:right; font-size:0.82rem; color:var(--teal-dark); margin-top:4px; }
+  .warns .w{ font-size:0.82rem; padding:6px 10px; border-radius:4px; background:#FBF1DC; border:1px solid #E9D8A6; color:#8a5a00; margin-bottom:5px; }
+  .warns .okline{ font-size:0.82rem; padding:6px 10px; border-radius:4px; background:#E3F0E8; border:1px solid #C3DDCB; color:#2F6B4F; }
+  .sticky-preview{ position:sticky; top:12px; }
+  .preview-bar{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .saved-info{ font-size:0.78rem; color:#6b6a5f; margin-left:auto; }
+  .preview-scroll{ max-height:calc(100vh - 110px); overflow:auto; padding:4px 4px 20px; }
+
+  /* ---- Documento (hoja impresa/exportada) ---- */
+  .paper{
+    background:var(--white); width:100%; max-width:794px; margin:0 auto;
+    padding:48px 60px 28px; box-shadow:0 1px 4px rgba(0,0,0,0.15), 0 8px 24px rgba(0,0,0,0.06);
+    font-family:Calibri, "Segoe UI", Arial, sans-serif; font-size:11pt; line-height:1.45; color:#111;
+  }
+  .paper table.frame{ width:100%; border-collapse:collapse; }
+  .paper table.frame > tbody > tr > td, .paper table.frame > tfoot > tr > td{ padding:0; border:none; }
+  .paper .footer-spacer{ height:0; }
+  table.lh{ width:100%; border-collapse:collapse; margin-bottom:0; }
+  table.lh td{ padding:0; border:none; vertical-align:middle; }
+  table.lh td.lh-logo{ width:58px; padding-right:14px; }
+  table.lh td.lh-logo img{ display:block; width:52px; height:52px; object-fit:contain; border-radius:4px; }
+  table.lh td.lh-name{ text-align:left; }
+  table.lh td.lh-name .legal{ font-weight:700; font-size:13pt; color:var(--doc, #0A1A73); line-height:1.25; letter-spacing:0.01em; }
+  table.lh td.lh-name .tag{ font-size:8.2pt; color:#7a8494; letter-spacing:0.03em; margin-top:2px; text-transform:uppercase; }
+  table.lh td.lh-num{ text-align:right; white-space:nowrap; width:1%; }
+  .paper table.badge{ border-collapse:collapse; margin-left:auto; }
+  .paper table.badge td{ border:1px solid var(--doc, #0A1A73); background:#f4f7fb; color:var(--doc, #0A1A73); font-weight:700; font-size:9.3pt; letter-spacing:0.02em; padding:7px 13px; border-radius:4px; text-align:center; white-space:nowrap; }
+  .lh-rule{ border:none; border-top:2.5px solid var(--doc, #0A1A73); margin:12px 0 2px; }
+  .lh-rule2{ border:none; border-top:1px solid var(--doc, #0A1A73); opacity:0.35; margin:0 0 18px; }
+  .d-meta{ border-collapse:collapse; margin-bottom:8px; }
+  .d-meta td{ padding:2px 0; vertical-align:top; font-size:11pt; }
+  .d-meta td.k{ width:95px; font-weight:600; color:#3a4453; }
+  .d-meta td.s{ width:18px; color:#8a97a6; }
+  .paper p{ margin:0 0 9px; text-align:justify; }
+  .paper h4.h1{ font-size:11.5pt; margin:18px 0 9px; padding-bottom:3px; color:var(--doc, #0A1A73); border-bottom:1px solid #dbe2ea; }
+  .paper h5.h2{ font-size:11pt; margin:12px 0 6px; font-style:italic; color:#2a3140; }
+  .paper ul{ margin:0 0 10px; padding-left:22px; }
+  .paper ul li{ margin-bottom:3px; text-align:justify; }
+  .paper ul ul{ margin:3px 0 3px; list-style:"– "; }
+  .paper ol.soc{ margin:0 0 12px; padding-left:24px; }
+  .paper ol.soc li{ margin-bottom:2px; }
+  .tbl-wrap{ margin:6px 0 14px; }
+  .paper table.dt{ width:100%; border-collapse:collapse; font-size:9.5pt; }
+  .paper table.dt th, .paper table.dt td{ padding:5px 8px; vertical-align:top; border:none; border-bottom:1px solid #dde3ea; }
+  .paper table.dt th{ background:var(--doc, #0A1A73); color:#fff; text-align:left; font-weight:600; border-bottom:none; }
+  .paper table.dt tbody tr:nth-child(even){ background:#f5f8fb; }
+  .paper table.dt td.n, .paper table.dt th.n{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .paper table.dt tr.grp td{ background:#e9eff6 !important; font-weight:700; color:var(--doc, #0A1A73); border-bottom:1px solid #c7d3e0; }
+  .paper table.dt tr.tot td{ font-weight:700; background:#eef2f7 !important; border-top:1.5px solid var(--doc, #0A1A73); border-bottom:3px double var(--doc, #0A1A73); }
+  .paper table.dt td.ind{ padding-left:20px; }
+  .paper .nota{ border-left:4px solid var(--doc, #0A1A73); background:#f1f5f9; padding:9px 13px; margin:8px 0 14px; border-radius:0 5px 5px 0; }
+  .paper .nota p{ margin:0; }
+  .paper .nota strong{ color:var(--doc, #0A1A73); }
+  .paper .salto{ border-top:1px dashed #b7c3d0; margin:16px 0; text-align:center; font-size:8pt; color:#8a97a6; height:0; }
+  .paper .salto span{ position:relative; top:-0.8em; background:var(--white); padding:0 6px; }
+  .paper .firma{ margin-top:22px; page-break-inside:avoid; }
+  .paper .firma .esp{ height:42px; }
+  .paper .firma .lin{ width:230px; border-top:1px solid #333; margin-bottom:4px; }
+  .paper .iniciales{ font-size:8pt; color:#555; margin-top:18px; }
+  .paper .acep{ page-break-inside:auto; }
+  .paper .acep table.form{ border-collapse:collapse; margin:4px 0 14px; }
+  .paper .acep table.form td{ padding:5px 0; }
+  .paper .acep table.form td.k{ width:170px; }
+  .paper .acep table.form td.v{ border-bottom:1px solid #444; width:300px; }
+  .paper .acep .firmas{ display:flex; gap:40px; margin-top:44px; flex-wrap:wrap; }
+  .paper .acep .firmas div{ flex:1; min-width:200px; font-size:10pt; }
+  .paper .acep .firmas .lin{ border-top:1px solid #333; margin-bottom:4px; }
+  .paper a{ color:#1a4fb5; word-break:break-all; }
+  .paper mark.ph{ background:#ffe58a; color:#5c4300; padding:0 2px; border-radius:2px; }
+  .doc-footer{ margin-top:26px; border-top:1.5px solid var(--doc, #0A1A73); padding-top:7px; font-size:7.5pt; color:#5b6776; text-align:center; line-height:1.4; }
+  .doc-footer strong{ color:var(--doc, #0A1A73); font-size:8.5pt; }
+
+  @media (max-width:640px){
+    .meta-grid, .cierre-grid{ grid-template-columns:1fr; }
+  }
+  @media print{
+    body.imprimiendo-doc .topbar, body.imprimiendo-doc .folders, body.imprimiendo-doc .no-print,
+    body.imprimiendo-doc .toast, body.imprimiendo-doc .editor-pane, body.imprimiendo-doc .preview-bar,
+    body.imprimiendo-doc .warns, body.imprimiendo-doc .nav-panel-title{ display:none !important; }
+    body.imprimiendo-doc .layout{ display:block !important; }
+    body.imprimiendo-doc .main{ padding:0 !important; }
+    body.imprimiendo-doc .editor-layout{ display:block !important; }
+    body.imprimiendo-doc .sticky-preview{ position:static !important; }
+    body.imprimiendo-doc .preview-scroll{ max-height:none !important; overflow:visible !important; padding:0 !important; }
+    body.imprimiendo-doc .paper{ box-shadow:none !important; max-width:none !important; padding:0 !important; }
+    body.imprimiendo-doc .paper .footer-spacer{ height:16mm; }
+    body.imprimiendo-doc .doc-footer{ position:fixed; left:0; right:0; bottom:0; margin:0; background:var(--white); }
+    body.imprimiendo-doc .paper .salto{ border:none; margin:0; break-before:page; page-break-before:always; }
+    body.imprimiendo-doc .paper .salto span{ display:none; }
+    body.imprimiendo-doc .paper h4.h1, body.imprimiendo-doc .paper h5.h2{ break-after:avoid; page-break-after:avoid; }
+    body.imprimiendo-doc .paper table.dt tr{ break-inside:avoid; }
+    body.imprimiendo-doc table.lh, body.imprimiendo-doc .paper .nota{ break-inside:avoid; }
+    @page{ size:A4; margin:14mm 18mm 10mm; }
+  }
+
+  /* ---- Modal "Guardar como plantilla" ---- */
+  .modal-bg-doc{ position:fixed; inset:0; background:rgba(15,23,42,0.45); display:none; align-items:flex-start; justify-content:center; z-index:150; padding:40px 16px; overflow:auto; }
+  .modal-bg-doc.open{ display:flex; }
+  .modal-doc{ background:var(--white); border-radius:6px; max-width:560px; width:100%; padding:18px 20px; }
 </style>
 </head>
 <body>
@@ -816,13 +986,13 @@ async function kvMergeColeccion(key, cambios, eliminados){
 // que vivía acá se reemplazó por memos.html, que hoy numera en localStorage
 // propio) — se deja porque memos.html podría conectarse a este mismo
 // correlativo compartido más adelante en vez de numerar solo por navegador.
-async function obtenerCorrelativo(tipo){
+async function obtenerCorrelativo(tipo, anio){
   if(!BACKEND_URL) return null;
   try{
     const res = await fetch(BACKEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ accion: 'asignarCorrelativo', tipo, token: API_TOKEN })
+      body: JSON.stringify({ accion: 'asignarCorrelativo', tipo, anio: anio || new Date().getFullYear(), token: API_TOKEN })
     });
     const data = await res.json().catch(() => null);
     if(!data || !data.ok) return null;
@@ -905,7 +1075,7 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // requeriría filas individuales por registro, un cambio más grande), pero
 // el caso que causó problemas — un cambio en usuarios pisado por un
 // cambio de clientes, o viceversa — queda resuelto.
-const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas'];
+const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo'];
 
 // Colecciones que se guardan por FUSIÓN (merge) en vez de mandar el arreglo
 // completo cada vez: el backend solo toca, por id, los registros que de
@@ -920,7 +1090,7 @@ const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligacio
 const ID_POR_COLECCION_MERGE = {
   clientes: true, usuarios: true, requerimientos: true, obligaciones: true,
   reuniones: true, trabajosEspeciales: true, estimacionesF29: true, propuestas: true,
-  clientesRemuneraciones: true, rrhhFichas: true
+  clientesRemuneraciones: true, rrhhFichas: true, documentosTrabajo: true
 };
 
 // Copia de cada colección tal como sabemos que está guardada en el backend
@@ -965,13 +1135,49 @@ function valorPorDefectoColeccion(nombre){
   if(nombre === 'propuestas') return [];
   if(nombre === 'clientesRemuneraciones') return [];
   if(nombre === 'rrhhFichas') return [];
+  if(nombre === 'documentosTrabajo') return [];
   return [];
+}
+
+// Configuración y datos base de "Memos y Propuestas" (ver documentosTrabajoContent
+// y funciones relacionadas): igual que tareasPlantilla/declaracionesJuradasPlantilla,
+// vive dentro del mismo objeto config (se guarda completo, bajo riesgo de choque —
+// son ajustes de la firma, no registros que dos personas editen a la vez).
+function valorPorDefectoConfigDocumentos(){
+  return {
+    firmaLegal: 'BPO Consultores de Empresas Ltda.',
+    firmaCorta: 'BPO Consultores Ltda.',
+    prefijo: 'MEMO BPO/N°',
+    digitos: 3,
+    formatoFecha: 'dd-mm-aaaa',
+    colorDoc: '#0A1A73',
+    logo: '',
+    oficinas: [
+      {ciudad:'Temuco', direccion:'Antonio Varas #989, oficina 608', telefono:'(45) 2 756109'},
+      {ciudad:'Concepción', direccion:"Av. B. O'Higgins #241, oficina 805", telefono:'(41) 2 888482'}
+    ],
+    contacto: '+569 34404856',
+    web: '',
+    horario: 'Lunes a Jueves desde 08:30 a 17:00 horas y Viernes desde 08:30 a 13:30 horas.',
+    aceptacionDest: "Señores\nBPO Consultores de Empresas Ltda.\nAv. B. O'Higgins #241, oficina 805\nConcepción"
+  };
+}
+function valorPorDefectoFirmantesDocumentos(){
+  return [
+    {id:'f_kvv', nombre:'Kevin Varela Vergara', cargo:'Gerente', email:'', iniciales:'KVV'},
+    {id:'f_rem', nombre:'Departamento de Remuneraciones', cargo:'', email:'', iniciales:''},
+    {id:'f_cont', nombre:'Departamento Contable', cargo:'', email:'', iniciales:''},
+    {id:'f_trib', nombre:'Departamento Tributario', cargo:'', email:'', iniciales:''}
+  ];
 }
 
 function valorPorDefectoConfig(){
   return {
     tareasPlantilla: ['Revisar libro de compras', 'Revisar libro de ventas', 'Conciliación bancaria', 'Declarar IVA (F-29)'],
     declaracionesJuradasPlantilla: DECLARACIONES_JURADAS_DEFAULT.slice(),
+    configDocumentos: valorPorDefectoConfigDocumentos(),
+    firmantesDocumentos: valorPorDefectoFirmantesDocumentos(),
+    plantillasUsuarioDocumentos: [],
   };
 }
 
@@ -1001,10 +1207,20 @@ async function loadState(){
     const config = valores.config ? JSON.parse(valores.config) : null;
     state.tareasPlantilla = (config && config.tareasPlantilla) || seed.tareasPlantilla || valorPorDefectoConfig().tareasPlantilla;
     state.declaracionesJuradasPlantilla = (config && config.declaracionesJuradasPlantilla) || seed.declaracionesJuradasPlantilla || valorPorDefectoConfig().declaracionesJuradasPlantilla;
+    // configDocumentos/firmantesDocumentos/plantillasUsuarioDocumentos (Memos y
+    // Propuestas) son nuevos en config: un config guardado antes de esta
+    // funcionalidad no los trae, así que cada uno cae a su default por separado
+    // en vez de descartar TODO el config si falta uno solo.
+    state.configDocumentos = Object.assign({}, valorPorDefectoConfigDocumentos(), (config && config.configDocumentos) || {});
+    state.firmantesDocumentos = (config && config.firmantesDocumentos) || valorPorDefectoFirmantesDocumentos();
+    state.plantillasUsuarioDocumentos = (config && config.plantillasUsuarioDocumentos) || [];
   }catch(e){
     const def = valorPorDefectoConfig();
     state.tareasPlantilla = def.tareasPlantilla;
     state.declaracionesJuradasPlantilla = def.declaracionesJuradasPlantilla;
+    state.configDocumentos = def.configDocumentos;
+    state.firmantesDocumentos = def.firmantesDocumentos;
+    state.plantillasUsuarioDocumentos = def.plantillasUsuarioDocumentos;
   }
 }
 
@@ -1051,7 +1267,11 @@ const estimacionesF29SaveDebouncer = crearGuardadoColeccion('estimacionesF29', (
 const propuestasSaveDebouncer = crearGuardadoColeccion('propuestas', () => state.propuestas, 'No se pudo guardar la propuesta. Intenta de nuevo.');
 const clientesRemuneracionesSaveDebouncer = crearGuardadoColeccion('clientesRemuneraciones', () => state.clientesRemuneraciones, 'No se pudo guardar el cliente de remuneraciones. Intenta de nuevo.');
 const rrhhFichasSaveDebouncer = crearGuardadoColeccion('rrhhFichas', () => state.rrhhFichas, 'No se pudo guardar la ficha de RR.HH. Intenta de nuevo.');
-const configSaveDebouncer = crearGuardadoColeccion('config', () => ({ tareasPlantilla: state.tareasPlantilla, declaracionesJuradasPlantilla: state.declaracionesJuradasPlantilla }), 'No se pudo guardar la configuración. Intenta de nuevo.');
+const documentosTrabajoSaveDebouncer = crearGuardadoColeccion('documentosTrabajo', () => state.documentosTrabajo, 'No se pudo guardar el documento. Intenta de nuevo.');
+const configSaveDebouncer = crearGuardadoColeccion('config', () => ({
+  tareasPlantilla: state.tareasPlantilla, declaracionesJuradasPlantilla: state.declaracionesJuradasPlantilla,
+  configDocumentos: state.configDocumentos, firmantesDocumentos: state.firmantesDocumentos, plantillasUsuarioDocumentos: state.plantillasUsuarioDocumentos,
+}), 'No se pudo guardar la configuración. Intenta de nuevo.');
 const auditoriaSaveDebouncer = crearGuardadoColeccion('auditoria', () => state.auditoria, 'No se pudo guardar el registro de actividad.');
 
 // Registro simple de "quién guardó qué colección y cuándo" (no el detalle de
@@ -1074,6 +1294,7 @@ async function saveEstimacionesF29(){ registrarAuditoria('estimacionesF29'); est
 async function savePropuestas(){ registrarAuditoria('propuestas'); propuestasSaveDebouncer.run(); }
 async function saveClientesRemuneraciones(){ registrarAuditoria('clientesRemuneraciones'); clientesRemuneracionesSaveDebouncer.run(); }
 async function saveRRHHFichas(){ registrarAuditoria('rrhhFichas'); rrhhFichasSaveDebouncer.run(); }
+async function saveDocumentosTrabajo(){ registrarAuditoria('documentosTrabajo'); documentosTrabajoSaveDebouncer.run(); }
 async function saveConfig(){ registrarAuditoria('config'); configSaveDebouncer.run(); }
 
 let creds = null; // { usuarios: { id: hash } }
@@ -1134,6 +1355,7 @@ function flushPendingSaves(){
   propuestasSaveDebouncer.flush();
   clientesRemuneracionesSaveDebouncer.flush();
   rrhhFichasSaveDebouncer.flush();
+  documentosTrabajoSaveDebouncer.flush();
   configSaveDebouncer.flush();
   auditoriaSaveDebouncer.flush();
   credsSaveDebouncer.flush();
@@ -1511,6 +1733,15 @@ function construirGruposNav(){
       {tab:'trabajos-especiales-remuneraciones', label:'Trabajos Especiales'},
       {tab:'facturacion-remuneraciones', label:'Facturación'},
     ]});
+    // Memos y Propuestas: incorporado directamente acá (ver comentario al
+    // inicio del bloque "MEMOS Y PROPUESTAS" más abajo) — mismo alcance que
+    // tenía el control de Propuestas original (Administrador/Contabilidad).
+    grupos.push({ key:'documentos-trabajo', label:'Memos y Propuestas', icon: NAV_ICONS.folder, tabs: [
+      {tab:'documentos-trabajo', label:'Documentos'},
+      {tab:'documentos-trabajo-editor', label:'Editor'},
+      {tab:'documentos-trabajo-clientes', label:'Clientes'},
+      {tab:'documentos-trabajo-config', label:'Configuración'},
+    ]});
   }
 
   // Contabilidad tiene acceso total (todo lo de Administrador, arriba) más
@@ -1667,6 +1898,14 @@ function adminLayout(){
           ? facturacionContent()
           : activeTab === 'cobranza'
           ? cobranzaContent()
+          : activeTab === 'documentos-trabajo'
+          ? documentosTrabajoContent()
+          : activeTab === 'documentos-trabajo-editor'
+          ? documentosTrabajoEditorContent()
+          : activeTab === 'documentos-trabajo-clientes'
+          ? documentosTrabajoClientesContent()
+          : activeTab === 'documentos-trabajo-config'
+          ? documentosTrabajoConfigContent()
           : activeTab === 'cartera-remuneraciones'
           ? carteraRemuneracionesContent()
           : activeTab === 'trabajos-especiales-remuneraciones'
@@ -1722,6 +1961,14 @@ function contabilidadLayout(){
           ? facturacionContent()
           : activeTab === 'cobranza'
           ? cobranzaContent()
+          : activeTab === 'documentos-trabajo'
+          ? documentosTrabajoContent()
+          : activeTab === 'documentos-trabajo-editor'
+          ? documentosTrabajoEditorContent()
+          : activeTab === 'documentos-trabajo-clientes'
+          ? documentosTrabajoClientesContent()
+          : activeTab === 'documentos-trabajo-config'
+          ? documentosTrabajoConfigContent()
           : activeTab === 'cartera-remuneraciones'
           ? carteraRemuneracionesContent()
           : activeTab === 'trabajos-especiales-remuneraciones'
@@ -2561,6 +2808,23 @@ function renderModal(){
           </div>
         </div>
         ` : ''}
+
+        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
+          <h4 style="margin:0 0 10px;font-size:14px;">Memos y Propuestas</h4>
+          <div class="hint" style="margin:-6px 0 10px;font-size:11px;color:#8a8879;">Se usan al redactar memos y propuestas para este cliente (ver Memos y Propuestas en el nav) — no afectan el resto de la ficha.</div>
+          <div class="onboard-grid" style="margin-bottom:12px;">
+            <label style="grid-column:1 / -1;">Saludo (vacío = se genera uno automático)
+              <input type="text" id="dt_saludo_doc" placeholder="Ej: Estimado Joaquín:" value="${escapeAttr(c.saludo||'')}">
+            </label>
+            <label>Sociedades (una por línea)
+              <textarea id="dt_sociedades_doc" rows="4" placeholder="Sociedad Inmobiliaria San Cristóbal Limitada">${escapeHtml((c.sociedades||[]).join('\n'))}</textarea>
+            </label>
+            <label>Socios / personas naturales (una por línea, para Operación Renta)
+              <textarea id="dt_socios_doc" rows="4" placeholder="Joaquín Puig">${escapeHtml((c.socios||[]).join('\n'))}</textarea>
+            </label>
+          </div>
+        </div>
+
         <div style="display:flex;gap:10px;">
           <button class="btn secondary" onclick="closeClientDetail()">Cancelar</button>
           <button class="btn" style="flex:1;" onclick="saveClientDetail('${c.id}')">Guardar cambios</button>
@@ -2677,6 +2941,9 @@ async function saveClientDetail(id){
   c.correoContacto = document.getElementById('dt_correo_contacto').value.trim();
   c.formaPago = document.getElementById('dt_forma_pago').value;
   c.fechaPago = document.getElementById('dt_fecha_pago').value || null;
+  c.saludo = document.getElementById('dt_saludo_doc').value.trim();
+  c.sociedades = document.getElementById('dt_sociedades_doc').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  c.socios = document.getElementById('dt_socios_doc').value.split('\n').map(s=>s.trim()).filter(Boolean);
   await saveClientes();
   showToast('Datos del cliente actualizados.');
   closeClientDetail();
@@ -5817,6 +6084,1551 @@ async function setFacturaMontoRemuneraciones(clienteId, mes, valor){
   renderApp();
 }
 // ==================== FIN REMUNERACIONES ====================
+
+// ==================== MEMOS Y PROPUESTAS ====================
+// Editor de documentos (memos a clientes, circulares internas y propuestas
+// de servicio), incorporado directamente acá — ya no es una página aparte
+// (ver historial: existió brevemente como memos.html, un archivo .html
+// standalone con su propio localStorage; se decidió traerlo completo a este
+// mismo sistema para que comparta login, datos de clientes y backend real,
+// sin sensación de "herramienta separada"). El contenido de las plantillas
+// (MODULOS/PLANTILLAS) y el motor de armado del documento (renderDocBody y
+// funciones relacionadas) son intencionalmente casi idénticos a los de ese
+// prototipo: son el resultado de trabajo ya afinado con el contenido real
+// de memos y propuestas de la firma, no hay razón para reescribirlos.
+//
+// Modelo de datos: state.documentosTrabajo (colección normal, guardada por
+// fusión como todo lo demás) — cada documento es {id, tipo:'memo'|'propuesta',
+// numero, anio, fecha, estado, clienteId, de, labelPara, para, ref, saludo,
+// numeracion, bloques[], despedida, firmanteId, firmaNombre, firmaCargo,
+// iniciales, notas, creadoPor, creado, modificado}. El N° correlativo
+// (numero) SIEMPRE se pide al backend (ver obtenerCorrelativo, ya usado por
+// el control de Propuestas original) — nunca se calcula localmente, porque
+// bajo concurrencia real dos personas podrían recibir el mismo número.
+// state.configDocumentos/firmantesDocumentos/plantillasUsuarioDocumentos
+// viven dentro del mismo config compartido de la app (ver valorPorDefectoConfig).
+// Los clientes NO se duplican en una lista aparte: se reutiliza state.clientes
+// tal cual, solo se le agregan 3 campos opcionales nuevos (saludo, sociedades[],
+// socios[]) — ver sección "Ficha de Memos y Propuestas" en el detalle de
+// cliente. clienteDocById() abajo arma, a partir de un cliente real, la misma
+// forma de objeto que este motor de render espera.
+
+const DEFAULT_LOGO_DOCUMENTOS = "data:image/jpeg;base64,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";
+
+function svgIconDoc(inner){ return `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`; }
+const ICONS_DOC = {
+  doc: svgIconDoc('<polygon points="6,2 15,2 20,7 20,21 6,21"/><polyline points="15,2 15,7 20,7"/><line x1="9" y1="12" x2="16" y2="12"/><line x1="9" y1="16" x2="16" y2="16"/>'),
+  filePlus: svgIconDoc('<polygon points="6,2 15,2 20,7 20,21 6,21"/><polyline points="15,2 15,7 20,7"/><line x1="13" y1="11" x2="13" y2="17"/><line x1="10" y1="14" x2="16" y2="14"/>'),
+  users: svgIconDoc('<circle cx="12" cy="8" r="4"/><rect x="5" y="15" width="14" height="7" rx="3.5"/>'),
+  bulb: svgIconDoc('<circle cx="12" cy="10" r="5"/><rect x="10" y="15" width="4" height="3" rx="1"/><line x1="10" y1="19" x2="14" y2="19"/>'),
+  send: svgIconDoc('<polygon points="3,12 21,4 14,21 11,13 3,12"/>'),
+  percent: svgIconDoc('<circle cx="7.5" cy="7.5" r="2.3"/><circle cx="16.5" cy="16.5" r="2.3"/><line x1="19" y1="5" x2="5" y2="19"/>'),
+  clock: svgIconDoc('<circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14.5"/>'),
+  swap: svgIconDoc('<polyline points="4,8 16,8"/><polygon points="14,5 19,8 14,11"/><polyline points="20,16 8,16"/><polygon points="10,13 5,16 10,19"/>'),
+  calendar: svgIconDoc('<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>'),
+  badge: svgIconDoc('<circle cx="12" cy="9" r="5"/><polyline points="9,13 7,21 12,18 17,21 15,13"/>'),
+  clipboard: svgIconDoc('<rect x="9" y="2" width="6" height="4" rx="1"/><rect x="5" y="4" width="14" height="18" rx="2"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/><line x1="8" y1="19" x2="13" y2="19"/>'),
+  trend: svgIconDoc('<polyline points="4,17 10,11 14,15 20,7"/><polyline points="14,7 20,7 20,13"/>'),
+  megaphone: svgIconDoc('<polygon points="3,10 3,14 7,14 15,19 15,5 7,10"/><line x1="17" y1="9" x2="20" y2="7"/><line x1="17" y1="15" x2="20" y2="17"/>'),
+  info: svgIconDoc('<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.6" fill="currentColor" stroke="none"/>'),
+  chart: svgIconDoc('<line x1="4" y1="21" x2="20" y2="21"/><rect x="5" y="14" width="3" height="7"/><rect x="10.5" y="9" width="3" height="12"/><rect x="16" y="4" width="3" height="17"/>'),
+  search: svgIconDoc('<circle cx="10" cy="10" r="6"/><line x1="15" y1="15" x2="20" y2="20"/>'),
+  star: svgIconDoc('<polygon points="12,2 14.9,8.6 22,9.3 16.7,14.1 18.2,21 12,17.3 5.8,21 7.3,14.1 2,9.3 9.1,8.6"/>')
+};
+
+const ESTADOS_DOC = { memo: ["Borrador","Emitido","Enviado"], propuesta: ["Borrador","Enviada","Aceptada","Rechazada"] };
+const PERIODICIDADES_DOC = ["Mensual","Trimestral","Semestral","Anual","Única vez"];
+const MESES_DOC = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function fmtUF(n){ n = Number(n) || 0; return n.toLocaleString("es-CL", {minimumFractionDigits:0, maximumFractionDigits:2}); }
+function fmtCLP(n){ return "$" + Math.round(Number(n)||0).toLocaleString("es-CL"); }
+function parseNum(v){
+  if(typeof v === "number") return v;
+  const s = String(v||"").trim().replace(/\./g,"").replace(",",".");
+  return parseFloat(s) || 0;
+}
+
+function cfg(){ return state.configDocumentos; }
+function logoSrc(){
+  const l = cfg().logo;
+  if(l === "none") return "";
+  return l || DEFAULT_LOGO_DOCUMENTOS;
+}
+function fmtFechaDoc(iso){
+  if(!iso) return "";
+  const [y,m,d] = iso.split("-");
+  const f = cfg().formatoFecha;
+  if(f === "largo") return `${Number(d)} de ${MESES_DOC[Number(m)-1]} de ${y}`;
+  if(f === "dd/mm/aaaa") return `${d}/${m}/${y}`;
+  return `${d}-${m}-${y}`;
+}
+function padNum(n){ return String(n).padStart(Number(cfg().digitos)||3, "0"); }
+function numeroDoc(doc){ return `${cfg().prefijo} ${padNum(doc.numero)}/${doc.anio}`; }
+function nombreArchivoDoc(doc){
+  const ref = (doc.ref || "").replace(/[\\/:*?"<>|]/g, "").trim();
+  if(doc.tipo === "propuesta") return `P-${padNum(doc.numero)} ${ref}`.trim();
+  return `MEMO N° ${padNum(doc.numero)}-${doc.anio} - ${ref}`.trim();
+}
+
+function firmanteDocById(id){ return (state.firmantesDocumentos||[]).find(f=>f.id===id); }
+function firmanteDocByNombre(nombre){ return (state.firmantesDocumentos||[]).find(f=>f.nombre.toLowerCase()===String(nombre).toLowerCase()); }
+// Adaptador: arma, a partir de un cliente REAL de state.clientes, la misma
+// forma de objeto {nombre, grupo, saludo, email, ejecutivo, sociedades,
+// socios} que este motor espera — sin duplicar la lista de clientes. grupo
+// y correo reutilizan campos que el cliente ya tiene (c.grupo, ver Dashboard
+// "Clientes por grupo"; c.correoContacto, ver Ficha de Cobranza); ejecutivo
+// se resuelve desde c.encargadoId; solo saludo/sociedades/socios son campos
+// nuevos que se agregan al cliente (ver sección "Memos y Propuestas" en
+// renderModal).
+function clienteDocById(id){
+  if(!id) return null;
+  const c = state.clientes.find(x=>x.id===id);
+  if(!c) return null;
+  const encargado = state.usuarios.find(u=>u.id===c.encargadoId);
+  return {
+    id: c.id, nombre: c.name, grupo: c.grupo || '', saludo: c.saludo || '',
+    email: c.correoContacto || '', ejecutivo: encargado ? encargado.name : '',
+    sociedades: c.sociedades || [], socios: c.socios || [],
+  };
+}
+function textoPara(cli){ return cli ? cli.nombre + (cli.grupo ? " | " + cli.grupo : "") : ""; }
+function saludoCliente(cli){
+  if(!cli) return "";
+  if(cli.saludo) return cli.saludo;
+  const first = (cli.nombre||"").trim().split(/\s+/)[0];
+  return first ? `Estimado(a) ${first}:` : "Estimado cliente:";
+}
+function ciudadesDoc(){
+  const c = (cfg().oficinas||[]).map(o=>o.ciudad).filter(Boolean);
+  if(c.length <= 1) return c.join("");
+  return c.slice(0,-1).join(", ") + " y " + c[c.length-1];
+}
+
+// ---------- Bloques del documento ----------
+const PDoc  = (texto)=>({t:"p", texto});
+const H1Doc = (texto, num=true)=>({t:"h", nivel:1, texto, num});
+const H2Doc = (texto, num=true)=>({t:"h", nivel:2, texto, num});
+const ULDoc = (items)=>({t:"ul", texto:items.join("\n")});
+const TABLADoc = (rows, encabezado=true)=>({t:"tabla", texto:rows.map(r=>r.join(" | ")).join("\n"), encabezado});
+const NOTADoc = (titulo, texto)=>({t:"nota", titulo, texto});
+const SALTODoc = ()=>({t:"salto"});
+const SOCDoc = (items)=>({t:"soc", texto:(items||[]).join("\n")});
+const HONDoc = (grupos)=>({t:"hon", grupos, mostrarCLP:false, valorUF:""});
+const ACEPDoc = ()=>({t:"acep", destinatario:cfg().aceptacionDest, facturacion:true});
+
+function consultasPDoc(){
+  return PDoc("El servicio de consultas será realizado a través de reuniones de trabajo, atención telefónica y/o vía correo electrónico, a cualquiera de nuestros ejecutivos, sin perjuicio de que las respuestas serán canalizadas y respondidas por nuestros ejecutivos principales, en los siguientes horarios de atención: " + cfg().horario);
+}
+
+// Módulos del programa de trabajo (se insertan como bloques dentro de una
+// plantilla, o manualmente desde el editor).
+const MODULOS_DOC = [
+  {key:"impMensuales", nombre:"Impuestos mensuales (F29)", build:()=>[
+    H2Doc("Impuestos Mensuales"),
+    ULDoc([
+      "Verificar la correcta preparación de libros auxiliares (compras, ventas, honorarios, entre otros).",
+      "Revisión conceptual y selectiva de los principales criterios utilizados por las sociedades en la determinación del crédito y débito fiscal.",
+      "Asegurar el cumplimiento de la correcta tasa de PPM (recálculo anual).",
+      "Verificar el uso de franquicias especiales (crédito petróleo, crédito SENCE, etc.).",
+      "Confección mensual del formulario 29 de declaración y pago simultáneo de impuestos."
+    ])
+  ]},
+  {key:"cierreContable", nombre:"Revisión y cierre contable (libros oficiales)", build:()=>[
+    H2Doc("Revisión y cierre contable"),
+    PDoc("En relación con el servicio contable, será nuestra responsabilidad asegurarnos de la correcta preparación de los siguientes libros oficiales, sobre la base de la información contable que procesaremos [mensualmente / trimestralmente]:"),
+    ULDoc(["Libro Diario","Libro Mayor","Libro de Compras y Ventas","Libro de Retenciones","Libro de Inventario y Balances"])
+  ]},
+  {key:"impAnuales", nombre:"Impuestos anuales (Operación Renta)", build:()=>[
+    H2Doc("Impuestos Anuales"),
+    ULDoc([
+      "Determinación de la base afecta al impuesto a la renta de primera categoría (Renta Líquida Imponible).",
+      "Determinación del Capital Propio Tributario presentado a la municipalidad.",
+      "Determinación del Registro de Rentas Empresariales y revisión de su adecuada actualización.",
+      "Revisión de la base afecta al impuesto único del artículo 21° por la existencia de gastos rechazados.",
+      "Preparación de la Declaración Anual de Impuesto a la Renta de la sociedad y los socios (Formulario 22).",
+      "Preparación de las Declaraciones Juradas exigidas por el SII."
+    ])
+  ]},
+  {key:"remuneraciones", nombre:"Servicio de remuneraciones (+ exclusiones)", build:()=>[
+    H2Doc("Servicio de remuneraciones"),
+    PDoc("Para definir con antelación a la prestación de nuestro servicio las labores que serán de nuestra responsabilidad y cuáles no, se indican a continuación:"),
+    ULDoc([
+      "Procesar y calcular mensualmente los anticipos, remuneraciones y finiquitos de la empresa.",
+      "Confección de contratos de trabajo y finiquitos de los trabajadores de la empresa.",
+      "Confección y envío del Libro de Remuneraciones Electrónico y emisión de los certificados de remuneraciones que se soliciten.",
+      "Preparar las planillas previsionales y sus anexos (se incluye Caja de Compensación y Mutual).",
+      "Cautelar la confidencialidad de toda la información de remuneraciones, exhibiéndola solo a las entidades o personas que la empresa autorice."
+    ]),
+    PDoc("Nuestro servicio no considera:"),
+    ULDoc([
+      "Pago de cuentas personales y tramitación de créditos personales.",
+      "Administración de fondos, como toma de depósitos a plazo, fondos mutuos u otros equivalentes.",
+      "Asesorías legales formales en temas laborales que no digan relación con el proceso de remuneraciones."
+    ])
+  ]},
+  {key:"asesoriaTrib", nombre:"Asesoría tributaria mensual (+ exclusiones)", build:()=>[
+    H2Doc("Asesoría tributaria mensual"),
+    PDoc("Adicionalmente, nuestro programa de trabajo considera un servicio de consultoría permanente que incluye lo siguiente:"),
+    ULDoc([
+      "Otorgar un apoyo oportuno ante los requerimientos de la administración.",
+      "Proponer soluciones alternativas y recomendaciones que permitan asegurar el cumplimiento de la normativa tributaria.",
+      "Asesorar en la correcta aplicación de los principios contables."
+    ]),
+    PDoc("El servicio de consultoría tributaria mensual no considera:"),
+    ULDoc([
+      "Asesorías por reorganizaciones empresariales, tales como fusiones, divisiones, conversiones, término de giro u otras donde el Servicio tenga la facultad de tasar, al igual que asesoría en la compraventa de acciones o derechos sociales.",
+      "La contestación a notificaciones del Servicio de Impuestos Internos correspondientes a programas de auditoría o citaciones, ni presentaciones de Reposición Administrativa Voluntaria (RAV) o Revisión de la Actuación Fiscalizadora (RAF). En caso de requerir este tipo de consultoría, los honorarios se evaluarán por separado.",
+      `Servicios presenciales fuera de ${ciudadesDoc() || "[CIUDADES]"}: cualquier gestión o reunión presencial fuera de dichas ciudades (fiscalizaciones, citaciones, notificaciones, comparecencias u otras actuaciones ante el SII u otros organismos públicos) no se encuentra incluida. En dichos casos, los gastos de traslado, viáticos, alojamiento, estacionamientos, peajes y demás costos inherentes serán de cargo exclusivo del cliente.`
+    ])
+  ]},
+  {key:"diagnostico", nombre:"Diagnóstico tributario y contable", build:()=>[
+    H2Doc("Diagnóstico tributario y contable"),
+    PDoc("El diagnóstico tributario tiene como objetivo identificar posibles contingencias, observaciones e incumplimientos tributarios de las empresas anteriormente mencionadas."),
+    PDoc("**Plan de trabajo:**"),
+    ULDoc([
+      "Revisión del correcto uso de beneficios y franquicias tributarias imputables contra el impuesto de primera categoría, tales como: crédito SENCE, crédito por donaciones, crédito del artículo 33 bis por activo fijo, entre otros.",
+      "Revisión de la determinación del capital propio tributario para efectos municipales.",
+      "Revisar la correcta determinación de la renta líquida imponible (RLI).",
+      "Revisar la determinación del capital propio tributario (CPT) y su razonabilidad informada en el formulario 22.",
+      "Revisar la determinación y actualización del Registro Tributario de Rentas Empresariales (RTRE, ex FUT).",
+      "Revisar la correcta determinación de las rentas afectas a impuestos finales (RAI) declaradas en el formulario 22.",
+      "Revisión de los datos informados en el formulario 22 y su correlación con los cálculos de RLI, CPT, RAI y RTRE.",
+      "Revisar el estado de las declaraciones juradas anuales y sus observaciones, en caso de existir.",
+      "Revisión de los formularios 29 declarados mensualmente, en lo siguiente:",
+      "- Determinación de pagos provisionales mensuales.",
+      "- Retenciones de boletas de honorarios de terceros.",
+      "- Impuesto único de segunda categoría de trabajadores.",
+      "- Impuesto específico al petróleo.",
+      "- IVA crédito fiscal e IVA débito fiscal.",
+      "- Cualquier otro impuesto declarado en el formulario."
+    ])
+  ]},
+  {key:"renta", nombre:"Operación Renta AT (año tributario)", build:(ctx)=>[
+    H2Doc(`Impuestos Anuales AT${ctx.at}`),
+    ULDoc([
+      "Determinación de la base afecta al impuesto a la renta de primera categoría (Renta Líquida Imponible).",
+      "Determinación del mayor valor obtenido en la enajenación o rescate de acciones de sociedades anónimas abiertas con presencia bursátil, cuotas de fondos de inversión y cuotas de fondos mutuos que cumplan los requisitos del artículo 107 de la LIR, afecto a impuesto único con tasa del 10%, en caso de existir.",
+      "Determinación del Capital Propio Tributario.",
+      "Determinación del Registro Tributario de Rentas Empresariales y revisión de su adecuada actualización.",
+      "Determinación de la base afecta al impuesto único del artículo 21° por la existencia de gastos rechazados, en caso de existir.",
+      "Preparación de la Declaración Anual de Impuesto a la Renta (Formulario 22).",
+      "Preparación y envío de las declaraciones juradas exigidas por el Servicio de Impuestos Internos."
+    ])
+  ]},
+  {key:"djEspecificas", nombre:"Declaraciones juradas específicas", build:(ctx)=>[
+    H2Doc(`Preparación de declaraciones juradas específicas AT${ctx.at}`),
+    PDoc("Adicionalmente, nuestro programa de trabajo considera la preparación y envío de las siguientes declaraciones juradas:"),
+    ULDoc(["DJ 1847 Balance de 8 columnas y otros antecedentes.","DJ 1926 Renta Líquida Imponible, Capital Propio Tributario y otros antecedentes."])
+  ]},
+  {key:"consultas", nombre:"Canal de consultas y horario de atención", build:()=>[ consultasPDoc() ]},
+  {key:"notasHon", nombre:"Condiciones de honorarios (notas estándar)", build:()=>[
+    PDoc("Cabe señalar que los honorarios serán reevaluados en la medida que la sociedad incremente significativamente el número de transacciones."),
+    PDoc("La forma de pago será al contado, contra factura."),
+    PDoc("La presente propuesta tiene una validez de 30 días desde su fecha de emisión.")
+  ]}
+];
+
+function ctxForDoc(fecha, cli){
+  const y = Number(fecha.slice(0,4)), m = Number(fecha.slice(5,7));
+  return { cli, anio:y, at: m <= 4 ? y : y+1, soc: cli ? cli.sociedades.slice() : [], socios: cli ? cli.socios.slice() : [] };
+}
+function honItemsDoc(list){ return (list.length ? list : ["[SOCIEDAD]"]).map(n=>({detalle:n.replace(/^Sociedad\s+/i,""), uf:0})); }
+function buildModuloDoc(key, ctx){ return MODULOS_DOC.find(m=>m.key===key).build(ctx); }
+
+// Plantillas de Memos y de Propuestas — contenido real de la firma, ya
+// probado; ver comentario arriba sobre por qué es casi idéntico al
+// prototipo anterior.
+const PLANTILLAS_DOC = [
+  // ------------- MEMOS -------------
+  {key:"blanco_memo", tipo:"memo", nombre:"Memo en blanco", desc:"Encabezado estándar y un párrafo inicial.", icon:"filePlus", color:"blue",
+    build:(ctx)=>({ ref:"", firmante:"Kevin Varela Vergara", despedida:"Atentamente,",
+      bloques:[PDoc("Junto con saludar cordialmente a usted, el presente tiene por objeto informar ")] })},
+  {key:"cambio_ejecutivo", tipo:"memo", nombre:"Cambio de ejecutivo", desc:"Aviso al cliente de nuevo ejecutivo contable asignado.", icon:"users", color:"green",
+    build:(ctx)=>({ ref:"Cambio de Ejecutivo Contable", firmante:"Kevin Varela Vergara", deFirmante:true, despedida:"Atentos saludos,",
+      saludo: ctx.cli ? "Estimado cliente:" : "Estimado cliente:",
+      bloques:[
+        PDoc("Junto con saludar cordialmente, informo que debido a un proceso de reestructuración de nuestros ejecutivos, a contar del día [FECHA], vuestro nuevo ejecutivo contable es el Sr(a). [NOMBRE EJECUTIVO], de profesión [PROFESIÓN], quien ha desarrollado su carrera profesional en nuestra firma."),
+        PDoc("[NOMBRE EJECUTIVO] estará en contacto directo con ustedes y responderá a los requerimientos del grupo de empresas que administran, junto con el cumplimiento tributario pertinente."),
+        PDoc("Quedamos a vuestra disposición en caso de que así lo requieran. Nuestro número telefónico de oficina es [TELÉFONO] y el correo de su ejecutivo es [CORREO]."),
+      ] })},
+  {key:"reajuste_imm", tipo:"memo", nombre:"Reajuste Ingreso Mínimo (IMM)", desc:"Remuneraciones: nuevo IMM, asignación familiar y diferencias retroactivas.", icon:"trend", color:"purple",
+    build:(ctx)=>({ ref:"Reajuste al Ingreso Mínimo Mensual desde el [FECHA VIGENCIA]", para:"Clientes", firmante:"Departamento de Remuneraciones", despedida:"Atentamente,",
+      saludo:"Estimado Cliente:",
+      bloques:[
+        PDoc("Junto con saludar cordialmente a usted, el presente tiene por objeto informar sobre el nuevo reajuste del Ingreso Mínimo Mensual (IMM), asignación familiar, maternal y subsidio familiar."),
+        PDoc("De conformidad con lo establecido en la Ley N° [N° LEY], que establece un nuevo aumento al sueldo mínimo legal en Chile desde el [FECHA VIGENCIA], este reajuste contempla:"),
+        ULDoc([
+          "A contar del [FECHA VIGENCIA], el Ingreso Mínimo Mensual para los trabajadores y trabajadoras mayores de 18 años y hasta 65 años de edad se incrementa a la suma de **$[MONTO IMM]**, con efecto retroactivo a dicha fecha.",
+          "En consecuencia, corresponde efectuar el reajuste de las remuneraciones del mes de [MES], generándose una diferencia de **$[DIFERENCIA]**, monto que deberá ser incorporado y pagado al trabajador en la liquidación de remuneraciones correspondiente.",
+          "Asimismo, se eleva a **$[MONTO]** el IMM para las y los trabajadores menores de 18 y mayores de 65 años.",
+          "Junto con lo anterior, también se reajustan los montos del Subsidio Familiar y de la Asignación Familiar y Maternal:"
+        ]),
+        TABLADoc([["Tramo","Diferencia"],["A","+$[MONTO]"],["B","+$[MONTO]"],["C","+$[MONTO]"],["D","Sin cambio"]]),
+        PDoc("Para dar cumplimiento a la normativa laboral vigente, se deberá considerar la rectificación del aumento del IMM, la cual debe aplicarse de forma retroactiva desde el mes de [MES]."),
+        PDoc("Esta información es de carácter informativo y busca mantenerlos al tanto de las modificaciones establecidas por la autoridad competente. Quedamos a vuestra disposición ante cualquier consulta.")
+      ] })},
+  {key:"cambio_normativo", tipo:"memo", nombre:"Cambio normativo / previsional", desc:"Nueva ley, circular o cambio en cotizaciones, con tabla y nota destacada.", icon:"swap", color:"teal",
+    build:(ctx)=>({ ref:"[TEMA DEL CAMBIO NORMATIVO]", para:"Clientes", firmante:"Departamento de Remuneraciones", despedida:"Saluda atentamente,",
+      saludo:"Estimado Cliente:",
+      bloques:[
+        PDoc("Junto con saludar cordialmente a usted, el presente tiene por objeto informar sobre [DESCRIPCIÓN DEL CAMBIO], establecido en [LEY / CIRCULAR / RESOLUCIÓN], vigente a contar de [FECHA], según el siguiente detalle:"),
+        TABLADoc([["Concepto","Porcentaje (%)"],["[CONCEPTO]","[%]"],["[CONCEPTO]","[%]"],["**Total**","**[%]**"]]),
+        PDoc("[EXPLICACIÓN DEL IMPACTO PARA EL EMPLEADOR / CONTRIBUYENTE]"),
+        NOTADoc("Ten presente", "Para cumplir correctamente con estas obligaciones desde [FECHA], te recomendamos revisar oportunamente tus procesos de remuneraciones, nómina electrónica y declaración de cotizaciones.")
+      ] })},
+  {key:"beneficio", tipo:"memo", nombre:"Beneficio / subsidio estatal", desc:"En qué consiste, requisitos, calendario y enlace de postulación (ej. SENCE).", icon:"badge", color:"orange",
+    build:(ctx)=>({ ref:"[NOMBRE DEL BENEFICIO]", para:"Clientes", firmante:"Departamento de Remuneraciones", despedida:"Atentamente,",
+      saludo:"Estimado Cliente:",
+      bloques:[
+        PDoc("Junto con saludar, el [NOMBRE DEL BENEFICIO] es un beneficio impulsado por [ORGANISMO] y ejecutado por [ORGANISMO EJECUTOR]."),
+        PDoc("[DESCRIPCIÓN GENERAL DEL BENEFICIO]"),
+        PDoc("Las postulaciones se realizan en la siguiente plataforma: [URL]"),
+        H2Doc("¿En qué consiste?", false),
+        ULDoc(["[MONTO / PORCENTAJE DEL BENEFICIO]","[DURACIÓN]","[TOPE DE REMUNERACIÓN]","[FORMA DE PAGO]"]),
+        H2Doc("Principales requisitos", false),
+        ULDoc(["[REQUISITO 1]","[REQUISITO 2]","[REQUISITO 3]"]),
+        H2Doc("Calendario de postulación", false),
+        TABLADoc([["Postulación","Primer pago"],["[PERÍODO]","[FECHA]"],["[PERÍODO]","[FECHA]"]]),
+        PDoc("Esta información es de carácter informativo y busca mantenerlos al tanto de las modificaciones establecidas por la autoridad competente.")
+      ] })},
+  {key:"recordatorio", tipo:"memo", nombre:"Recordatorio de vencimientos", desc:"Plazos de F29, DJ, Operación Renta u otras obligaciones y antecedentes a enviar.", icon:"calendar", color:"indigo",
+    build:(ctx)=>({ ref:"Recordatorio de vencimientos [PERÍODO]", para: ctx.cli ? undefined : "Clientes", firmante:"Departamento Tributario", despedida:"Atentamente,",
+      saludo: ctx.cli ? undefined : "Estimado Cliente:",
+      bloques:[
+        PDoc("Junto con saludar cordialmente, les recordamos los próximos vencimientos tributarios y laborales, con el fin de dar cumplimiento oportuno a sus obligaciones:"),
+        TABLADoc([["Obligación","Fecha de vencimiento","Observación"],["Formulario 29 (IVA y PPM)","[FECHA]","[OBSERVACIÓN]"],["Pago de cotizaciones previsionales","[FECHA]","[OBSERVACIÓN]"],["[OTRA OBLIGACIÓN]","[FECHA]","[OBSERVACIÓN]"]]),
+        PDoc("Para cumplir dentro de plazo, solicitamos enviar la siguiente información a más tardar el **[FECHA LÍMITE]**:"),
+        ULDoc(["Facturas de compra y venta no registradas en el SII.","Boletas de honorarios emitidas y recibidas.","Novedades de personal (ingresos, finiquitos, licencias, horas extra, bonos).","[OTRO ANTECEDENTE]"]),
+        PDoc("Quedamos atentos a sus consultas.")
+      ] })},
+  {key:"antecedentes_renta", tipo:"memo", nombre:"Solicitud de antecedentes cierre / Renta", desc:"Checklist de información para cierre contable y Operación Renta.", icon:"clipboard", color:"cyan",
+    build:(ctx)=>({ ref:`Solicitud de antecedentes cierre contable y Operación Renta AT${ctx.at}`, firmante:"Departamento Contable", despedida:"Atentamente,",
+      saludo: ctx.cli ? undefined : "Estimado Cliente:", para: ctx.cli ? undefined : "Clientes",
+      bloques:[
+        PDoc(`Junto con saludar cordialmente, y con el objeto de preparar oportunamente el cierre contable al 31 de diciembre de ${ctx.at-1} y la Operación Renta AT${ctx.at}, solicitamos hacernos llegar los siguientes antecedentes a más tardar el **[FECHA LÍMITE]**:`),
+        H2Doc("Antecedentes contables", false),
+        ULDoc(["Cartolas bancarias de todas las cuentas corrientes al 31 de diciembre.","Detalle de inversiones (depósitos a plazo, fondos mutuos, acciones) con certificados de saldo al cierre.","Detalle de préstamos bancarios y leasing con tabla de amortización.","Inventario físico valorizado de existencias al 31 de diciembre, si corresponde.","Detalle de compras y ventas de activo fijo del ejercicio, con sus facturas."]),
+        H2Doc("Antecedentes societarios y tributarios", false),
+        ULDoc(["Retiros, dividendos o distribuciones efectuadas a los socios o accionistas.","Modificaciones sociales, aumentos o disminuciones de capital del ejercicio.","Certificados de donaciones y de gastos de capacitación (SENCE).","Otros ingresos del socio (arriendos, honorarios, inversiones en el extranjero) para su Formulario 22 personal."]),
+        NOTADoc("Importante", "La entrega tardía de antecedentes puede impedir la presentación oportuna de declaraciones juradas y del Formulario 22, generando multas e intereses."),
+        PDoc("Quedamos a vuestra disposición ante cualquier consulta.")
+      ] })},
+  {key:"reajuste_honorarios", tipo:"memo", nombre:"Actualización de honorarios", desc:"Aviso al cliente de ajuste en honorarios mensuales.", icon:"trend", color:"amber",
+    build:(ctx)=>({ ref:"Actualización de honorarios profesionales", firmante:"Kevin Varela Vergara", deFirmante:true, despedida:"Atentamente,",
+      bloques:[
+        PDoc("Junto con saludar cordialmente y agradecer la confianza depositada en nuestra firma, informamos que a contar de [MES Y AÑO] nuestros honorarios profesionales serán actualizados de acuerdo con el siguiente detalle:"),
+        TABLADoc([["Servicio","Honorario actual (UF)","Nuevo honorario (UF)"]].concat((ctx.soc.length?ctx.soc:["[SERVICIO]"]).map(s=>[s,"[UF]","[UF]"]))),
+        PDoc("Esta actualización obedece a [MOTIVO: incremento del volumen de transacciones / incorporación de nuevos servicios / nuevas exigencias normativas]."),
+        PDoc("Quedamos a vuestra disposición para revisar cualquier consulta al respecto.")
+      ] })},
+  {key:"circular_interna", tipo:"memo", nombre:"Circular interna al personal", desc:"Instrucciones o información para el equipo de la firma.", icon:"megaphone", color:"slate",
+    build:(ctx)=>({ ref:"[TEMA]", para:"Todo el personal", firmante:"Kevin Varela Vergara", deFirmante:true, despedida:"Atentamente,", saludo:"",
+      bloques:[ H1Doc("[TEMA 1]"), PDoc("[CONTENIDO]"), H1Doc("[TEMA 2]"), PDoc("[CONTENIDO]") ], numeracion:"A." })},
+  {key:"cierre_anual", tipo:"memo", nombre:"Información cierre año comercial", desc:"Circular interna anual: CM, UF/UTM, IGC, DJ, factores (valores AT2026: actualizar).", icon:"info", color:"cyan",
+    build:(ctx)=>{
+      const cmMeses = ["Capital Inicial","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+      const cmVals = [
+        "-0,2 0,9 1,3 1,8 2,0 2,2 1,7 2,6 2,7 3,1 3,2 3,4","1,1 1,5 2,0 2,2 2,4 2,0 2,8 2,9 3,3 3,4 3,6","0,4 0,9 1,1 1,3 0,9 1,8 1,8 2,2 2,3 2,6",
+        "0,5 0,7 0,9 0,5 1,4 1,4 1,8 1,9 2,2","0,2 0,4 0,0 0,9 0,9 1,3 1,4 1,6","0,2 -0,2 0,7 0,7 1,1 1,2 1,4","-0,4 0,5 0,5 0,9 1,0 1,2",
+        "0,9 0,9 1,4 1,4 1,7","0,0 0,5 0,5 0,8","0,4 0,5 0,7","0,0 0,3","0,3",""
+      ];
+      const cm = [["Mes","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]];
+      cmMeses.forEach((mes,i)=>{
+        const v = cmVals[i] ? cmVals[i].split(" ") : [];
+        cm.push([mes].concat(Array(12 - v.length).fill(""), v));
+      });
+      return { ref:"Información cierre año comercial 2025", para:"Todo el personal", firmante:"Kevin Varela Vergara", deFirmante:true, despedida:"", saludo:"", numeracion:"A.",
+        bloques:[
+          H1Doc("Variación del Índice de Precios al Consumidor (IPC), Unidad de Fomento (UF) y Unidad Tributaria Mensual (UTM) al 31 de diciembre de 2025"),
+          PDoc("**Porcentajes de actualización corrección monetaria (término de giro), año 2025**"),
+          TABLADoc(cm),
+          PDoc("Nota: normativa que rige tanto para los efectos de la aplicación de las normas sobre corrección monetaria para ejercicios o períodos finalizados al 31 de diciembre de cada año, como para los términos de giro y demás situaciones de reajustabilidad que establece dicho texto legal."),
+          TABLADoc([["Indicador","31.12.2025","31.12.2024"],["Unidad de Fomento","$39.727,96","$38.416,69"],["UTM diciembre","$69.542,00","$67.294,00"],["UTA diciembre","$834.504,00","$807.528,00"],["Dólar observado","$907,13","$996,46"]]),
+          H1Doc("Tipo de cambio y paridad de monedas extranjeras"),
+          TABLADoc([["Moneda","31.12.2025","31.12.2024","Variación $"],["Dólar EE.UU.","907,13","996,46","-89,33"],["Euro","1.066,58","1.035,28","31,30"]]),
+          H1Doc("Tabla de Impuesto Global Complementario vigente para el año tributario 2026"),
+          TABLADoc([["Renta imponible anual desde","Hasta","Factor","Cantidad a rebajar"],
+            ["$0,00","$11.265.804,00","Exento","$0,00"],
+            ["$11.265.804,01","$25.035.120,00","0,040","$450.632,16"],
+            ["$25.035.120,01","$41.725.200,00","0,080","$1.452.036,96"],
+            ["$41.725.200,01","$58.415.280,00","0,135","$3.746.922,96"],
+            ["$58.415.280,01","$75.105.360,00","0,230","$9.296.374,56"],
+            ["$75.105.360,01","$100.140.480,00","0,304","$14.854.171,20"],
+            ["$100.140.480,01","$258.696.240,00","0,350","$19.460.633,28"],
+            ["$258.696.240,01","Y más","0,400","$32.395.445,28"]]),
+          H1Doc("Plazo de presentación Declaraciones Juradas"),
+          TABLADoc([["Fecha de vencimiento","Declaración Jurada"],
+            ["03 de marzo","1811, 1822, 1834, 1891, 1900, 1902 y 1903"],
+            ["09 de marzo","1896, 1898 y 1957"],
+            ["16 de marzo","1948 (sociedades anónimas abiertas)"],
+            ["16 de marzo","1870, 1871, 1873 y 1890"],
+            ["20 de marzo","1922 (sociedades administradoras de fondos de inversión públicos, privados o fondos mutuos)"],
+            ["23 de marzo","1949 y 1955"],
+            ["23 de marzo","1812, 1832, 1862, 1895, 1897, 1899, 1904, 1909, 1914, 1919 y 1932"],
+            ["24 de marzo","1835"],
+            ["24 de marzo","1828, 1874, 1889, 1894, 1948 (sociedad con socios personas jurídicas)"],
+            ["27 de marzo","1829, 1840, 1841, 1843, 1879, 1887, 1933, 1944, 1953, 1956, 1943, 1947 y 1948 (sociedad con socios persona natural)"],
+            ["30 de marzo","1922 (banco, corredor de bolsa o entidad intermediaria)"],
+            ["Junto con F22","1947 (empresarios individuales) y 1948 (empresarios individuales)"],
+            ["15 de mayo","1837 (PPM a disposición de los socios)"],
+            ["30 de junio","1847, 1866, 1867, 1907, 1913, 1926, 1929, 1930, 1937, 1945, 1946, 1950, 1951, 1952 y 1958"],
+            ["30 de junio","Nuevas DJ: 1960 (cuentas corresponsales en Chile), 1961 (bienes entregados en leasing), 1962 (fondos de inversión y fondos mutuos), 1963 y 1964 (activos digitales o criptoactivos)"]]),
+          H1Doc("Factores permanentes de incremento (Circular N° 2, de 2015)"),
+          TABLADoc([["Tasa impuesto primera categoría","Fórmula","Factor de incremento"],
+            ["10%","10 : 90","0,11111"],["12,5%","12,5 : 87,5","0,142857"],["15%","15 : 85","0,17647"],["16%","16 : 84","0,190476"],
+            ["16,5%","16,5 : 83,5","0,197604"],["17%","17 : 83","0,204819"],["18,5%","18,5 : 81,5","0,226993"],["20%","20 : 80","0,25"],
+            ["21%","21 : 79","0,265822"],["22,5%","22,5 : 77,5","0,290322"],["24%","24 : 76","0,315789"],["25%","25 : 75","0,333333"],
+            ["25,5%","25,5 : 74,5","0,342281"],["27%","27 : 73","0,369863"],["35% (art. 38 bis LIR)","35 : 65","0,53846"]]),
+          H1Doc("Tope incentivo al ahorro, artículo 14 E de la LIR"),
+          TABLADoc([["Límite","Tope","Monto"],
+            ["Promedio máximo de ingresos anuales del giro para optar a la rebaja","100.000 UF al 31.12.2025","$3.972.796.000"],
+            ["Límite rebaja por utilidades invertidas en empresas acogidas a los regímenes del art. 14 letras A) y D) N° 3 de la LIR","5.000 UF al 31.12.2025","$198.639.800"]]),
+          H1Doc("Tope crédito por compras de activo fijo, artículo 33 bis de la LIR"),
+          TABLADoc([["Tope","Monto"],["500 UTM","$34.771.000"]]),
+          H1Doc("Fecha tope aviso cambio de Régimen General a Pro Pyme"),
+          PDoc("Desde el 01 de enero hasta el 30 de abril de 2026.")
+        ]};
+    }},
+
+  // ------------- PROPUESTAS -------------
+  {key:"prop_mensual", tipo:"propuesta", nombre:"Asesoría mensual integral", desc:"Contabilidad, impuestos mensuales y anuales, remuneraciones y asesoría tributaria.", icon:"chart", color:"blue",
+    build:(ctx)=>({ ref:"Propuesta servicio de asesoría contable y tributaria", firmante:"Kevin Varela Vergara", despedida:"Atentos a vuestros comentarios,",
+      bloques:[
+        PDoc("En relación con el requerimiento de nuestros servicios de asesoría, tenemos el agrado de enviar a usted nuestro programa de trabajo y determinación de honorarios para el servicio de asesoría contable y tributaria de las siguientes sociedades:"),
+        SOCDoc(ctx.soc.length ? ctx.soc : ["[SOCIEDAD]"]),
+        H1Doc("Objetivos Generales"),
+        PDoc("Asegurar la correcta preparación de los Estados Financieros de la sociedad, mediante una revisión de las cuentas significativas detalladas en el Balance General y el Estado de Resultados, con el propósito de proporcionar a la administración estados financieros razonables en forma periódica."),
+        PDoc("Mensualmente nos aseguraremos del correcto cumplimiento y presentación de la declaración de impuestos (IVA)."),
+        PDoc("Preparar la declaración anual de impuesto a la renta de la empresa con un grado de seguridad razonable."),
+        PDoc("Otorgar una ayuda efectiva a la administración con el propósito de resolver situaciones de orden práctico que se presenten en la aplicación de la normativa tributaria y laboral vigente a las operaciones realizadas por la empresa."),
+        H1Doc("Programa de Trabajo", false),
+        ...buildModuloDoc("impMensuales", ctx),
+        ...buildModuloDoc("cierreContable", ctx),
+        ...buildModuloDoc("impAnuales", ctx),
+        ...buildModuloDoc("remuneraciones", ctx),
+        ...buildModuloDoc("asesoriaTrib", ctx),
+        consultasPDoc(),
+        H1Doc("Honorarios"),
+        PDoc("Para desarrollar el programa propuesto, hemos estimado preliminarmente nuestros honorarios profesionales de la siguiente manera:"),
+        HONDoc([
+          {actividad:"Servicio Asesoría Contable y Tributario", periodicidad:"Mensual", items:honItemsDoc(ctx.soc)},
+          {actividad:"Proceso Operación Renta sociedades", periodicidad:"Anual", items:honItemsDoc(ctx.soc)},
+          {actividad:"Proceso Operación Renta socios", periodicidad:"Anual", items:(ctx.socios.length?ctx.socios:["[SOCIO]"]).map(n=>({detalle:n, uf:0}))}
+        ]),
+        PDoc("Cabe señalar que los honorarios anuales serán reevaluados en la medida que la sociedad incremente significativamente el número de transacciones."),
+        PDoc("Nuestro servicio de remuneraciones considera hasta [N°] trabajadores. En caso de requerir la incorporación de trabajadores adicionales, se aplicará un cargo de [0,3] UF por cada uno."),
+        PDoc("La forma de pago será al contado, contra factura. La presente propuesta tiene una validez de 30 días desde su fecha de emisión."),
+        SALTODoc(),
+        H1Doc("Carta de Aceptación"),
+        PDoc("Si usted está de acuerdo con los términos de la presente propuesta, le agradecemos nos haga llegar copia de la misma con su firma en señal de aceptación."),
+        ACEPDoc()
+      ] })},
+  {key:"prop_diagnostico", tipo:"propuesta", nombre:"Diagnóstico + Operación Renta", desc:"Diagnóstico tributario y contable, F22 y DJ específicas. Honorario único.", icon:"search", color:"green",
+    build:(ctx)=>({ ref:`Propuesta diagnóstico y Operación Renta AT${ctx.anio}`, firmante:"Kevin Varela Vergara", despedida:"Saluda cordialmente,",
+      bloques:[
+        PDoc(`En relación con el requerimiento de nuestros servicios, tenemos el agrado de enviar a usted nuestro programa de trabajo y determinación de honorarios para el servicio de diagnóstico tributario y contable y proceso de Operación Renta del año tributario ${ctx.anio} de las siguientes sociedades:`),
+        SOCDoc(ctx.soc.length ? ctx.soc : ["[SOCIEDAD]"]),
+        H1Doc("Objetivos Generales"),
+        PDoc("Realizar un diagnóstico integral de la situación tributaria y contable de la entidad, con el fin de identificar riesgos, contingencias, oportunidades de mejora y el cumplimiento normativo vigente, que permitan fortalecer la gestión financiera y asegurar la correcta aplicación de la normativa contable y tributaria aplicable."),
+        PDoc("Planificar, revisar y consolidar oportunamente la información contable y tributaria de las sociedades, asegurando el cumplimiento de los requisitos necesarios para una correcta y eficiente presentación de la Operación Renta."),
+        H1Doc("Programa de Trabajo", false),
+        ...buildModuloDoc("diagnostico", ctx),
+        ...buildModuloDoc("renta", Object.assign({}, ctx, {at:ctx.anio})),
+        ...buildModuloDoc("djEspecificas", Object.assign({}, ctx, {at:ctx.anio})),
+        consultasPDoc(),
+        H1Doc("Honorarios"),
+        PDoc("Para desarrollar el programa propuesto, hemos estimado preliminarmente nuestros honorarios profesionales de la siguiente manera:"),
+        HONDoc([{actividad:`Servicio de diagnóstico y Operación Renta AT${ctx.anio}`, periodicidad:"Única vez", items:honItemsDoc(ctx.soc)}]),
+        PDoc("Cabe señalar que los honorarios serán reevaluados en la medida que la sociedad incremente significativamente el número de transacciones."),
+        PDoc("La forma de pago será al contado, contra factura. La presente propuesta tiene una validez de 30 días desde su fecha de emisión."),
+        SALTODoc(),
+        H1Doc("Carta de Aceptación"),
+        PDoc("Si usted está de acuerdo con los términos de la presente propuesta, le agradecemos nos haga llegar copia de la misma con su firma en señal de aceptación."),
+        ACEPDoc()
+      ] })},
+  {key:"prop_remuneraciones", tipo:"propuesta", nombre:"Servicio de remuneraciones", desc:"Solo remuneraciones: liquidaciones, contratos, LRE, Previred.", icon:"users", color:"purple",
+    build:(ctx)=>({ ref:"Propuesta servicio de remuneraciones", firmante:"Kevin Varela Vergara", despedida:"Atentos a vuestros comentarios,",
+      bloques:[
+        PDoc("En relación con el requerimiento de nuestros servicios, tenemos el agrado de enviar a usted nuestro programa de trabajo y determinación de honorarios para el servicio de remuneraciones de las siguientes sociedades:"),
+        SOCDoc(ctx.soc.length ? ctx.soc : ["[SOCIEDAD]"]),
+        H1Doc("Objetivos Generales"),
+        PDoc("Asegurar el correcto cálculo, pago y declaración de las remuneraciones y cotizaciones previsionales de los trabajadores, dando cumplimiento a la normativa laboral y previsional vigente."),
+        H1Doc("Programa de Trabajo", false),
+        ...buildModuloDoc("remuneraciones", ctx),
+        consultasPDoc(),
+        H1Doc("Honorarios"),
+        PDoc("Para desarrollar el programa propuesto, hemos estimado preliminarmente nuestros honorarios profesionales de la siguiente manera:"),
+        HONDoc([{actividad:"Servicio de remuneraciones", periodicidad:"Mensual", items:honItemsDoc(ctx.soc)}]),
+        PDoc("Nuestro servicio de remuneraciones considera hasta [N°] trabajadores. En caso de requerir la incorporación de trabajadores adicionales, se aplicará un cargo de [0,3] UF por cada uno."),
+        PDoc("La forma de pago será al contado, contra factura. La presente propuesta tiene una validez de 30 días desde su fecha de emisión."),
+        SALTODoc(),
+        H1Doc("Carta de Aceptación"),
+        PDoc("Si usted está de acuerdo con los términos de la presente propuesta, le agradecemos nos haga llegar copia de la misma con su firma en señal de aceptación."),
+        ACEPDoc()
+      ] })},
+  {key:"prop_blanco", tipo:"propuesta", nombre:"Propuesta en blanco", desc:"Estructura base: objetivos, programa, honorarios y aceptación.", icon:"filePlus", color:"slate",
+    build:(ctx)=>({ ref:"Propuesta de servicios profesionales", firmante:"Kevin Varela Vergara", despedida:"Atentos a vuestros comentarios,",
+      bloques:[
+        PDoc("En relación con el requerimiento de nuestros servicios, tenemos el agrado de enviar a usted nuestro programa de trabajo y determinación de honorarios para las siguientes sociedades:"),
+        SOCDoc(ctx.soc.length ? ctx.soc : ["[SOCIEDAD]"]),
+        H1Doc("Objetivos Generales"),
+        PDoc("[OBJETIVO]"),
+        H1Doc("Programa de Trabajo", false),
+        H2Doc("[SERVICIO]"),
+        ULDoc(["[ACTIVIDAD]"]),
+        H1Doc("Honorarios"),
+        PDoc("Para desarrollar el programa propuesto, hemos estimado preliminarmente nuestros honorarios profesionales de la siguiente manera:"),
+        HONDoc([{actividad:"[SERVICIO]", periodicidad:"Mensual", items:honItemsDoc(ctx.soc)}]),
+        PDoc("La forma de pago será al contado, contra factura."),
+        H1Doc("Carta de Aceptación"),
+        PDoc("Si usted está de acuerdo con los términos de la presente propuesta, le agradecemos nos haga llegar copia de la misma con su firma en señal de aceptación."),
+        ACEPDoc()
+      ] })}
+];
+
+// ---------- Render de texto / documento ----------
+function fmtInlineDoc(text){
+  let s = escapeHtml(text);
+  s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(https?:\/\/[^\s<]+[^\s<.,;:)])/g, '<a href="$1">$1</a>');
+  s = s.replace(/\[([^\]\n]{1,80})\]/g, '<mark class="ph">[$1]</mark>');
+  return s.replace(/\n/g, "<br>");
+}
+function romanDoc(n){
+  const map = [[10,"x"],[9,"ix"],[5,"v"],[4,"iv"],[1,"i"]];
+  let r = ""; map.forEach(([v,s])=>{ while(n>=v){ r+=s; n-=v; } }); return r;
+}
+function labelNivel1Doc(n, fmt){
+  if(fmt === "A.") return String.fromCharCode(64+n) + ".";
+  if(fmt === "1.") return n + ".";
+  if(fmt === "I.") return romanDoc(n).toUpperCase() + ".";
+  if(fmt === "none") return "";
+  return String.fromCharCode(96+n) + ")";
+}
+function headingLabelsDoc(doc){
+  const labels = [];
+  let n1 = 0, n2 = 0;
+  doc.bloques.forEach((b,i)=>{
+    if(b.t !== "h") return;
+    if(b.nivel === 1){
+      n2 = 0;
+      if(b.num){ n1++; labels[i] = labelNivel1Doc(n1, doc.numeracion); }
+    } else if(b.num){
+      n2++; labels[i] = romanDoc(n2) + ")";
+    }
+  });
+  return labels;
+}
+function isNumericCellDoc(c){ return /^[\s$+\-–]*[\d.,]+\s*%?$/.test(c.replace(/\*\*/g,"")) && /\d/.test(c); }
+function renderTablaDoc(b){
+  const rows = String(b.texto||"").split("\n").filter(l=>l.trim()!=="").map(l=>l.split("|").map(c=>c.trim()));
+  if(!rows.length) return "";
+  const cols = Math.max(...rows.map(r=>r.length));
+  let html = '<table class="dt">';
+  rows.forEach((r,ri)=>{
+    const header = b.encabezado && ri === 0;
+    html += "<tr>";
+    for(let ci=0; ci<cols; ci++){
+      const c = r[ci] || "";
+      const tag = header ? "th" : "td";
+      const cls = (!header && ci>0 && isNumericCellDoc(c)) ? ' class="n"' : "";
+      html += `<${tag}${cls}>${fmtInlineDoc(c)}</${tag}>`;
+    }
+    html += "</tr>";
+  });
+  return '<div class="tbl-wrap">' + html + "</table></div>";
+}
+function renderULDoc(b){
+  const lines = String(b.texto||"").split("\n").filter(l=>l.trim()!=="");
+  let html = "<ul>", openSub = false, openLi = false;
+  lines.forEach(l=>{
+    const sub = /^\s*-\s+/.test(l);
+    const txt = l.replace(/^\s*[-•]\s*/, "");
+    if(sub && openLi){
+      if(!openSub){ html += "<ul>"; openSub = true; }
+      html += `<li>${fmtInlineDoc(txt)}</li>`;
+    } else {
+      if(openSub){ html += "</ul>"; openSub = false; }
+      if(openLi) html += "</li>";
+      html += `<li>${fmtInlineDoc(txt)}`;
+      openLi = true;
+    }
+  });
+  if(openSub) html += "</ul>";
+  if(openLi) html += "</li>";
+  return html + "</ul>";
+}
+function totalGrupoDoc(g){ return g.items.reduce((s,it)=>s + parseNum(it.uf), 0); }
+function renderHonDoc(b){
+  const clp = b.mostrarCLP && parseNum(b.valorUF) > 0;
+  const vuf = parseNum(b.valorUF);
+  let html = `<table class="dt"><thead><tr><th>Actividad</th><th>Periodicidad</th><th class="n">Honorarios UF</th>${clp?'<th class="n">Equivalente $</th>':""}</tr></thead><tbody>`;
+  (b.grupos||[]).forEach(g=>{
+    const tot = totalGrupoDoc(g);
+    html += `<tr class="grp"><td colspan="${clp?4:3}">${fmtInlineDoc(g.actividad)}:</td></tr>`;
+    g.items.forEach(it=>{
+      html += `<tr><td class="ind">• ${fmtInlineDoc(it.detalle)}</td><td>${escapeHtml(g.periodicidad)}</td><td class="n">${fmtUF(parseNum(it.uf))}</td>${clp?`<td class="n">${fmtCLP(parseNum(it.uf)*vuf)}</td>`:""}</tr>`;
+    });
+    if(g.items.length > 1 || (b.grupos||[]).length > 1){
+      html += `<tr class="tot"><td>Total</td><td>${escapeHtml(g.periodicidad)}</td><td class="n">${fmtUF(tot)}</td>${clp?`<td class="n">${fmtCLP(tot*vuf)}</td>`:""}</tr>`;
+    }
+  });
+  html += "</tbody></table>";
+  html = '<div class="tbl-wrap">' + html + "</div>";
+  if(clp) html += `<p style="font-size:9pt;color:#555">Equivalente en pesos referencial, calculado con UF de $${vuf.toLocaleString("es-CL",{minimumFractionDigits:2, maximumFractionDigits:2})}.</p>`;
+  return html;
+}
+function renderAcepDoc(b, doc){
+  const hon = doc.bloques.find(x=>x.t==="hon");
+  let html = '<div class="acep">';
+  html += `<p style="text-align:left">${fmtInlineDoc(b.destinatario||"")}</p>`;
+  html += "<p>De nuestra consideración:</p>";
+  html += "<p>La presente tiene por objeto informarles que estamos de acuerdo con los términos de la presente proposición de trabajo y honorarios, los que se resumen a continuación:</p>";
+  if(hon && hon.grupos && hon.grupos.length){
+    html += '<div class="tbl-wrap"><table class="dt"><thead><tr><th>Actividad</th><th>Periodicidad</th><th class="n">Honorarios UF</th></tr></thead><tbody>';
+    hon.grupos.forEach(g=>{
+      html += `<tr><td>${fmtInlineDoc(g.actividad)}</td><td>${escapeHtml(g.periodicidad)}</td><td class="n">${fmtUF(totalGrupoDoc(g))}</td></tr>`;
+    });
+    html += "</tbody></table></div>";
+  } else {
+    html += '<p><mark class="ph">[Agrega un bloque de Honorarios para generar el resumen]</mark></p>';
+  }
+  if(b.facturacion){
+    html += "<p><strong>Datos para facturación y cobranza:</strong></p>";
+    html += '<table class="form">' + ["Razón social","RUT","Nombre de contacto","Dirección de correo","Cargo"].map(k=>`<tr><td class="k">${k}</td><td>:&nbsp;</td><td class="v">&nbsp;</td></tr>`).join("") + "</table>";
+  }
+  html += '<div class="firmas"><div><div class="lin"></div>Firma aceptación</div><div><div class="lin"></div>Nombre y RUT</div><div><div class="lin"></div>Cargo y fecha</div></div>';
+  return html + "</div>";
+}
+function footerHtmlDoc(){
+  const c = cfg();
+  const parts = (c.oficinas||[]).filter(o=>o.ciudad||o.direccion).map(o=>
+    `${escapeHtml(o.direccion)}${o.ciudad?", "+escapeHtml(o.ciudad):""}${o.telefono?" · "+escapeHtml(o.telefono):""}`);
+  const extra = [c.contacto, c.web].filter(Boolean).map(escapeHtml);
+  return `<strong>${escapeHtml(c.firmaLegal)}</strong><br>${parts.join(" &nbsp;&#8226;&nbsp; ")}${extra.length?"<br>"+extra.join(" &nbsp;&#8226;&nbsp; "):""}`;
+}
+function renderDocBody(doc){
+  const c = cfg();
+  const labels = headingLabelsDoc(doc);
+  const logo = logoSrc();
+  let h = "";
+  h += '<table class="lh"><tr>';
+  if(logo) h += `<td class="lh-logo"><img src="${escapeHtml(logo)}" alt="${escapeHtml(c.firmaCorta)}"></td>`;
+  h += `<td class="lh-name"><div class="legal">${escapeHtml(c.firmaLegal)}</div><div class="tag">Contabilidad &middot; Tributaria &middot; Remuneraciones</div></td>`;
+  h += `<td class="lh-num"><table class="badge"><tr><td>${escapeHtml(numeroDoc(doc))}</td></tr></table></td>`;
+  h += "</tr></table>";
+  h += '<hr class="lh-rule"><hr class="lh-rule2">';
+  h += '<table class="d-meta">';
+  const meta = [["De", doc.de], [doc.labelPara || "Para", doc.para], ["Ref.", doc.ref], ["Fecha", fmtFechaDoc(doc.fecha)]];
+  meta.forEach(([k,v])=>{ h += `<tr><td class="k">${escapeHtml(k)}</td><td class="s">:</td><td>${fmtInlineDoc(v||"")}</td></tr>`; });
+  h += "</table>";
+  if(doc.saludo) h += `<p style="margin-top:6px">${fmtInlineDoc(doc.saludo)}</p>`;
+  doc.bloques.forEach((b,i)=>{
+    switch(b.t){
+      case "p": if(String(b.texto||"").trim()) h += `<p>${fmtInlineDoc(b.texto)}</p>`; break;
+      case "h":
+        if(b.nivel === 1) h += `<h4 class="h1">${labels[i]?labels[i]+" ":""}${fmtInlineDoc(b.texto)}</h4>`;
+        else h += `<h5 class="h2">${labels[i]?labels[i]+" ":""}${fmtInlineDoc(b.texto)}</h5>`;
+        break;
+      case "ul": h += renderULDoc(b); break;
+      case "tabla": h += renderTablaDoc(b); break;
+      case "nota": h += `<div class="nota"><p>${b.titulo?`<strong>${fmtInlineDoc(b.titulo)}:</strong> `:""}${fmtInlineDoc(b.texto||"")}</p></div>`; break;
+      case "salto": h += '<div class="salto"><span>salto de página</span></div>'; break;
+      case "soc": {
+        const items = String(b.texto||"").split("\n").map(s=>s.trim()).filter(Boolean);
+        h += '<ol class="soc">' + items.map(s=>`<li>${fmtInlineDoc(s)}</li>`).join("") + "</ol>";
+        break;
+      }
+      case "hon": h += renderHonDoc(b); break;
+      case "acep": h += renderAcepDoc(b, doc); break;
+    }
+  });
+  const f = doc.firmanteId ? firmanteDocById(doc.firmanteId) : null;
+  const fn = f ? f.nombre : doc.firmaNombre;
+  const fc = f ? f.cargo : doc.firmaCargo;
+  if(doc.despedida || fn){
+    h += '<div class="firma">';
+    if(doc.despedida) h += `<p style="margin-bottom:0">${fmtInlineDoc(doc.despedida)}</p>`;
+    if(fn){
+      h += '<div class="esp"></div><div class="lin"></div>';
+      h += `<strong>${escapeHtml(fn)}</strong>`;
+      if(fc) h += `<br>${escapeHtml(fc)}`;
+      h += `<br>${escapeHtml(c.firmaLegal)}`;
+      if(f && f.email) h += `<br>${escapeHtml(f.email)}`;
+    }
+    h += "</div>";
+  }
+  if(doc.iniciales) h += `<div class="iniciales">${escapeHtml(doc.iniciales)}</div>`;
+  return h;
+}
+
+// ---------- Validaciones (avisos, no bloquean el guardado) ----------
+function validarDoc(doc){
+  const w = [];
+  const textos = [doc.de, doc.para, doc.ref, doc.saludo, doc.despedida];
+  doc.bloques.forEach(b=>{
+    if(b.texto) textos.push(b.texto);
+    if(b.titulo) textos.push(b.titulo);
+    if(b.t === "hon") (b.grupos||[]).forEach(g=>{ textos.push(g.actividad); g.items.forEach(it=>textos.push(it.detalle)); });
+  });
+  const ph = new Set();
+  textos.forEach(t=>{ (String(t||"").match(/\[[^\]\n]{1,80}\]/g)||[]).forEach(m=>ph.add(m)); });
+  if(ph.size) w.push(`Hay ${ph.size} dato(s) pendiente(s) entre corchetes: ${[...ph].slice(0,6).join(", ")}${ph.size>6?"…":""}`);
+  if(!String(doc.ref||"").trim()) w.push("Falta la referencia (Ref.).");
+  if(!String(doc.para||"").trim()) w.push("Falta el destinatario.");
+  const dup = (state.documentosTrabajo||[]).find(d=>d.id!==doc.id && d.tipo===doc.tipo && Number(d.anio)===Number(doc.anio) && Number(d.numero)===Number(doc.numero));
+  if(dup) w.push(`El N° ${padNum(doc.numero)}/${doc.anio} ya está usado por otro ${doc.tipo} ("${dup.ref}").`);
+  const soc = doc.bloques.find(b=>b.t==="soc");
+  const hons = doc.bloques.filter(b=>b.t==="hon");
+  if(doc.tipo === "propuesta"){
+    if(!hons.length) w.push("La propuesta no tiene tabla de honorarios.");
+    if(!doc.bloques.some(b=>b.t==="acep")) w.push("La propuesta no incluye carta de aceptación.");
+  }
+  if(soc && hons.length){
+    const norm = s=>String(s).toLowerCase().replace(/^sociedad\s+/,"").replace(/\s+(limitada|ltda\.?|spa|s\.a\.)$/,"").replace(/[^a-z0-9áéíóúñ ]/g,"").trim();
+    const detalles = [];
+    hons.forEach(h=>(h.grupos||[]).forEach(g=>g.items.forEach(it=>detalles.push(norm(it.detalle)))));
+    const faltan = String(soc.texto||"").split("\n").map(s=>s.trim()).filter(Boolean)
+      .filter(s=>!/^\[.*\]$/.test(s))
+      .filter(s=>{ const n = norm(s); return n && !detalles.some(d=>d && (d.includes(n) || n.includes(d))); });
+    if(faltan.length) w.push(`Sociedades listadas sin honorario asignado: ${faltan.join("; ")}.`);
+  }
+  hons.forEach(h=>(h.grupos||[]).forEach(g=>{
+    const ceros = g.items.filter(it=>parseNum(it.uf)===0).map(it=>it.detalle);
+    if(ceros.length) w.push(`"${g.actividad}": ${ceros.length} ítem(s) con 0 UF (${ceros.slice(0,3).join(", ")}${ceros.length>3?"…":""}).`);
+  }));
+  return w;
+}
+// ==================== FIN MEMOS Y PROPUESTAS (parte 1: datos y motor) ====================
+
+// ==================== MEMOS Y PROPUESTAS (parte 2: pantallas) ====================
+let docEditorId = null;       // id del documento abierto en el Editor (null = ninguno)
+let bloqueEnfocadoDoc = -1;   // índice del bloque con foco (borde dorado + los nuevos bloques se insertan después de este)
+let docsFiltroTexto = '', docsFiltroTipo = '', docsFiltroEstado = '', docsFiltroAnio = '';
+
+function currentDocEnEdicion(){ return (state.documentosTrabajo||[]).find(d=>d.id===docEditorId); }
+
+function honMensualDoc(d){
+  let t = 0;
+  d.bloques.filter(b=>b.t==="hon").forEach(h=>(h.grupos||[]).forEach(g=>{ if(g.periodicidad==="Mensual") t += totalGrupoDoc(g); }));
+  return t;
+}
+
+// ---------- Vista "Documentos": estadísticas, nuevo documento, plantillas, registro ----------
+function documentosTrabajoContent(){
+  const docs = state.documentosTrabajo || [];
+  const y = new Date().getFullYear();
+  const delAnio = docs.filter(d=>Number(d.anio)===y);
+  const props = docs.filter(d=>d.tipo==="propuesta");
+  const pend = props.filter(d=>d.estado==="Enviada");
+  const acep = props.filter(d=>d.estado==="Aceptada" && Number(d.anio)===y);
+  const cerradas = props.filter(d=>(d.estado==="Aceptada"||d.estado==="Rechazada") && Number(d.anio)===y);
+  const tasa = cerradas.length ? Math.round(acep.length/cerradas.length*100) + "%" : "—";
+  const ufMensual = acep.reduce((s,d)=>s+honMensualDoc(d),0);
+  const stats = [
+    [delAnio.filter(d=>d.tipo==="memo").length, `Memos ${y}`, "doc", "blue"],
+    [delAnio.filter(d=>d.tipo==="propuesta").length, `Propuestas ${y}`, "bulb", "green"],
+    [pend.length, "Propuestas enviadas sin respuesta", "send", "purple"],
+    [tasa, `Tasa de aceptación ${y}`, "percent", "orange"],
+    [fmtUF(ufMensual) + " UF", `Honorarios mensuales aceptados ${y}`, "clock", "teal"]
+  ];
+
+  const clientesOrdenados = [...state.clientes].sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  const tplHtml = p => `<button class="tpl" onclick="crearDocumentoDesdePlantilla('${p.key}')"><div class="chip chip-${p.color||'blue'}">${ICONS_DOC[p.icon]||ICONS_DOC.doc}</div><strong>${escapeHtml(p.nombre)}</strong><span>${escapeHtml(p.desc)}</span></button>`;
+  const plantillasUsuario = state.plantillasUsuarioDocumentos || [];
+
+  const q = (docsFiltroTexto||'').trim().toLowerCase();
+  const estadosDisponibles = docsFiltroTipo ? ESTADOS_DOC[docsFiltroTipo] : [...new Set([...ESTADOS_DOC.memo, ...ESTADOS_DOC.propuesta])];
+  const aniosDisponibles = [...new Set(docs.map(d=>Number(d.anio)))].sort((a,b)=>b-a);
+  const rows = docs
+    .filter(d=>!docsFiltroTipo || d.tipo===docsFiltroTipo)
+    .filter(d=>!docsFiltroEstado || d.estado===docsFiltroEstado)
+    .filter(d=>!docsFiltroAnio || Number(d.anio)===Number(docsFiltroAnio))
+    .filter(d=>!q || [numeroDoc(d), d.para, d.ref, d.de].join(" ").toLowerCase().includes(q))
+    .sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||"") || b.numero - a.numero);
+
+  return `
+    <div class="main-head">
+      <div>
+        <h2 class="display">Memos y Propuestas</h2>
+        <div class="meta">Confección de memos a clientes, circulares internas y propuestas de servicio.</div>
+      </div>
+    </div>
+    <div class="stats">
+      ${stats.map(([v,l,icon,color])=>`<div class="stat"><div class="chip chip-${color}">${ICONS_DOC[icon]}</div><div><div class="v">${escapeHtml(String(v))}</div><div class="l">${escapeHtml(l)}</div></div></div>`).join('')}
+    </div>
+
+    <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:18px;">
+      <h4 style="margin:0 0 10px;font-size:14px;">Nuevo documento</h4>
+      <div class="onboard-grid" style="margin-bottom:8px;">
+        <label>Cliente (opcional — completa destinatario, saludo y sociedades)
+          <select id="docNuevoCliente">
+            <option value="">— Sin cliente / envío masivo —</option>
+            ${clientesOrdenados.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}${c.grupo?' | '+escapeHtml(c.grupo):''}</option>`).join('')}
+          </select>
+        </label>
+        <label>Fecha del documento
+          <input type="date" id="docNuevoFecha" value="${todayISO()}">
+        </label>
+      </div>
+      <div class="tpl-head"><h3><span class="chip sm chip-blue">${ICONS_DOC.filePlus}</span>Memos</h3></div>
+      <div class="tpl-grid">${PLANTILLAS_DOC.filter(p=>p.tipo==='memo').map(tplHtml).join('')}</div>
+      <div class="tpl-head"><h3><span class="chip sm chip-purple">${ICONS_DOC.bulb}</span>Propuestas de trabajo</h3></div>
+      <div class="tpl-grid">${PLANTILLAS_DOC.filter(p=>p.tipo==='propuesta').map(tplHtml).join('')}</div>
+      ${plantillasUsuario.length ? `
+      <div class="tpl-head"><h3><span class="chip sm chip-amber">${ICONS_DOC.star}</span>Mis plantillas</h3></div>
+      <div class="tpl-grid">${plantillasUsuario.map(p=>`
+        <div class="tpl" role="button" tabindex="0" onclick="crearDocumentoDesdePlantillaUsuario('${p.id}')">
+          <div class="chip chip-amber">${ICONS_DOC.star}</div>
+          <strong>${escapeHtml(p.nombre)} <span class="pill ${p.tipo}">${p.tipo}</span></strong><span>${escapeHtml(p.desc||'')}</span>
+          <div style="margin-top:2px;"><button class="btn ghost small" onclick="event.stopPropagation();eliminarPlantillaUsuario('${p.id}')">Eliminar</button></div>
+        </div>`).join('')}</div>
+      ` : ''}
+    </div>
+
+    <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;">
+      <h4 style="margin:0 0 10px;font-size:14px;">Registro de documentos</h4>
+      <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+        <input type="search" value="${escapeAttr(docsFiltroTexto)}" oninput="docsFiltroTexto=this.value;renderApp();" placeholder="Buscar por N°, destinatario o referencia…" style="min-width:240px;flex:1;">
+        <select onchange="docsFiltroTipo=this.value;docsFiltroEstado='';renderApp();">
+          <option value="">Todos los tipos</option>
+          <option value="memo" ${docsFiltroTipo==='memo'?'selected':''}>Memos</option>
+          <option value="propuesta" ${docsFiltroTipo==='propuesta'?'selected':''}>Propuestas</option>
+        </select>
+        <select onchange="docsFiltroEstado=this.value;renderApp();">
+          <option value="">Todos los estados</option>
+          ${estadosDisponibles.map(e=>`<option value="${e}" ${docsFiltroEstado===e?'selected':''}>${e}</option>`).join('')}
+        </select>
+        <select onchange="docsFiltroAnio=this.value;renderApp();">
+          <option value="">Todos los años</option>
+          ${aniosDisponibles.map(a=>`<option value="${a}" ${String(docsFiltroAnio)===String(a)?'selected':''}>${a}</option>`).join('')}
+        </select>
+      </div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>N°</th><th>Tipo</th><th>Fecha</th><th>Para / Dirigida a</th><th>Referencia</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+          ${rows.length ? rows.map(d=>`
+            <tr>
+              <td class="mono" style="white-space:nowrap;">${d.tipo==='propuesta'?'P-':''}${padNum(d.numero)}/${d.anio}</td>
+              <td><span class="pill ${d.tipo}">${d.tipo==='propuesta'?'Propuesta':'Memo'}</span></td>
+              <td style="white-space:nowrap;">${escapeHtml(fmtFechaDoc(d.fecha))}</td>
+              <td>${escapeHtml(d.para||'—')}</td>
+              <td>${escapeHtml(d.ref||'—')}</td>
+              <td>
+                <select onchange="cambiarEstadoDocumento('${d.id}', this.value)">
+                  ${ESTADOS_DOC[d.tipo].map(e=>`<option value="${e}" ${d.estado===e?'selected':''}>${e}</option>`).join('')}
+                </select>
+              </td>
+              <td class="row-actions" style="white-space:nowrap;">
+                <button class="btn secondary small" onclick="abrirEditorDocumento('${d.id}')">Abrir</button>
+                <button class="btn ghost small" onclick="duplicarDocumento('${d.id}')">Duplicar</button>
+                <button class="btn danger small" onclick="eliminarDocumento('${d.id}')">Eliminar</button>
+              </td>
+            </tr>
+          `).join('') : `<tr><td colspan="7" style="padding:32px;text-align:center;color:#8a8879;">${docs.length ? 'Sin resultados para el filtro.' : 'Aún no hay documentos. Elige una plantilla arriba para crear el primero.'}</td></tr>`}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  `;
+}
+
+async function crearDocumentoDesdePlantilla(plantillaKey){
+  const p = PLANTILLAS_DOC.find(x=>x.key===plantillaKey);
+  if(!p) return;
+  const fecha = document.getElementById('docNuevoFecha').value || todayISO();
+  const clienteId = document.getElementById('docNuevoCliente').value || null;
+  const cli = clienteDocById(clienteId);
+  const ctx = ctxForDoc(fecha, cli);
+  const contenido = p.build(ctx);
+  await crearYAbrirDocumento(p.tipo, contenido, fecha, clienteId, cli);
+}
+
+async function crearDocumentoDesdePlantillaUsuario(plantillaUsuarioId){
+  const p = (state.plantillasUsuarioDocumentos||[]).find(x=>x.id===plantillaUsuarioId);
+  if(!p) return;
+  const fecha = document.getElementById('docNuevoFecha').value || todayISO();
+  const clienteId = document.getElementById('docNuevoCliente').value || null;
+  const cli = clienteDocById(clienteId);
+  const contenido = clone(p.contenido);
+  if(cli){
+    contenido.para = textoPara(cli);
+    contenido.saludo = saludoCliente(cli);
+    contenido.bloques.forEach(b=>{ if(b.t==='soc' && cli.sociedades.length) b.texto = cli.sociedades.join('\n'); });
+  }
+  await crearYAbrirDocumento(p.tipo, contenido, fecha, clienteId, cli);
+}
+
+// Crea el documento pidiendo el N° al backend (bajo lock — ver
+// asignarCorrelativo en Code.gs) y recién entonces lo agrega a
+// state.documentosTrabajo. Si el backend falla, no se crea nada con un
+// número inventado (mismo criterio que el control de Propuestas original).
+async function crearYAbrirDocumento(tipo, contenido, fecha, clienteId, cli){
+  const anio = Number(fecha.slice(0,4));
+  showToast('Asignando número…');
+  const numero = await obtenerCorrelativo(tipo, anio);
+  if(numero == null){ showToast('No se pudo asignar el número. Intenta de nuevo.'); return; }
+  const firm = contenido.firmanteId ? firmanteDocById(contenido.firmanteId) : (contenido.firmante ? firmanteDocByNombre(contenido.firmante) : null);
+  const deDefault = tipo === 'propuesta'
+    ? (firm ? `Sr. ${firm.nombre} / ${cfg().firmaCorta}` : cfg().firmaCorta)
+    : (contenido.deFirmante && firm ? firm.nombre : cfg().firmaCorta);
+  const doc = {
+    id: uid('doc'), tipo, numero, anio, fecha, estado: 'Borrador',
+    clienteId: clienteId || null,
+    de: contenido.de !== undefined ? contenido.de : deDefault,
+    labelPara: tipo === 'propuesta' ? 'Dirigida a' : 'Para',
+    para: contenido.para !== undefined ? contenido.para : (cli ? textoPara(cli) : '[DESTINATARIO]'),
+    ref: contenido.ref || '',
+    saludo: contenido.saludo !== undefined ? contenido.saludo : (cli ? saludoCliente(cli) : (tipo==='propuesta' ? 'Estimado(a) [NOMBRE]:' : 'Estimado cliente:')),
+    numeracion: contenido.numeracion || 'a)',
+    bloques: clone(contenido.bloques || []),
+    despedida: contenido.despedida !== undefined ? contenido.despedida : 'Atentamente,',
+    firmanteId: firm ? firm.id : '',
+    firmaNombre: firm ? '' : (contenido.firmaNombre || ''),
+    firmaCargo: firm ? '' : (contenido.firmaCargo || ''),
+    iniciales: contenido.iniciales || '', notas: '',
+    creadoPor: currentUser.id, creado: new Date().toISOString(), modificado: new Date().toISOString(),
+  };
+  if(!state.documentosTrabajo) state.documentosTrabajo = [];
+  state.documentosTrabajo.push(doc);
+  await saveDocumentosTrabajo();
+  showToast(`${tipo==='propuesta'?'Propuesta':'Memo'} N° ${numero}/${anio} creado.`);
+  abrirEditorDocumento(doc.id);
+}
+
+async function eliminarPlantillaUsuario(id){
+  if(!confirm('¿Eliminar esta plantilla guardada?')) return;
+  state.plantillasUsuarioDocumentos = (state.plantillasUsuarioDocumentos||[]).filter(p=>p.id!==id);
+  await saveConfig();
+  renderApp();
+}
+
+async function cambiarEstadoDocumento(id, estado){
+  const d = (state.documentosTrabajo||[]).find(x=>x.id===id);
+  if(!d) return;
+  d.estado = estado;
+  d.modificado = new Date().toISOString();
+  await saveDocumentosTrabajo();
+  renderApp();
+}
+
+async function duplicarDocumento(id){
+  const src = (state.documentosTrabajo||[]).find(d=>d.id===id);
+  if(!src) return;
+  const fecha = todayISO();
+  const anio = Number(fecha.slice(0,4));
+  showToast('Asignando número…');
+  const numero = await obtenerCorrelativo(src.tipo, anio);
+  if(numero == null){ showToast('No se pudo asignar el número. Intenta de nuevo.'); return; }
+  const copy = clone(src);
+  copy.id = uid('doc'); copy.fecha = fecha; copy.anio = anio; copy.numero = numero; copy.estado = 'Borrador';
+  copy.creadoPor = currentUser.id; copy.creado = copy.modificado = new Date().toISOString();
+  state.documentosTrabajo.push(copy);
+  await saveDocumentosTrabajo();
+  showToast(`Duplicado como N° ${numero}/${anio}.`);
+  abrirEditorDocumento(copy.id);
+}
+
+async function eliminarDocumento(id){
+  const d = (state.documentosTrabajo||[]).find(x=>x.id===id);
+  if(!d) return;
+  if(!confirm(`¿Eliminar ${numeroDoc(d)} — "${d.ref}"? Esta acción no se puede deshacer.`)) return;
+  state.documentosTrabajo = state.documentosTrabajo.filter(x=>x.id!==id);
+  if(docEditorId === id) docEditorId = null;
+  await saveDocumentosTrabajo();
+  renderApp();
+  showToast('Documento eliminado.');
+}
+
+function abrirEditorDocumento(id){
+  docEditorId = id;
+  bloqueEnfocadoDoc = -1;
+  setTab('documentos-trabajo-editor');
+}
+
+// ---------- Vista "Editor" ----------
+function documentosTrabajoEditorContent(){
+  const doc = currentDocEnEdicion();
+  if(!doc){
+    return `
+      <div class="main-head"><div><h2 class="display">Editor</h2><div class="meta">Ningún documento abierto.</div></div></div>
+      <div class="empty-state"><div class="display">Elige una plantilla</div><div>Ve a "Documentos" y elige una plantilla, o abre un documento existente desde el registro.</div></div>
+    `;
+  }
+  const clientesOrdenados = [...state.clientes].sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  const opt = (value, label, sel) => `<option value="${escapeAttr(value)}" ${String(value)===String(sel)?'selected':''}>${escapeHtml(label)}</option>`;
+  const firmantesOpts = '<option value="">— Personalizado —</option>' + (state.firmantesDocumentos||[]).map(f=>opt(f.id, f.nombre + (f.cargo?' · '+f.cargo:''), doc.firmanteId)).join('');
+  const clientesOpts = '<option value="">— Sin cliente —</option>' + clientesOrdenados.map(c=>opt(c.id, c.name + (c.grupo?' | '+c.grupo:''), doc.clienteId)).join('');
+  const warns = validarDoc(doc);
+  const labels = ['Para','Dirigida a','A'];
+
+  return `
+    <div class="main-head">
+      <div><h2 class="display">${escapeHtml(numeroDoc(doc))} · ${doc.tipo==='propuesta'?'Propuesta':'Memo'}</h2><div class="meta">${escapeHtml(doc.ref||'Sin referencia')}</div></div>
+    </div>
+    <div class="editor-layout">
+      <div class="editor-pane">
+        <div class="card">
+          <h3>Encabezado</h3>
+          <div class="meta-grid">
+            <label>N° correlativo<input type="number" value="${doc.numero}" disabled title="El N° se asigna automáticamente al crear el documento y no se puede editar."></label>
+            <label>Año<input type="number" value="${doc.anio}" disabled></label>
+            <label>Fecha<input type="date" value="${escapeAttr(doc.fecha)}" onchange="actualizarMetaDoc('fecha', this.value)"></label>
+            <label>Estado<select onchange="actualizarMetaDoc('estado', this.value)">${ESTADOS_DOC[doc.tipo].map(e=>opt(e,e,doc.estado)).join('')}</select></label>
+            <label class="full">Cliente
+              <div style="display:flex;gap:6px;">
+                <select id="edCliente" style="flex:1;" onchange="actualizarMetaDoc('clienteId', this.value || null)">${clientesOpts}</select>
+                <button class="btn ghost small" type="button" onclick="aplicarDatosClienteDoc()" title="Completa destinatario, saludo, sociedades y honorarios con los datos del cliente">Aplicar datos</button>
+              </div>
+            </label>
+            <label class="full">De<input type="text" value="${escapeAttr(doc.de)}" onchange="actualizarMetaDoc('de', this.value)"></label>
+            <label>Etiqueta destinatario<select onchange="actualizarMetaDoc('labelPara', this.value)">${labels.map(l=>opt(l,l,doc.labelPara)).join('')}</select></label>
+            <label>Numeración de títulos<select onchange="actualizarMetaDoc('numeracion', this.value)">${[['a)','a) b) c)'],['A.','A. B. C.'],['1.','1. 2. 3.'],['I.','I. II. III.'],['none','Sin numeración']].map(([v,l])=>opt(v,l,doc.numeracion)).join('')}</select></label>
+            <label class="full">${escapeHtml(doc.labelPara||'Para')}<input type="text" value="${escapeAttr(doc.para)}" onchange="actualizarMetaDoc('para', this.value)"></label>
+            <label class="full">Referencia<input type="text" value="${escapeAttr(doc.ref)}" onchange="actualizarMetaDoc('ref', this.value)"></label>
+            <label class="full">Saludo (vacío = sin saludo)<input type="text" value="${escapeAttr(doc.saludo)}" onchange="actualizarMetaDoc('saludo', this.value)"></label>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Contenido</h3>
+          <div class="hint" style="margin:-4px 0 10px;">Usa <b>**texto**</b> para negrita. Lo que esté entre <mark style="background:#ffe58a;">[CORCHETES]</mark> se marca como dato pendiente de completar. Los títulos se numeran solos.</div>
+          <div>${doc.bloques.map((b,i)=>bloqueEditorHtml(b,i)).join('') || '<div class="hint">Sin contenido. Agrega bloques con los botones de abajo.</div>'}</div>
+          <div class="add-bar">
+            <button onclick="agregarBloqueDoc('p')">+ Párrafo</button>
+            <button onclick="agregarBloqueDoc('h1')">+ Título</button>
+            <button onclick="agregarBloqueDoc('h2')">+ Subtítulo</button>
+            <button onclick="agregarBloqueDoc('ul')">+ Viñetas</button>
+            <button onclick="agregarBloqueDoc('tabla')">+ Tabla</button>
+            <button onclick="agregarBloqueDoc('nota')">+ Nota destacada</button>
+            <button onclick="agregarBloqueDoc('soc')">+ Sociedades</button>
+            <button onclick="agregarBloqueDoc('hon')">+ Honorarios</button>
+            <button onclick="agregarBloqueDoc('acep')">+ Carta aceptación</button>
+            <button onclick="agregarBloqueDoc('salto')">+ Salto de página</button>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div class="field grow">
+              <label>Insertar módulo de servicio (programa de trabajo)</label>
+              <select id="docModSelect">${MODULOS_DOC.map(m=>opt(m.key,m.nombre,'')).join('')}</select>
+            </div>
+            <button class="btn small" onclick="insertarModuloDoc()">Insertar</button>
+          </div>
+          <div class="hint">Los bloques nuevos se insertan después del bloque seleccionado (borde dorado) o al final.</div>
+        </div>
+        <div class="card">
+          <h3>Cierre</h3>
+          <div class="cierre-grid">
+            <label class="full">Despedida<input type="text" value="${escapeAttr(doc.despedida)}" onchange="actualizarMetaDoc('despedida', this.value)"></label>
+            <label class="full">Firmante<select onchange="actualizarMetaDoc('firmanteId', this.value)">${firmantesOpts}</select></label>
+            ${doc.firmanteId ? '' : `
+            <label>Nombre firmante<input type="text" value="${escapeAttr(doc.firmaNombre)}" onchange="actualizarMetaDoc('firmaNombre', this.value)"></label>
+            <label>Cargo<input type="text" value="${escapeAttr(doc.firmaCargo)}" onchange="actualizarMetaDoc('firmaCargo', this.value)"></label>`}
+            <label>Iniciales / archivo<input type="text" value="${escapeAttr(doc.iniciales)}" onchange="actualizarMetaDoc('iniciales', this.value)"></label>
+            <label class="full">Notas internas (no se imprimen)<textarea rows="2" onchange="actualizarMetaDoc('notas', this.value)">${escapeHtml(doc.notas||'')}</textarea></label>
+          </div>
+        </div>
+        <button class="btn secondary" onclick="setTab('documentos-trabajo')">← Volver al registro</button>
+      </div>
+
+      <div class="sticky-preview">
+        <div class="preview-bar no-print">
+          <button class="btn" onclick="imprimirDocumentoActual()">Imprimir / Guardar PDF</button>
+          <button class="btn ghost" onclick="descargarWordDocumentoActual()">Descargar Word</button>
+          <button class="btn ghost" onclick="duplicarDocumento('${doc.id}')">Duplicar</button>
+          <button class="btn ghost" onclick="abrirModalGuardarPlantilla()">Guardar como plantilla</button>
+        </div>
+        <div class="warns no-print">${warns.length ? warns.map(w=>`<div class="w">⚠ ${escapeHtml(w)}</div>`).join('') : '<div class="okline">✓ Documento sin observaciones pendientes.</div>'}</div>
+        <div class="preview-scroll">
+          <div class="paper" id="paperDoc" style="--doc:${escapeAttr(cfg().colorDoc||'#0A1A73')};">${renderDocBody(doc)}<div class="doc-footer">${footerHtmlDoc()}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-bg-doc" id="modalPlantillaDoc">
+      <div class="modal-doc">
+        <h3 class="display">Guardar como plantilla</h3>
+        <p class="hint" style="margin-top:0;">Se guarda el contenido actual (sin número ni fecha) para reutilizarlo en nuevos documentos.</p>
+        <div class="field" style="margin-bottom:10px;display:flex;flex-direction:column;gap:4px;"><label style="font-size:12px;color:#6b6a5f;">Nombre de la plantilla</label><input type="text" id="plNombreDoc"></div>
+        <div class="field" style="margin-bottom:14px;display:flex;flex-direction:column;gap:4px;"><label style="font-size:12px;color:#6b6a5f;">Descripción</label><input type="text" id="plDescDoc"></div>
+        <div class="row">
+          <button class="btn" onclick="guardarPlantillaUsuario()">Guardar</button>
+          <button class="btn secondary" onclick="cerrarModalGuardarPlantilla()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+const TIPO_LABEL_BLOQUE = {p:'Párrafo', h:'Título', ul:'Viñetas', tabla:'Tabla', nota:'Nota destacada', salto:'Salto de página', soc:'Sociedades', hon:'Honorarios', acep:'Carta de aceptación'};
+
+function bloqueEditorHtml(b, i){
+  const opt = (value, label, sel) => `<option value="${escapeAttr(value)}" ${String(value)===String(sel)?'selected':''}>${escapeHtml(label)}</option>`;
+  let body = '';
+  switch(b.t){
+    case 'p':
+      body = `<textarea onchange="actualizarBloqueDoc(${i}, 'texto', this.value)" rows="${Math.min(8, Math.max(2, Math.ceil(String(b.texto||'').length/70)))}">${escapeHtml(b.texto)}</textarea>`;
+      break;
+    case 'h':
+      body = `<input type="text" value="${escapeAttr(b.texto)}" onchange="actualizarBloqueDoc(${i}, 'texto', this.value)">
+        <div class="inl"><label>Nivel <select onchange="actualizarBloqueNivelDoc(${i}, this.value)">${opt(1,'Título (a, b, c)',b.nivel)}${opt(2,'Subtítulo (i, ii, iii)',b.nivel)}</select></label>
+        <label><input type="checkbox" ${b.num?'checked':''} onchange="actualizarBloqueDoc(${i}, 'num', this.checked)"> Numerar</label></div>`;
+      break;
+    case 'ul':
+      body = `<textarea onchange="actualizarBloqueDoc(${i}, 'texto', this.value)" rows="${Math.min(12, Math.max(3, String(b.texto||'').split('\n').length+1))}">${escapeHtml(b.texto)}</textarea>
+        <div class="hint">Una viñeta por línea. Empieza con "- " para una sub-viñeta.</div>`;
+      break;
+    case 'tabla':
+      body = `<textarea onchange="actualizarBloqueDoc(${i}, 'texto', this.value)" rows="${Math.min(14, Math.max(3, String(b.texto||'').split('\n').length+1))}" style="font-family:'IBM Plex Mono',monospace;font-size:0.8rem;white-space:pre;">${escapeHtml(b.texto)}</textarea>
+        <div class="inl"><label><input type="checkbox" ${b.encabezado?'checked':''} onchange="actualizarBloqueDoc(${i}, 'encabezado', this.checked)"> Primera fila es encabezado</label></div>
+        <div class="hint">Una fila por línea; separa columnas con | (barra vertical).</div>`;
+      break;
+    case 'nota':
+      body = `<input type="text" value="${escapeAttr(b.titulo)}" placeholder="Título (ej. Ten presente)" style="margin-bottom:6px;" onchange="actualizarBloqueDoc(${i}, 'titulo', this.value)">
+        <textarea onchange="actualizarBloqueDoc(${i}, 'texto', this.value)" rows="3">${escapeHtml(b.texto)}</textarea>`;
+      break;
+    case 'salto':
+      body = `<div class="hint" style="margin:0;">Al imprimir, el contenido siguiente comienza en una hoja nueva.</div>`;
+      break;
+    case 'soc':
+      body = `<textarea onchange="actualizarBloqueDoc(${i}, 'texto', this.value)" rows="${Math.min(10, Math.max(3, String(b.texto||'').split('\n').length+1))}">${escapeHtml(b.texto)}</textarea>
+        <div class="inl"><button class="btn ghost small" type="button" onclick="cargarSociedadesEnBloque(${i})">Cargar sociedades del cliente</button><span class="hint" style="margin:0;">Una por línea, se numeran solas.</span></div>`;
+      break;
+    case 'hon':
+      body = (b.grupos||[]).map((g,gi)=>`
+        <div class="hon-group">
+          <div style="display:flex;gap:6px;">
+            <input type="text" value="${escapeAttr(g.actividad)}" placeholder="Actividad" style="flex:1;" onchange="honActualizarCampo(${i}, ${gi}, 'actividad', this.value)">
+            <select onchange="honActualizarCampo(${i}, ${gi}, 'periodicidad', this.value)">${PERIODICIDADES_DOC.map(p=>opt(p,p,g.periodicidad)).join('')}</select>
+            <button class="btn small danger" type="button" onclick="honEliminarGrupo(${i}, ${gi})" title="Eliminar grupo">✕</button>
+          </div>
+          <table>${g.items.map((it,ii)=>`
+            <tr><td><input type="text" value="${escapeAttr(it.detalle)}" onchange="honActualizarItem(${i}, ${gi}, ${ii}, 'detalle', this.value)"></td>
+            <td class="uf" style="width:80px;"><input type="text" inputmode="decimal" value="${escapeAttr(String(it.uf).replace('.',','))}" onchange="honActualizarItem(${i}, ${gi}, ${ii}, 'uf', this.value)"></td>
+            <td style="width:28px;"><button class="btn ghost small" type="button" onclick="honEliminarItem(${i}, ${gi}, ${ii})" title="Quitar">✕</button></td></tr>`).join('')}
+          </table>
+          <div class="inl" style="justify-content:space-between;">
+            <span><button class="btn ghost small" type="button" onclick="honAgregarItem(${i}, ${gi})">+ Ítem</button>
+            <button class="btn ghost small" type="button" onclick="honCargarSociedades(${i}, ${gi})">Cargar sociedades</button>
+            <button class="btn ghost small" type="button" onclick="honCargarSocios(${i}, ${gi})">Cargar socios</button></span>
+            <span class="hon-sub">Total: <strong>${fmtUF(totalGrupoDoc(g))}</strong> UF</span>
+          </div>
+        </div>`).join('') + `
+        <div class="inl" style="justify-content:space-between;">
+          <button class="btn ghost small" type="button" onclick="honAgregarGrupo(${i})">+ Grupo de honorarios</button>
+          <span><label><input type="checkbox" ${b.mostrarCLP?'checked':''} onchange="actualizarBloqueDoc(${i}, 'mostrarCLP', this.checked)"> Mostrar equivalente en $</label>
+          UF $ <input type="text" value="${escapeAttr(b.valorUF)}" style="width:100px;" placeholder="39.727,96" onchange="actualizarBloqueDoc(${i}, 'valorUF', this.value)">
+          <button class="btn ghost small" type="button" onclick="honConsultarUF(${i})" title="Consulta el valor de la UF de hoy en mindicador.cl">UF hoy</button></span>
+        </div>`;
+      break;
+    case 'acep':
+      body = `<label class="hint" style="margin:0;">Destinatario</label><textarea rows="4" onchange="actualizarBloqueDoc(${i}, 'destinatario', this.value)">${escapeHtml(b.destinatario)}</textarea>
+        <div class="inl"><label><input type="checkbox" ${b.facturacion?'checked':''} onchange="actualizarBloqueDoc(${i}, 'facturacion', this.checked)"> Incluir datos para facturación y cobranza</label></div>
+        <div class="hint">El resumen de honorarios se genera automáticamente desde el bloque de Honorarios.</div>`;
+      break;
+  }
+  let tipo = TIPO_LABEL_BLOQUE[b.t] || b.t;
+  if(b.t === 'h' && b.nivel === 2) tipo = 'Subtítulo';
+  return `<div class="block ${i===bloqueEnfocadoDoc?'focus':''}" onfocusin="bloqueEnfocadoDoc=${i};" onclick="bloqueEnfocadoDoc=${i};">
+    <div class="block-head"><span class="tipo">${tipo}</span>
+      <span class="ctl"><button onclick="moverBloqueDoc(${i},-1)" title="Subir" type="button">↑</button><button onclick="moverBloqueDoc(${i},1)" title="Bajar" type="button">↓</button><button onclick="duplicarBloqueDoc(${i})" title="Duplicar" type="button">⧉</button><button onclick="eliminarBloqueDoc(${i})" class="del" title="Eliminar" type="button">✕</button></span>
+    </div>${body}</div>`;
+}
+
+async function tocarDocEnEdicion(){
+  await saveDocumentosTrabajo();
+  renderApp();
+}
+
+function actualizarMetaDoc(campo, valor){
+  const doc = currentDocEnEdicion();
+  if(!doc) return;
+  doc[campo] = valor;
+  if(campo === 'fecha' && valor){
+    const y = Number(valor.slice(0,4));
+    if(y) doc.anio = y;
+  }
+  doc.modificado = new Date().toISOString();
+  tocarDocEnEdicion();
+}
+
+function agregarBloqueDoc(tipo){
+  const doc = currentDocEnEdicion();
+  if(!doc) return;
+  const cli = clienteDocById(doc.clienteId);
+  const nb = {
+    p: ()=>PDoc(''), h1: ()=>H1Doc(''), h2: ()=>H2Doc(''), ul: ()=>ULDoc(['']),
+    tabla: ()=>TABLADoc([['Columna 1','Columna 2'],['','']]),
+    nota: ()=>NOTADoc('Ten presente',''), salto: ()=>SALTODoc(),
+    soc: ()=>SOCDoc(cli ? cli.sociedades : ['']),
+    hon: ()=>HONDoc([{actividad:'[SERVICIO]', periodicidad:'Mensual', items:honItemsDoc(cli ? cli.sociedades : [])}]),
+    acep: ()=>ACEPDoc(),
+  }[tipo]();
+  const at = bloqueEnfocadoDoc >= 0 && bloqueEnfocadoDoc < doc.bloques.length ? bloqueEnfocadoDoc + 1 : doc.bloques.length;
+  doc.bloques.splice(at, 0, nb);
+  bloqueEnfocadoDoc = at;
+  doc.modificado = new Date().toISOString();
+  tocarDocEnEdicion();
+}
+
+function insertarModuloDoc(){
+  const doc = currentDocEnEdicion();
+  if(!doc) return;
+  const key = document.getElementById('docModSelect').value;
+  const ctx = ctxForDoc(doc.fecha || todayISO(), clienteDocById(doc.clienteId));
+  const nuevos = buildModuloDoc(key, ctx);
+  const at = bloqueEnfocadoDoc >= 0 && bloqueEnfocadoDoc < doc.bloques.length ? bloqueEnfocadoDoc + 1 : doc.bloques.length;
+  doc.bloques.splice(at, 0, ...nuevos);
+  bloqueEnfocadoDoc = at + nuevos.length - 1;
+  doc.modificado = new Date().toISOString();
+  tocarDocEnEdicion();
+}
+
+function moverBloqueDoc(i, dir){
+  const doc = currentDocEnEdicion();
+  if(!doc) return;
+  const j = i + dir;
+  if(j < 0 || j >= doc.bloques.length) return;
+  [doc.bloques[i], doc.bloques[j]] = [doc.bloques[j], doc.bloques[i]];
+  bloqueEnfocadoDoc = j;
+  tocarDocEnEdicion();
+}
+function duplicarBloqueDoc(i){
+  const doc = currentDocEnEdicion();
+  if(!doc) return;
+  doc.bloques.splice(i+1, 0, clone(doc.bloques[i]));
+  bloqueEnfocadoDoc = i+1;
+  tocarDocEnEdicion();
+}
+function eliminarBloqueDoc(i){
+  const doc = currentDocEnEdicion();
+  if(!doc) return;
+  const b = doc.bloques[i];
+  if(['hon','acep','tabla'].includes(b.t) || String(b.texto||'').length > 120){ if(!confirm('¿Eliminar este bloque?')) return; }
+  doc.bloques.splice(i,1);
+  bloqueEnfocadoDoc = Math.min(i, doc.bloques.length-1);
+  tocarDocEnEdicion();
+}
+function actualizarBloqueDoc(i, campo, valor){
+  const doc = currentDocEnEdicion();
+  if(!doc) return;
+  doc.bloques[i][campo] = valor;
+  tocarDocEnEdicion();
+}
+function actualizarBloqueNivelDoc(i, valor){
+  const doc = currentDocEnEdicion();
+  if(!doc) return;
+  doc.bloques[i].nivel = Number(valor);
+  tocarDocEnEdicion();
+}
+function cargarSociedadesEnBloque(i){
+  const doc = currentDocEnEdicion();
+  const cli = clienteDocById(doc.clienteId);
+  if(!cli || !cli.sociedades.length){ showToast('El documento no tiene un cliente con sociedades registradas.'); return; }
+  doc.bloques[i].texto = cli.sociedades.join('\n');
+  tocarDocEnEdicion();
+}
+function aplicarDatosClienteDoc(){
+  const doc = currentDocEnEdicion();
+  const cli = clienteDocById(doc.clienteId);
+  if(!cli){ showToast('Selecciona primero un cliente.'); return; }
+  doc.para = textoPara(cli);
+  doc.saludo = saludoCliente(cli);
+  doc.bloques.forEach(b=>{ if(b.t==='soc' && cli.sociedades.length) b.texto = cli.sociedades.join('\n'); });
+  tocarDocEnEdicion();
+}
+
+// ---- Honorarios ----
+function honAgregarGrupo(i){
+  const doc = currentDocEnEdicion();
+  doc.bloques[i].grupos.push({actividad:'[SERVICIO]', periodicidad:'Mensual', items:[{detalle:'', uf:0}]});
+  tocarDocEnEdicion();
+}
+function honEliminarGrupo(i, gi){
+  if(!confirm('¿Eliminar este grupo de honorarios?')) return;
+  const doc = currentDocEnEdicion();
+  doc.bloques[i].grupos.splice(gi,1);
+  tocarDocEnEdicion();
+}
+function honAgregarItem(i, gi){
+  const doc = currentDocEnEdicion();
+  doc.bloques[i].grupos[gi].items.push({detalle:'', uf:0});
+  tocarDocEnEdicion();
+}
+function honEliminarItem(i, gi, ii){
+  const doc = currentDocEnEdicion();
+  doc.bloques[i].grupos[gi].items.splice(ii,1);
+  tocarDocEnEdicion();
+}
+function honActualizarCampo(i, gi, campo, valor){
+  const doc = currentDocEnEdicion();
+  doc.bloques[i].grupos[gi][campo] = valor;
+  tocarDocEnEdicion();
+}
+function honActualizarItem(i, gi, ii, campo, valor){
+  const doc = currentDocEnEdicion();
+  doc.bloques[i].grupos[gi].items[ii][campo] = campo === 'uf' ? parseNum(valor) : valor;
+  tocarDocEnEdicion();
+}
+function honCargarSociedades(i, gi){
+  const doc = currentDocEnEdicion();
+  const cli = clienteDocById(doc.clienteId);
+  if(!cli || !cli.sociedades.length){ showToast('El documento no tiene un cliente con sociedades registradas.'); return; }
+  const g = doc.bloques[i].grupos[gi];
+  g.items = cli.sociedades.map(n=>{ const prev = g.items.find(it=>it.detalle===n.replace(/^Sociedad\s+/i,'')); return {detalle:n.replace(/^Sociedad\s+/i,''), uf:prev?prev.uf:0}; });
+  tocarDocEnEdicion();
+}
+function honCargarSocios(i, gi){
+  const doc = currentDocEnEdicion();
+  const cli = clienteDocById(doc.clienteId);
+  if(!cli || !cli.socios.length){ showToast('El documento no tiene un cliente con socios registrados.'); return; }
+  doc.bloques[i].grupos[gi].items = cli.socios.map(n=>({detalle:n, uf:0}));
+  tocarDocEnEdicion();
+}
+async function honConsultarUF(i){
+  try{
+    const r = await fetch('https://mindicador.cl/api/uf');
+    const j = await r.json();
+    const v = j.serie && j.serie[0] && j.serie[0].valor;
+    if(!v) throw new Error('sin datos');
+    const doc = currentDocEnEdicion();
+    doc.bloques[i].valorUF = v.toLocaleString('es-CL', {minimumFractionDigits:2, maximumFractionDigits:2});
+    doc.bloques[i].mostrarCLP = true;
+    tocarDocEnEdicion();
+  }catch(err){
+    showToast('No se pudo obtener la UF (sin conexión o servicio no disponible). Ingrésala manualmente.');
+  }
+}
+
+// ---- Imprimir / exportar ----
+function imprimirDocumentoActual(){
+  const doc = currentDocEnEdicion();
+  if(!doc) return;
+  const w = validarDoc(doc).filter(x=>x.startsWith('Hay '));
+  if(w.length && !confirm(w[0] + '\n\n¿Imprimir de todas formas?')) return;
+  const prevTitle = document.title;
+  document.title = nombreArchivoDoc(doc);
+  document.body.classList.add('imprimiendo-doc');
+  window.print();
+  document.body.classList.remove('imprimiendo-doc');
+  document.title = prevTitle;
+  if(doc.estado === 'Borrador'){
+    const siguiente = doc.tipo==='propuesta' ? 'Enviada' : 'Emitido';
+    if(confirm(`¿Marcar el documento como "${siguiente}"?`)){
+      doc.estado = siguiente;
+      tocarDocEnEdicion();
+    }
+  }
+}
+
+function descargarWordDocumentoActual(){
+  const doc = currentDocEnEdicion();
+  if(!doc) return;
+  const css = Array.from(document.querySelectorAll('style')).map(s=>s.textContent).join('\n');
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${escapeHtml(nombreArchivoDoc(doc))}</title>
+    <style>${css}
+    body{background:white;font-family:Calibri,Arial,sans-serif;font-size:11pt;}
+    .paper{box-shadow:none;padding:0;max-width:none;}
+    .salto{page-break-before:always;border:none;} .salto span{display:none;}
+    @page{size:21cm 29.7cm;margin:2cm 2cm 2cm 2cm;}
+    </style></head><body><div class="paper" style="--doc:${escapeAttr(cfg().colorDoc)};">${renderDocBody(doc)}<div class="doc-footer">${footerHtmlDoc()}</div></div></body></html>`;
+  const blob = new Blob(['﻿', html], {type:'application/msword'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nombreArchivoDoc(doc) + '.doc';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+
+function abrirModalGuardarPlantilla(){
+  const doc = currentDocEnEdicion();
+  const modal = document.getElementById('modalPlantillaDoc');
+  if(!modal) return;
+  document.getElementById('plNombreDoc').value = doc.ref || '';
+  document.getElementById('plDescDoc').value = '';
+  modal.classList.add('open');
+}
+function cerrarModalGuardarPlantilla(){
+  const modal = document.getElementById('modalPlantillaDoc');
+  if(modal) modal.classList.remove('open');
+}
+async function guardarPlantillaUsuario(){
+  const nombre = document.getElementById('plNombreDoc').value.trim();
+  if(!nombre){ showToast('Ingresa un nombre para la plantilla.'); return; }
+  const doc = currentDocEnEdicion();
+  const c = clone(doc);
+  ['id','numero','anio','fecha','estado','creado','modificado','notas','creadoPor'].forEach(k=>delete c[k]);
+  if(!state.plantillasUsuarioDocumentos) state.plantillasUsuarioDocumentos = [];
+  state.plantillasUsuarioDocumentos.push({id:uid('pld'), nombre, desc:document.getElementById('plDescDoc').value.trim(), tipo:doc.tipo, contenido:c});
+  await saveConfig();
+  cerrarModalGuardarPlantilla();
+  showToast('Plantilla guardada. Aparece en "Documentos → Mis plantillas".');
+  renderApp();
+}
+
+// ---------- Vista "Clientes": no duplica la lista, reutiliza state.clientes ----------
+function documentosTrabajoClientesContent(){
+  const docs = state.documentosTrabajo || [];
+  const lista = [...state.clientes].sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  const q = (searchQuery||'').trim().toLowerCase();
+  const filtrada = q ? lista.filter(c=>(c.name||'').toLowerCase().includes(q) || (c.rut||'').toLowerCase().includes(q)) : lista;
+  const { pageItems, totalPages, page } = paginate(filtrada, tablePage);
+  return `
+    <div class="main-head">
+      <div>
+        <h2 class="display">Clientes (Memos y Propuestas)</h2>
+        <div class="meta">Mismos clientes de Cartera de Clientes — acá solo se ven los datos que usa este editor (saludo, sociedades, socios). Para editarlos, abre la ficha del cliente.</div>
+      </div>
+      <input type="text" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" style="min-width:240px;">
+    </div>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Cliente</th><th>Grupo</th><th>Sociedades</th><th>Socios</th><th>Docs</th><th></th></tr></thead>
+      <tbody>
+        ${pageItems.length ? pageItems.map(c => `
+          <tr>
+            <td class="client-name">${escapeHtml(c.name)}${c.correoContacto?`<div style="font-size:11px;color:#8a8879;">${escapeHtml(c.correoContacto)}</div>`:''}</td>
+            <td>${escapeHtml(c.grupo||'—')}</td>
+            <td>${(c.sociedades||[]).length}</td>
+            <td>${(c.socios||[]).length}</td>
+            <td class="mono">${docs.filter(d=>d.clienteId===c.id).length}</td>
+            <td class="row-actions"><button class="btn secondary small" onclick="openClientDetail('${c.id}')">Ver ficha</button></td>
+          </tr>
+        `).join('') : `<tr><td colspan="6" style="padding:32px;text-align:center;color:#8a8879;">${q ? 'No hay clientes que coincidan con la búsqueda.' : 'Sin clientes.'}</td></tr>`}
+      </tbody>
+    </table>
+    </div>
+    ${paginationControls(page, totalPages)}
+  `;
+}
+
+// ---------- Vista "Configuración" ----------
+function documentosTrabajoConfigContent(){
+  const c = cfg();
+  return `
+    <div class="main-head"><div><h2 class="display">Configuración — Memos y Propuestas</h2><div class="meta">Identidad de la firma, oficinas y firmantes usados al generar documentos.</div></div></div>
+
+    <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:18px;">
+      <h4 style="margin:0 0 10px;font-size:14px;">Identidad</h4>
+      <div class="onboard-grid">
+        <label>Razón social (firma y carta de aceptación)<input type="text" value="${escapeAttr(c.firmaLegal)}" onchange="guardarCampoConfigDoc('firmaLegal', this.value)"></label>
+        <label>Nombre corto (campo "De")<input type="text" value="${escapeAttr(c.firmaCorta)}" onchange="guardarCampoConfigDoc('firmaCorta', this.value)"></label>
+        <label>Prefijo de numeración<input type="text" value="${escapeAttr(c.prefijo)}" onchange="guardarCampoConfigDoc('prefijo', this.value)"></label>
+        <label>Dígitos del correlativo<input type="number" min="1" max="5" value="${c.digitos}" onchange="guardarCampoConfigDoc('digitos', parseInt(this.value)||3)"></label>
+        <label>Formato de fecha
+          <select onchange="guardarCampoConfigDoc('formatoFecha', this.value)">
+            <option value="dd-mm-aaaa" ${c.formatoFecha==='dd-mm-aaaa'?'selected':''}>22-09-2026</option>
+            <option value="dd/mm/aaaa" ${c.formatoFecha==='dd/mm/aaaa'?'selected':''}>22/09/2026</option>
+            <option value="largo" ${c.formatoFecha==='largo'?'selected':''}>22 de septiembre de 2026</option>
+          </select>
+        </label>
+        <label>Color del documento<input type="color" value="${escapeAttr(c.colorDoc||'#0A1A73')}" style="width:70px;height:34px;padding:2px;" onchange="guardarCampoConfigDoc('colorDoc', this.value)"></label>
+      </div>
+      <div class="row" style="align-items:center;gap:12px;">
+        <img id="cfgLogoPrevDoc" src="${escapeAttr(logoSrc())}" style="height:52px;width:52px;object-fit:contain;border:1px solid var(--line);border-radius:4px;background:white;padding:3px;${logoSrc()?'':'visibility:hidden;'}">
+        <label class="btn ghost small">Subir logo propio<input type="file" accept="image/*" style="display:none;" onchange="subirLogoDoc(this)"></label>
+        <button class="btn ghost small" onclick="quitarLogoDoc()">Quitar logo</button>
+        <span class="hint">${c.logo==='none' ? 'Sin logo (quitado manualmente).' : (c.logo ? 'Usando tu logo propio.' : 'Usando el logo de BPO Consultores por defecto.')}</span>
+      </div>
+    </div>
+
+    <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:18px;">
+      <h4 style="margin:0 0 10px;font-size:14px;">Contacto y pie de página</h4>
+      <div id="oficinasBoxDoc">
+        ${(c.oficinas||[]).map((o,i)=>`
+          <div class="row">
+            <div class="field" style="max-width:140px;">Ciudad<input type="text" value="${escapeAttr(o.ciudad)}" onchange="guardarOficinaDoc(${i}, 'ciudad', this.value)"></div>
+            <div class="field grow">Dirección<input type="text" value="${escapeAttr(o.direccion)}" onchange="guardarOficinaDoc(${i}, 'direccion', this.value)"></div>
+            <div class="field" style="max-width:150px;">Teléfono<input type="text" value="${escapeAttr(o.telefono)}" onchange="guardarOficinaDoc(${i}, 'telefono', this.value)"></div>
+            <button class="btn danger small" onclick="quitarOficinaDoc(${i})" title="Eliminar oficina">✕</button>
+          </div>`).join('')}
+      </div>
+      <button class="btn ghost small" onclick="agregarOficinaDoc()">+ Agregar oficina</button>
+      <div class="onboard-grid" style="margin-top:12px;">
+        <label>Celular / otros contactos<input type="text" value="${escapeAttr(c.contacto)}" onchange="guardarCampoConfigDoc('contacto', this.value)"></label>
+        <label>Sitio web / correo general<input type="text" value="${escapeAttr(c.web)}" onchange="guardarCampoConfigDoc('web', this.value)"></label>
+        <label class="full">Horario de atención (se usa en propuestas)<input type="text" value="${escapeAttr(c.horario)}" onchange="guardarCampoConfigDoc('horario', this.value)"></label>
+        <label class="full">Destinatario de la carta de aceptación<textarea rows="4" onchange="guardarCampoConfigDoc('aceptacionDest', this.value)">${escapeHtml(c.aceptacionDest)}</textarea></label>
+      </div>
+    </div>
+
+    <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:18px;">
+      <h4 style="margin:0 0 10px;font-size:14px;">Firmantes</h4>
+      <table>
+        <thead><tr><th>Nombre / Área</th><th>Cargo</th><th>Correo</th><th>Iniciales</th><th></th></tr></thead>
+        <tbody>
+          ${(state.firmantesDocumentos||[]).map((f,i)=>`
+            <tr>
+              <td><input type="text" value="${escapeAttr(f.nombre)}" onchange="guardarFirmanteDoc(${i}, 'nombre', this.value)" style="width:100%;"></td>
+              <td><input type="text" value="${escapeAttr(f.cargo)}" onchange="guardarFirmanteDoc(${i}, 'cargo', this.value)" style="width:100%;"></td>
+              <td><input type="text" value="${escapeAttr(f.email)}" onchange="guardarFirmanteDoc(${i}, 'email', this.value)" style="width:100%;"></td>
+              <td><input type="text" value="${escapeAttr(f.iniciales)}" onchange="guardarFirmanteDoc(${i}, 'iniciales', this.value)" style="width:80px;"></td>
+              <td><button class="btn danger small" onclick="quitarFirmanteDoc('${f.id}')">✕</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      <button class="btn ghost small" onclick="agregarFirmanteDoc()">+ Agregar firmante</button>
+    </div>
+
+    <div class="hint" style="font-size:12px;color:#8a8879;">Los N° de Memo y N° de Propuesta se asignan automáticamente y de forma segura al crear cada documento (bajo el mismo mecanismo que evita choques cuando dos personas guardan al mismo tiempo) — no se editan manualmente acá.</div>
+  `;
+}
+
+async function guardarCampoConfigDoc(campo, valor){
+  state.configDocumentos[campo] = valor;
+  await saveConfig();
+  renderApp();
+}
+async function guardarOficinaDoc(i, campo, valor){
+  state.configDocumentos.oficinas[i][campo] = valor;
+  await saveConfig();
+}
+async function agregarOficinaDoc(){
+  if(!state.configDocumentos.oficinas) state.configDocumentos.oficinas = [];
+  state.configDocumentos.oficinas.push({ciudad:'', direccion:'', telefono:''});
+  await saveConfig();
+  renderApp();
+}
+async function quitarOficinaDoc(i){
+  state.configDocumentos.oficinas.splice(i,1);
+  await saveConfig();
+  renderApp();
+}
+async function subirLogoDoc(input){
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 700*1024){ showToast('El logo pesa más de 700 KB. Usa una versión más liviana.'); input.value=''; return; }
+  const r = new FileReader();
+  r.onload = async ev => {
+    state.configDocumentos.logo = ev.target.result;
+    await saveConfig();
+    showToast('Logo actualizado.');
+    renderApp();
+  };
+  r.readAsDataURL(file);
+}
+async function quitarLogoDoc(){
+  state.configDocumentos.logo = 'none';
+  await saveConfig();
+  showToast('Logo quitado. Los documentos se generarán sin logo.');
+  renderApp();
+}
+async function guardarFirmanteDoc(i, campo, valor){
+  state.firmantesDocumentos[i][campo] = valor;
+  await saveConfig();
+}
+async function agregarFirmanteDoc(){
+  state.firmantesDocumentos.push({id:uid('fir'), nombre:'', cargo:'', email:'', iniciales:''});
+  await saveConfig();
+  renderApp();
+}
+async function quitarFirmanteDoc(id){
+  if((state.documentosTrabajo||[]).some(d=>d.firmanteId===id)){ showToast('Este firmante está usado en documentos existentes; no se puede eliminar (puedes renombrarlo).'); return; }
+  state.firmantesDocumentos = state.firmantesDocumentos.filter(f=>f.id!==id);
+  await saveConfig();
+  renderApp();
+}
+// ==================== FIN MEMOS Y PROPUESTAS (parte 2: pantallas) ====================
 
 function facturacionContent(){
   if(!facturacionMes) facturacionMes = new Date().toISOString().slice(0,7);
