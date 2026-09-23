@@ -7670,43 +7670,55 @@ function facturacionContent(){
 
   return `
     <div class="max-w-5xl">
-      <div class="flex items-center justify-between mb-1 flex-wrap gap-3">
+      <div class="main-head">
         <div>
-          <h2 class="text-2xl font-bold text-gray-800">Facturación</h2>
-          <p class="text-sm text-gray-500">${isAdmin ? 'Estado de facturación por cliente, mes a mes, desde enero 2026.' : 'Estado de facturación de tu cartera este mes (solo lectura).'}</p>
+          <h2 class="display">Facturación</h2>
+          <div class="meta">${isAdmin ? 'Estado de facturación por cliente, mes a mes, desde enero 2026.' : 'Estado de facturación de tu cartera este mes (solo lectura).'}</div>
         </div>
-        <div class="flex items-center gap-2">
-          <select onchange="flushPendingSaves(); clearBulkSelections(); facturacionMes=this.value; tablePage=1; renderApp();" class="rounded-xl border border-gray-300 px-4 py-2 text-sm">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <select onchange="flushPendingSaves(); clearBulkSelections(); facturacionMes=this.value; tablePage=1; renderApp();">
             ${meses.map(m => `<option value="${m}" ${m===mes?'selected':''}>${mesLabel(m)}</option>`).join('')}
           </select>
-          ${isAdmin ? `<button onclick="exportarFacturacionCSV('${mes}')" class="bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold px-4 py-2 rounded-xl">Exportar CSV</button>` : ''}
+          ${isAdmin ? `<button onclick="exportarFacturacionCSV('${mes}')" class="btn secondary">Exportar CSV</button>` : ''}
         </div>
       </div>
 
       ${isAdmin ? sucursalFilterBar() : ''}
 
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 my-6">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Esperado (UF) · ${mesLabel(mes)}</div>
-          <div class="text-2xl font-bold text-gray-800" id="facEsperado">${resumenGlobal.esperado.toFixed(1)} UF</div>
+      <div class="stats" style="margin:24px 0;">
+        <div class="stat">
+          <div class="chip chip-slate">${ICONS_DOC.clipboard}</div>
+          <div>
+            <div class="v" id="facEsperado" style="font-size:1.25rem;">${resumenGlobal.esperado.toFixed(1)} UF</div>
+            <div class="l">Esperado (UF) · ${mesLabel(mes)}</div>
+          </div>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Facturado (UF)</div>
-          <div class="text-2xl font-bold text-green-700" id="facFacturado">${resumenGlobal.facturado.toFixed(1)} UF</div>
+        <div class="stat">
+          <div class="chip chip-green">${ICONS_DOC.trend}</div>
+          <div>
+            <div class="v" id="facFacturado" style="font-size:1.25rem;">${resumenGlobal.facturado.toFixed(1)} UF</div>
+            <div class="l">Facturado (UF)</div>
+          </div>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">% Facturado</div>
-          <div class="text-2xl font-bold text-gray-800" id="facPct">${resumenGlobal.pct}%</div>
+        <div class="stat">
+          <div class="chip chip-blue">${ICONS_DOC.percent}</div>
+          <div>
+            <div class="v" id="facPct" style="font-size:1.25rem;">${resumenGlobal.pct}%</div>
+            <div class="l">% Facturado</div>
+          </div>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Facturado (CLP)</div>
-          <div class="text-2xl font-bold text-gray-800" id="facFacturadoCLP">${resumenGlobal.ufMes ? '$'+formatoCLP(resumenGlobal.facturadoCLP) : (resumenGlobal.ufCargando ? 'Cargando UF…' : '—')}</div>
-          <div class="text-xs text-gray-400 mt-1" id="facFacturadoCLPNota">${resumenGlobal.ufMes ? `UF del ${mesLabel(mes)}: $${formatoCLP(resumenGlobal.ufMes)}` : (resumenGlobal.ufCargando ? 'Obteniendo UF del mes…' : 'UF no disponible para este mes')}</div>
+        <div class="stat">
+          <div class="chip chip-purple">${ICONS_DOC.badge}</div>
+          <div>
+            <div class="v" id="facFacturadoCLP" style="font-size:1.25rem;">${resumenGlobal.ufMes ? '$'+formatoCLP(resumenGlobal.facturadoCLP) : (resumenGlobal.ufCargando ? 'Cargando UF…' : '—')}</div>
+            <div class="l">Facturado (CLP)</div>
+            <div id="facFacturadoCLPNota" style="font-size:0.72rem;margin-top:2px;color:#9a9689;">${resumenGlobal.ufMes ? `UF del ${mesLabel(mes)}: $${formatoCLP(resumenGlobal.ufMes)}` : (resumenGlobal.ufCargando ? 'Obteniendo UF del mes…' : 'UF no disponible para este mes')}</div>
+          </div>
         </div>
       </div>
 
       ${isAdmin ? `
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+      <div class="panel">
         <h3 class="text-sm font-bold text-gray-700 mb-4">Ingreso por encargado — ${mesLabel(mes)}</h3>
         ${porEncargado.map(({u, esperado, facturado, pct, pctSucursal}) => `
           <div class="mb-4">
@@ -7722,20 +7734,20 @@ function facturacionContent(){
       </div>
       ` : ''}
 
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="p-4 border-b border-gray-100">
-          <input type="text" id="searchBox" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" class="w-full max-w-sm rounded-xl border border-gray-300 px-4 py-2 text-sm">
+      <div class="panel" style="padding:0;overflow:hidden;">
+        <div style="padding:16px 18px;border-bottom:1px solid var(--line);">
+          <input type="text" id="searchBox" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" style="width:100%;max-width:320px;">
         </div>
-        ${isAdmin ? `<div class="px-4 pt-4">${facturaBulkBar(mes)}</div>` : ''}
-        <div style="overflow-x:auto;">
-        <table class="w-full text-sm">
-          <thead class="bg-gray-50">
+        ${isAdmin ? `<div style="padding:16px 18px 0;">${facturaBulkBar(mes)}</div>` : ''}
+        <div style="overflow-x:auto;padding:0 18px 18px;">
+        <table>
+          <thead>
             <tr>
-              ${isAdmin ? `<th class="px-5 py-3" style="width:34px;"><input type="checkbox" onchange="toggleSelectAllFactura(this.checked)" title="Seleccionar todos en esta página"></th>` : ''}
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Cliente</th>
-              ${isAdmin ? '<th class="text-left px-5 py-3 font-semibold text-gray-600">Encargado</th>' : ''}
-              ${isAdmin ? '<th class="text-left px-5 py-3 font-semibold text-gray-600">Valor (UF)</th>' : ''}
-              <th class="text-left px-5 py-3 font-semibold text-gray-600">Estado factura</th>
+              ${isAdmin ? `<th style="width:34px;"><input type="checkbox" onchange="toggleSelectAllFactura(this.checked)" title="Seleccionar todos en esta página"></th>` : ''}
+              <th>Cliente</th>
+              ${isAdmin ? '<th>Encargado</th>' : ''}
+              ${isAdmin ? '<th style="text-align:right;">Valor (UF)</th>' : ''}
+              <th>Estado factura</th>
             </tr>
           </thead>
           <tbody>
@@ -7743,14 +7755,14 @@ function facturacionContent(){
               const f = facturaDisplay(c, mes);
               const encNombre = (state.usuarios.find(u=>u.id===c.encargadoId)||{}).name || 'Sin asignar';
               return `
-                <tr class="border-t border-gray-100">
-                  ${isAdmin ? `<td class="px-5 py-3"><input type="checkbox" class="fac-check" data-id="${c.id}" ${facturaSelected.has(c.id)?'checked':''} onchange="onFacturaCheckChange('${c.id}', this.checked)"></td>` : ''}
-                  <td class="px-5 py-3 text-gray-800">${escapeHtml(c.name)}</td>
-                  ${isAdmin ? `<td class="px-5 py-3 text-gray-500">${escapeHtml(encNombre)}</td>` : ''}
-                  ${isAdmin ? `<td class="px-5 py-3">
-                    <input type="number" min="0" step="0.1" value="${f.montoUF}" onchange="setFacturaMonto('${c.id}','${mes}',this.value)" class="w-24 rounded-lg border border-gray-300 px-2 py-1 text-sm">
+                <tr>
+                  ${isAdmin ? `<td><input type="checkbox" class="fac-check" data-id="${c.id}" ${facturaSelected.has(c.id)?'checked':''} onchange="onFacturaCheckChange('${c.id}', this.checked)"></td>` : ''}
+                  <td>${escapeHtml(c.name)}</td>
+                  ${isAdmin ? `<td>${escapeHtml(encNombre)}</td>` : ''}
+                  ${isAdmin ? `<td style="text-align:right;">
+                    <input type="number" min="0" step="0.1" value="${f.montoUF}" onchange="setFacturaMonto('${c.id}','${mes}',this.value)" style="width:80px;text-align:right;">
                   </td>` : ''}
-                  <td class="px-5 py-3">
+                  <td>
                     ${isAdmin
                       ? `<select onchange="this.className = facturaEstadoClass(this.value); setFacturaEstado('${c.id}','${mes}',this.value)" class="${facturaEstadoClass(f.estado)}">
                           ${FACTURA_ESTADOS.map(e=>`<option value="${e}" ${f.estado===e?'selected':''}>${e}</option>`).join('')}
@@ -7759,11 +7771,11 @@ function facturacionContent(){
                   </td>
                 </tr>
               `;
-            }).join('') || `<tr><td colspan="${isAdmin?5:2}" class="px-5 py-8 text-center text-gray-400">Sin clientes en esta vista.</td></tr>`}
+            }).join('') || `<tr><td colspan="${isAdmin?5:2}" style="text-align:center;color:#8a8879;padding:40px 20px;">Sin clientes en esta vista.</td></tr>`}
           </tbody>
         </table>
         </div>
-        ${list.length ? `<div class="px-4">${paginationControls(page, totalPages)}</div>` : ''}
+        ${list.length ? `<div style="padding:0 18px 18px;">${paginationControls(page, totalPages)}</div>` : ''}
       </div>
     </div>
   `;
@@ -7771,13 +7783,13 @@ function facturacionContent(){
 
 function facturaBulkBar(mes){
   return `
-    <div id="facBulkBar" style="display:${facturaSelected.size?'flex':'none'};align-items:center;gap:10px;background:#F3F4F6;border:1px solid #E5E7EB;padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:13px;" class="text-gray-700">
+    <div id="facBulkBar" style="display:${facturaSelected.size?'flex':'none'};align-items:center;gap:10px;background:var(--paper-2);border:1px solid var(--line);padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:13px;color:#4a4a44;">
       <span><span id="facSelCount">${facturaSelected.size}</span> seleccionado${facturaSelected.size===1?'':'s'}</span>
-      <select id="facBulkEstado" class="rounded-lg border border-gray-300 px-2 py-1 text-sm">
+      <select id="facBulkEstado">
         ${FACTURA_ESTADOS.map(e=>`<option value="${e}">${e}</option>`).join('')}
       </select>
-      <button onclick="aplicarAccionMasivaFacturacion('${mes}')" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Aplicar a selección</button>
-      <button onclick="facturaSelected.clear(); renderApp();" class="text-xs text-gray-500 hover:text-gray-700 underline">Cancelar selección</button>
+      <button onclick="aplicarAccionMasivaFacturacion('${mes}')" class="btn small">Aplicar a selección</button>
+      <button onclick="facturaSelected.clear(); renderApp();" class="btn ghost small">Cancelar selección</button>
     </div>
   `;
 }
