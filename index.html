@@ -4375,6 +4375,7 @@ function agendaEduardoContent(){
 
   const fila = r => `
     <div onclick="verReunion('${r.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;cursor:pointer;">
+      <div class="chip sm chip-blue">${ICONS_DOC.calendar}</div>
       <span class="mono" style="min-width:76px;color:#8a8879;font-size:12px;">${r.fecha.slice(8,10)}/${r.fecha.slice(5,7)} · ${escapeHtml(r.hora||'')}</span>
       <span style="flex:1;">
         <b>${escapeHtml(r.lugar||'Sin lugar')}</b>${r.conQuien ? ` — ${escapeHtml(r.conQuien)}` : ''}
