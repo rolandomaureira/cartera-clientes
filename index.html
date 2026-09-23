@@ -8820,12 +8820,12 @@ function tareasContent(verTodo, puedeEditarPlantilla){
 
   return `
     <div class="max-w-6xl">
-      <div class="flex items-center justify-between mb-1 flex-wrap gap-3">
+      <div class="main-head">
         <div>
-          <h2 class="text-2xl font-bold text-gray-800">Tareas mensuales</h2>
-          <p class="text-sm text-gray-500">Checklist recurrente por cliente (libros, conciliaciones, etc.). Vista anual: marca cualquier mes sin tener que cambiar de página.</p>
+          <h2 class="display">Tareas mensuales</h2>
+          <div class="meta">Checklist recurrente por cliente (libros, conciliaciones, etc.). Vista anual: marca cualquier mes sin tener que cambiar de página.</div>
         </div>
-        <select onchange="flushPendingSaves(); tareasAnio=this.value; tablePage=1; renderApp();" class="rounded-xl border border-gray-300 px-4 py-2 text-sm">
+        <select onchange="flushPendingSaves(); tareasAnio=this.value; tablePage=1; renderApp();">
           ${anios.map(a => `<option value="${a}" ${a===anio?'selected':''}>${a}</option>`).join('')}
         </select>
       </div>
@@ -8833,32 +8833,32 @@ function tareasContent(verTodo, puedeEditarPlantilla){
       ${misTrabajosEspecialesContent()}
 
       ${puedeEditarPlantilla ? `
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 my-6">
+      <div class="panel">
         <h3 class="text-sm font-bold text-gray-700 mb-3">Plantilla de tareas (aplica a todos los clientes)</h3>
-        <div class="flex flex-wrap gap-2 mb-3">
-          ${plantilla.map((t,i) => `<span class="inline-flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5 text-xs">${escapeHtml(t)} <button onclick="quitarTareaPlantilla(${i})" class="text-red-500 font-bold">×</button></span>`).join('')}
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+          ${plantilla.map((t,i) => `<span class="pill" style="background:var(--paper-2);color:var(--ink);display:inline-flex;align-items:center;gap:8px;padding:6px 10px;">${escapeHtml(t)} <button onclick="quitarTareaPlantilla(${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-weight:700;padding:0;">×</button></span>`).join('')}
         </div>
-        <div class="flex gap-2">
-          <input type="text" id="nuevaTareaInput" placeholder="Nueva tarea recurrente" class="flex-1 rounded-xl border border-gray-300 px-4 py-2 text-sm">
-          <button onclick="agregarTareaPlantilla()" class="bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold px-4 py-2 rounded-xl">Agregar</button>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="nuevaTareaInput" placeholder="Nueva tarea recurrente" style="flex:1;">
+          <button onclick="agregarTareaPlantilla()" class="btn">Agregar</button>
         </div>
       </div>
-      ` : `<div class="my-6"></div>`}
+      ` : `<div style="margin:24px 0;"></div>`}
 
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 mb-6">
-        <input type="text" id="searchBox" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" class="w-full max-w-sm rounded-xl border border-gray-300 px-4 py-2 text-sm">
+      <div class="panel" style="padding:16px 18px;">
+        <input type="text" id="searchBox" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" style="width:100%;max-width:320px;">
       </div>
 
       ${plantilla.map((tarea, tareaIdx) => `
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-          <div class="px-5 py-3 border-b border-gray-100 font-semibold text-gray-700 text-sm">${escapeHtml(tarea)}</div>
-          <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-gray-50">
+        <div class="panel" style="padding:0;overflow:hidden;">
+          <div style="padding:12px 18px;border-bottom:1px solid var(--line);font-weight:600;color:#3a3a35;font-size:13px;">${escapeHtml(tarea)}</div>
+          <div style="overflow-x:auto;padding:0 18px 18px;">
+          <table>
+            <thead>
               <tr>
-                <th class="text-left px-5 py-3 font-semibold text-gray-600 whitespace-nowrap">Cliente</th>
-                ${MESES_NOMBRE.map(m=>`<th class="text-center px-2 py-3 font-semibold text-gray-600" style="font-size:11px;">${m.slice(0,3)}</th>`).join('')}
-                <th class="text-center px-3 py-3 font-semibold text-gray-600">%</th>
+                <th>Cliente</th>
+                ${MESES_NOMBRE.map(m=>`<th style="text-align:center;font-size:11px;">${m.slice(0,3)}</th>`).join('')}
+                <th style="text-align:center;">%</th>
               </tr>
             </thead>
             <tbody>
@@ -8866,17 +8866,17 @@ function tareasContent(verTodo, puedeEditarPlantilla){
                 const hechos = meses.filter(m => ((c.tareas||{})[m]||{})[tarea]).length;
                 const pct = Math.round((hechos/12)*100);
                 return `
-                  <tr class="border-t border-gray-100">
-                    <td class="px-5 py-3 text-gray-800 whitespace-nowrap">${escapeHtml(c.name)}</td>
+                  <tr>
+                    <td style="white-space:nowrap;">${escapeHtml(c.name)}</td>
                     ${meses.map(m => `
-                      <td class="text-center px-2 py-2">
-                        <input type="checkbox" ${((c.tareas||{})[m]||{})[tarea]?'checked':''} onchange="toggleTarea('${c.id}','${m}', ${tareaIdx}, this.checked)" class="w-4 h-4">
+                      <td style="text-align:center;">
+                        <input type="checkbox" ${((c.tareas||{})[m]||{})[tarea]?'checked':''} onchange="toggleTarea('${c.id}','${m}', ${tareaIdx}, this.checked)">
                       </td>
                     `).join('')}
-                    <td class="text-center px-3 py-3 font-semibold ${pct===100?'text-green-600':'text-gray-500'}" id="tareaPct_${c.id}_${tareaIdx}">${pct}%</td>
+                    <td style="text-align:center;font-weight:600;color:${pct===100?'#2F6B4F':'#6b6a5f'};" id="tareaPct_${c.id}_${tareaIdx}">${pct}%</td>
                   </tr>
                 `;
-              }).join('') : `<tr><td colspan="14" class="px-5 py-8 text-center text-gray-400">Sin clientes en esta vista.</td></tr>`}
+              }).join('') : `<tr><td colspan="14" style="text-align:center;color:#8a8879;padding:40px 20px;">Sin clientes en esta vista.</td></tr>`}
             </tbody>
           </table>
           </div>
@@ -8906,7 +8906,7 @@ async function toggleTarea(clienteId, mes, idx, checked){
   const pctCell = document.getElementById(`tareaPct_${clienteId}_${idx}`);
   if(pctCell){
     pctCell.textContent = pct + '%';
-    pctCell.className = `text-center px-3 py-3 font-semibold ${pct===100?'text-green-600':'text-gray-500'}`;
+    pctCell.style.color = pct===100 ? '#2F6B4F' : '#6b6a5f';
   }
 }
 
