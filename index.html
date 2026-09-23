@@ -2971,8 +2971,8 @@ function leerArchivoComoBase64(file){
 function badgeTipoArchivo(a){
   if(a.tipo !== 'temporal') return '';
   const vencido = a.fechaVencimiento && a.fechaVencimiento < todayISO();
-  const estilo = vencido ? 'background:#FBE9E7;color:#A3402F;' : 'background:#FFF4D6;color:#8a6d1d;';
-  return `<span style="font-size:10px;font-weight:600;padding:1px 7px;border-radius:9999px;white-space:nowrap;${estilo}">${vencido ? 'Vencido' : `Vence ${escapeHtml(a.fechaVencimiento)}`}</span>`;
+  const estilo = vencido ? 'background:#FBE9E7;color:var(--danger);' : 'background:#FBF1DC;color:#8a5a00;';
+  return `<span class="pill" style="white-space:nowrap;${estilo}">${vencido ? 'Vencido' : `Vence ${escapeHtml(a.fechaVencimiento)}`}</span>`;
 }
 
 // Vista consolidada: un renglón por archivo, de todos los clientes y
@@ -3035,7 +3035,7 @@ function archivosContent(){
       <input type="text" id="searchBox" placeholder="Buscar por cliente, trabajo especial o nombre de archivo…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" style="min-width:240px;">
     </div>
     ${trabajosVisibles.length ? `
-    <div style="background:var(--white);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin-bottom:16px;">
+    <div class="panel">
       <h4 style="margin:0 0 10px;font-size:14px;">Adjuntar archivo a un trabajo especial</h4>
       <div class="form-inline">
         <select id="archivosTeSelect" style="min-width:220px;">
