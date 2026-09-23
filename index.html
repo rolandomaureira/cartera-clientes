@@ -4430,64 +4430,61 @@ function inicioContent(){
     return plantillaTareas.some(t => !registro[t]);
   }).length;
 
-  let facturacionCard = '';
+  // Tarjeta 3 del panel: Facturación pendiente (Admin/Contabilidad) o el
+  // total de cartera visible (Encargado/Asistente/TAX) — nunca ambas a la vez.
+  let tileCarteraOFactura;
   if(currentUser.isAdmin){
     const mesActual = new Date().toISOString().slice(0,7);
-    const facPendientes = state.clientes.filter(c => {
-      const f = facturaDisplay(c, mesActual);
-      return f.estado === 'Pendiente';
-    });
-    facturacionCard = `
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="setTab('facturacion')">
-        <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Facturación pendiente · ${mesLabel(mesActual)}</div>
-        <div class="text-2xl font-bold text-gray-800">${facPendientes.length}</div>
-        <div class="text-xs text-gray-400 mt-1">clientes sin marcar como facturados este mes</div>
-      </div>
-    `;
+    const facPendientes = state.clientes.filter(c => facturaDisplay(c, mesActual).estado === 'Pendiente');
+    tileCarteraOFactura = { accion:"setTab('facturacion')", icon:'trend', color:'purple',
+      label:`Facturación pendiente · ${mesLabel(mesActual)}`, valor:facPendientes.length,
+      nota:'clientes sin marcar como facturados este mes' };
+  }else{
+    // Contabilidad/TAX no tienen "cartera propia" (ven todo), así que la
+    // tarjeta de respaldo cambia de etiqueta para no decir "Tu cartera" cuando
+    // en realidad son los clientes de todo el sistema.
+    tileCarteraOFactura = { accion:"setTab('cartera')", icon:'users', color:'teal',
+      label: verTodo ? 'Clientes en seguimiento' : 'Tu cartera', valor:misClientes.length,
+      nota: verTodo ? 'total en el sistema' : 'clientes asignados' };
   }
-  // Contabilidad/TAX no tienen "cartera propia" (ven todo), así que la
-  // tarjeta de respaldo cambia de etiqueta para no decir "Tu cartera" cuando
-  // en realidad son los clientes de todo el sistema.
-  const carteraCard = facturacionCard || `
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="setTab('cartera')">
-      <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">${verTodo ? 'Clientes en seguimiento' : 'Tu cartera'}</div>
-      <div class="text-2xl font-bold text-gray-800">${misClientes.length}</div>
-      <div class="text-xs text-gray-400 mt-1">${verTodo ? 'total en el sistema' : 'clientes asignados'}</div>
+  const statTiles = [
+    { accion:"setTab('requerimientos')", icon:'clipboard', color:'blue',
+      label:`Requerimientos pendientes${reqNuevos.length ? ` <span class="inline-flex items-center justify-center bg-[var(--teal-dark)] text-white rounded-full" style="min-width:16px;height:16px;font-size:10px;padding:0 4px;">${reqNuevos.length}</span>` : ''}`,
+      valor:reqPendientes.length,
+      nota: reqVencidos.length ? `${reqVencidos.length} vencido${reqVencidos.length===1?'':'s'}` : 'ninguno vencido', alerta:reqVencidos.length>0 },
+    ...(currentUser.isAdmin ? [{ accion:"irAConfeccionIva()", icon:'percent', color:'orange',
+      label:'IVA (F-29) sin enviar', valor:f29Pendientes.length, nota:'de la nómina vigente en tu cartera' }] : []),
+    tileCarteraOFactura,
+    { accion:"setTab('obligaciones')", icon:'calendar', color:'amber', label:'Obligaciones Tributarias', valor:obPendientes.length,
+      nota: obVencidas.length ? `${obVencidas.length} vencida${obVencidas.length===1?'':'s'}` : 'ninguna vencida', alerta:obVencidas.length>0 },
+    { accion:"setTab('tareas')", icon:'badge', color:'green', label:'Tareas mensuales incompletas', valor:tareasIncompletas, nota:`de ${misClientes.length} clientes, este mes` },
+  ];
+  const statTileHtml = t => `
+    <div class="stat cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="${t.accion}">
+      <div class="chip chip-${t.color}">${ICONS_DOC[t.icon]}</div>
+      <div>
+        <div class="v">${t.valor}</div>
+        <div class="l">${t.label}</div>
+        <div style="font-size:0.72rem;margin-top:2px;${t.alerta ? 'color:var(--danger);font-weight:600;' : 'color:#9a9689;'}">${t.nota}</div>
+      </div>
     </div>`;
 
   return `
     <div class="flex gap-6" style="align-items:flex-start;flex-wrap:wrap;">
     <div class="max-w-4xl flex-1">
-      <h2 class="text-2xl font-bold text-gray-800 mb-1">Hola, ${escapeHtml(currentUser.name.split(' ')[0])}</h2>
-      <p class="text-sm text-gray-500 mb-6">Esto es lo que tienes pendiente hoy.</p>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="setTab('requerimientos')">
-          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Requerimientos pendientes ${reqNuevos.length ? `<span class="inline-flex items-center justify-center bg-[var(--teal-dark)] text-white rounded-full" style="min-width:16px;height:16px;font-size:10px;padding:0 4px;">${reqNuevos.length}</span>` : ''}</div>
-          <div class="text-2xl font-bold text-gray-800">${reqPendientes.length}</div>
-          <div class="text-xs mt-1 ${reqVencidos.length ? 'text-red-500 font-semibold' : 'text-gray-400'}">${reqVencidos.length ? `${reqVencidos.length} vencido${reqVencidos.length===1?'':'s'}` : 'ninguno vencido'}</div>
-        </div>
-        ${currentUser.isAdmin ? `
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="irAConfeccionIva()">
-          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">IVA (F-29) sin enviar</div>
-          <div class="text-2xl font-bold text-gray-800">${f29Pendientes.length}</div>
-          <div class="text-xs text-gray-400 mt-1">de la nómina vigente en tu cartera</div>
-        </div>` : ''}
-        ${carteraCard}
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="setTab('obligaciones')">
-          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Obligaciones Tributarias</div>
-          <div class="text-2xl font-bold text-gray-800">${obPendientes.length}</div>
-          <div class="text-xs mt-1 ${obVencidas.length ? 'text-red-500 font-semibold' : 'text-gray-400'}">${obVencidas.length ? `${obVencidas.length} vencida${obVencidas.length===1?'':'s'}` : 'ninguna vencida'}</div>
-        </div>
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="setTab('tareas')">
-          <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Tareas mensuales incompletas</div>
-          <div class="text-2xl font-bold text-gray-800">${tareasIncompletas}</div>
-          <div class="text-xs text-gray-400 mt-1">de ${misClientes.length} clientes, este mes</div>
+      <div class="main-head">
+        <div>
+          <h2 class="display">Hola, ${escapeHtml(currentUser.name.split(' ')[0])}</h2>
+          <div class="meta">Esto es lo que tienes pendiente hoy.</div>
         </div>
       </div>
 
+      <div class="stats">
+        ${statTiles.map(statTileHtml).join('')}
+      </div>
+
       ${reqPendientes.length ? `
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+      <div class="panel">
         <h3 class="text-sm font-bold text-gray-700 mb-4">Tus requerimientos pendientes (${reqPendientes.length})</h3>
         <div class="space-y-2">
           ${(inicioReqExpandido ? reqPendientes : reqPendientes.slice(0,6)).map(r => `
@@ -4510,7 +4507,7 @@ function inicioContent(){
         ${reqPendientes.length > 6 ? `<button onclick="toggleInicioReqExpandido()" class="text-[var(--teal-dark)] hover:text-[var(--ink)] text-xs font-semibold mt-4">${inicioReqExpandido ? 'Mostrar menos' : `Desplegar los ${reqPendientes.length} pendientes`}</button>` : ''}
       </div>
       ` : `
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 text-center text-gray-400 text-sm">
+      <div class="panel" style="text-align:center;color:#9a9689;font-size:14px;">
         No tienes requerimientos pendientes. 🎉
       </div>
       `}
