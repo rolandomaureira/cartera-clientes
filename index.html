@@ -357,7 +357,7 @@
     display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;
   }
   .modal-card{
-    background:var(--white);border-radius:6px;padding:28px;max-width:640px;width:100%;
+    background:var(--white);border-radius:16px;padding:28px;max-width:640px;width:100%;
     max-height:88vh;overflow-y:auto;box-shadow:0 8px 0 var(--ink);
   }
   .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
@@ -624,7 +624,7 @@
   /* ---- Modal "Guardar como plantilla" ---- */
   .modal-bg-doc{ position:fixed; inset:0; background:rgba(15,23,42,0.45); display:none; align-items:flex-start; justify-content:center; z-index:150; padding:40px 16px; overflow:auto; }
   .modal-bg-doc.open{ display:flex; }
-  .modal-doc{ background:var(--white); border-radius:6px; max-width:560px; width:100%; padding:18px 20px; }
+  .modal-doc{ background:var(--white); border-radius:16px; max-width:560px; width:100%; padding:18px 20px; }
 </style>
 </head>
 <body>
@@ -891,9 +891,17 @@ function seedData(){
 }
 
 // ==== Backend compartido (Google Sheets vía Apps Script) ====
-// TODO: pega aquí tu URL de Apps Script (termina en /exec). Ver backend-sheets/README.md
-const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyWbEqfgc_dRyUZsqVg4Gle1Qq3HwMBdfKRhIvzOR2kQmLUPl6NmYLpNZvi0ZGwiYvzKw/exec';
-const API_TOKEN = '4612fb0489acc4364a4ec8fdbbc2c1b3a81d4781116827274056e2ff5f7df096'; // debe coincidir con API_TOKEN en Code.gs
+// Elige backend según el dominio que sirve el archivo: localhost/127.0.0.1/archivo
+// local (sin dominio) usa la hoja de PRUEBA (copia separada, con su propio
+// despliegue); cualquier otro dominio (el sitio real) usa producción. Antes
+// ambos casos compartían la misma URL, y una prueba local con datos ficticios
+// terminó sobrescribiendo clientes reales (ver incidente del 23-09-2026) —
+// esto asegura que una prueba local ya no pueda tocar los datos de verdad.
+const ES_ENTORNO_PRUEBA = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+const BACKEND_URL = ES_ENTORNO_PRUEBA
+  ? 'https://script.google.com/macros/s/AKfycbxnSTRw3-wqv8BjYtgXHIUiJ7UX5TuFNKBPIwVtf-ZCgnGAnyOlKdV2z88V7i9-ZMo/exec'
+  : 'https://script.google.com/macros/s/AKfycbyWbEqfgc_dRyUZsqVg4Gle1Qq3HwMBdfKRhIvzOR2kQmLUPl6NmYLpNZvi0ZGwiYvzKw/exec';
+const API_TOKEN = '4612fb0489acc4364a4ec8fdbbc2c1b3a81d4781116827274056e2ff5f7df096'; // debe coincidir con API_TOKEN en Code.gs (ambos despliegues)
 
 const MARCADOR_LIMITE_TASA = '{"__rateLimited__":true}';
 
@@ -8176,7 +8184,7 @@ function f29TablaFilas(titulo, subtitulo, filas, conceptos, seccion, conTasa, co
   }).join('');
 
   return `
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
+    <div class="panel">
       <h3 class="text-sm font-bold text-gray-700 mb-1">${titulo}</h3>
       ${subtitulo ? `<p class="text-xs text-gray-400 mb-3">${subtitulo}</p>` : ''}
       <div style="overflow-x:auto;">
@@ -8250,7 +8258,7 @@ function f29SeccionRetencionesPpm(est, calc){
   }).join('');
 
   return `
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
+    <div class="panel">
       <h3 class="text-sm font-bold text-gray-700 mb-1">III. Retenciones de Impuesto a la Renta</h3>
       <p class="text-xs text-gray-400 mb-3">Honorarios, sueldos y otras retenciones habituales. Revisa las tasas cada cierto tiempo: cambian por ley.</p>
       <table class="w-full text-sm">
@@ -8290,7 +8298,7 @@ function f29SeccionRetencionesPpm(est, calc){
 
 function f29SeccionAjustes(est){
   return `
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 mb-5">
+    <div class="panel">
       <h3 class="text-sm font-bold text-gray-700 mb-1">IV. Ajustes Adicionales</h3>
       <p class="text-xs text-gray-400 mb-3">Para casos que no están en las secciones anteriores (cambio de sujeto, créditos especiales, tributación simplificada, impuestos adicionales a bebidas/licores, etc.). Se suman o restan del total a pagar.</p>
       <div class="space-y-1.5 mb-3">
@@ -8308,7 +8316,7 @@ function f29SeccionAjustes(est){
           <option value="suma">Suma</option>
           <option value="resta">Resta</option>
         </select>
-        <button onclick="f29AgregarAjuste()" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold px-4 py-2 rounded-lg">Agregar</button>
+        <button onclick="f29AgregarAjuste()" class="btn small">Agregar</button>
       </div>
     </div>
   `;
