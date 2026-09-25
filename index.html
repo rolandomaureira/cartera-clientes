@@ -1065,6 +1065,25 @@ async function verificarLoginBackend(usuarioId, hash){
   }
 }
 
+// A diferencia de kvGet/kvGetMany (que devuelven la colección completa a
+// cualquiera con el token), esta acción filtra en el servidor y solo trae
+// las notificaciones de "usuarioId" — ver obtenerNotificaciones en Code.gs.
+async function obtenerNotificacionesBackend(usuarioId){
+  if(!BACKEND_URL) return [];
+  try{
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ accion: 'obtenerNotificaciones', usuarioId, token: API_TOKEN })
+    });
+    const data = await res.json().catch(() => null);
+    return (data && data.ok && Array.isArray(data.notificaciones)) ? data.notificaciones : [];
+  }catch(e){
+    console.error('No se pudieron obtener las notificaciones:', e);
+    return [];
+  }
+}
+
 // Declaraciones juradas de renta más comunes para pymes (fuente: SII / Operación
 // Renta), usadas como plantilla inicial de la sub-pestaña "Declaraciones Juradas".
 const DECLARACIONES_JURADAS_DEFAULT = [
@@ -1094,7 +1113,11 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // requeriría filas individuales por registro, un cambio más grande), pero
 // el caso que causó problemas — un cambio en usuarios pisado por un
 // cambio de clientes, o viceversa — queda resuelto.
-const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo', 'notificaciones'];
+// 'notificaciones' NO va acá a propósito: a diferencia del resto, esa
+// colección no se trae completa (ver obtenerNotificacionesBackend/
+// sondearNotificacionesNuevas) — el servidor la filtra por usuario antes de
+// devolverla, así que se carga aparte, recién cuando ya hay currentUser.
+const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo'];
 
 // Colecciones que se guardan por FUSIÓN (merge) en vez de mandar el arreglo
 // completo cada vez: el backend solo toca, por id, los registros que de
@@ -1222,6 +1245,10 @@ async function loadState(){
     if(!state[nombre]) state[nombre] = valorPorDefectoColeccion(nombre);
     if(ID_POR_COLECCION_MERGE[nombre]) actualizarBaseSnapshot(nombre, state[nombre]);
   });
+  // Se carga de verdad en enterAsUsuario(), una vez que existe currentUser
+  // (la acción obtenerNotificaciones la necesita). Este default evita que
+  // algo la lea como undefined en la ventana entre cargar el estado y loguearse.
+  state.notificaciones = [];
 
   try{
     const config = valores.config ? JSON.parse(valores.config) : null;
@@ -1603,7 +1630,7 @@ async function checkLogin(){
   enterAsUsuario(u.id);
 }
 
-function enterAsUsuario(id){
+async function enterAsUsuario(id){
   const u = state.usuarios.find(u => u.id === id);
   if(!u) return;
   // sucursal y carterasVisibles se copian del registro completo: sin esto,
@@ -1617,6 +1644,9 @@ function enterAsUsuario(id){
   showWhoami();
   renderApp();
   iniciarPollingNotificaciones();
+  state.notificaciones = await obtenerNotificacionesBackend(currentUser.id);
+  actualizarBaseSnapshot('notificaciones', state.notificaciones);
+  renderNotifBell();
 }
 
 function showWhoami(){
@@ -3974,35 +4004,38 @@ function detenerPollingNotificaciones(){
 
 async function sondearNotificacionesNuevas(){
   if(!currentUser || !BACKEND_URL) return;
-  const datos = await kvGetMany(['requerimientos', 'notificaciones']);
-  if(!datos) return;
+
+  // En paralelo: notificaciones (ya filtradas por servidor, ver
+  // obtenerNotificacionesBackend) y requerimientos (colección completa, igual
+  // que siempre). Son dos llamadas en vez de una sola en lote porque
+  // obtenerNotificaciones es una acción POST propia, no una llave más del
+  // modo "keys" de kvGetMany.
+  const [notifs, datosReq] = await Promise.all([
+    obtenerNotificacionesBackend(currentUser.id),
+    kvGetMany(['requerimientos'])
+  ]);
 
   let notificacionesNuevasParaMi = [];
   // Mismo resguardo que el de requerimientos más abajo: si hay un guardado de
   // notificaciones pendiente o en curso (p.ej. recién marqué una como
   // leída), no se pisa con la respuesta vieja del servidor.
-  if(!notificacionesSaveDebouncer.isPending()){
-    try{
-      const notifs = datos.notificaciones ? JSON.parse(datos.notificaciones) : [];
-      if(Array.isArray(notifs)){
-        const idsAntes = new Set(state.notificaciones.map(n => n.id));
-        notificacionesNuevasParaMi = notifs.filter(n => !idsAntes.has(n.id) && n.destinatarioId === currentUser.id);
-        state.notificaciones = notifs;
-        // Importante: actualizar también la base de comparación, no solo el
-        // estado. Sin esto, calcularDiffColeccion() sigue comparando contra lo
-        // último que ESTA pestaña guardó, no contra lo que el poll acaba de
-        // traer — y una notificación que llegó por poll (creada por otra
-        // persona) nunca podría borrarse desde acá, porque el diff nunca la
-        // reconocería como "ya existente".
-        actualizarBaseSnapshot('notificaciones', notifs);
-        if(notificacionesNuevasParaMi.length === 1){
-          showToast(notificacionesNuevasParaMi[0].mensaje);
-        }else if(notificacionesNuevasParaMi.length > 1){
-          showToast(`Tienes ${notificacionesNuevasParaMi.length} notificaciones nuevas.`);
-        }
-        renderNotifBell();
-      }
-    }catch(e){ /* respuesta rara del backend: se ignora este ciclo, se reintenta en el próximo poll */ }
+  if(!notificacionesSaveDebouncer.isPending() && Array.isArray(notifs)){
+    const idsAntes = new Set(state.notificaciones.map(n => n.id));
+    notificacionesNuevasParaMi = notifs.filter(n => !idsAntes.has(n.id));
+    state.notificaciones = notifs;
+    // Importante: actualizar también la base de comparación, no solo el
+    // estado. Sin esto, calcularDiffColeccion() sigue comparando contra lo
+    // último que ESTA pestaña guardó, no contra lo que el poll acaba de
+    // traer — y una notificación que llegó por poll (creada por otra
+    // persona) nunca podría borrarse desde acá, porque el diff nunca la
+    // reconocería como "ya existente".
+    actualizarBaseSnapshot('notificaciones', notifs);
+    if(notificacionesNuevasParaMi.length === 1){
+      showToast(notificacionesNuevasParaMi[0].mensaje);
+    }else if(notificacionesNuevasParaMi.length > 1){
+      showToast(`Tienes ${notificacionesNuevasParaMi.length} notificaciones nuevas.`);
+    }
+    renderNotifBell();
   }
 
   // Si hay un guardado de requerimientos pendiente o en curso (p.ej. se acaba
@@ -4010,9 +4043,9 @@ async function sondearNotificacionesNuevas(){
   // servidor: ese guardado todavía no llegó, y aplicar la respuesta vieja
   // haría "desaparecer" momentáneamente el cambio recién hecho localmente.
   // Se reintenta solo en el próximo ciclo, cuando el guardado ya se hizo.
-  if(requerimientosSaveDebouncer.isPending()) return;
+  if(requerimientosSaveDebouncer.isPending() || !datosReq) return;
   try{
-    const reqs = datos.requerimientos ? JSON.parse(datos.requerimientos) : [];
+    const reqs = datosReq.requerimientos ? JSON.parse(datosReq.requerimientos) : [];
     if(Array.isArray(reqs)){
       state.requerimientos = reqs;
       actualizarBaseSnapshot('requerimientos', reqs); // mismo motivo que en notificaciones, arriba
@@ -4022,7 +4055,7 @@ async function sondearNotificacionesNuevas(){
         renderApp();
       }
     }
-  }catch(e){ /* idem */ }
+  }catch(e){ /* respuesta rara del backend: se ignora este ciclo, se reintenta en el próximo poll */ }
 }
 
 // Los navegadores frenan los setInterval de pestañas en segundo plano; al
