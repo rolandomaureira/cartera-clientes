@@ -123,7 +123,14 @@
   .notif-panel-head{
     padding:14px 16px;border-bottom:1px solid var(--line);
     font-family:'IBM Plex Sans',sans-serif;font-weight:700;font-size:15px;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
   }
+  .notif-marcar-todas{
+    background:none;border:none;cursor:pointer;
+    font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:12px;
+    color:var(--teal-dark);white-space:nowrap;
+  }
+  .notif-marcar-todas:hover{text-decoration:underline;}
   .notif-item{
     display:flex;gap:10px;padding:12px 16px;
     border-bottom:1px solid var(--line);cursor:pointer;
@@ -1087,7 +1094,7 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // requeriría filas individuales por registro, un cambio más grande), pero
 // el caso que causó problemas — un cambio en usuarios pisado por un
 // cambio de clientes, o viceversa — queda resuelto.
-const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo'];
+const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo', 'notificaciones'];
 
 // Colecciones que se guardan por FUSIÓN (merge) en vez de mandar el arreglo
 // completo cada vez: el backend solo toca, por id, los registros que de
@@ -1102,7 +1109,7 @@ const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligacio
 const ID_POR_COLECCION_MERGE = {
   clientes: true, usuarios: true, requerimientos: true, obligaciones: true,
   reuniones: true, trabajosEspeciales: true, estimacionesF29: true, propuestas: true,
-  clientesRemuneraciones: true, rrhhFichas: true, documentosTrabajo: true
+  clientesRemuneraciones: true, rrhhFichas: true, documentosTrabajo: true, notificaciones: true
 };
 
 // Copia de cada colección tal como sabemos que está guardada en el backend
@@ -1148,6 +1155,7 @@ function valorPorDefectoColeccion(nombre){
   if(nombre === 'clientesRemuneraciones') return [];
   if(nombre === 'rrhhFichas') return [];
   if(nombre === 'documentosTrabajo') return [];
+  if(nombre === 'notificaciones') return [];
   return [];
 }
 
@@ -1285,6 +1293,7 @@ const configSaveDebouncer = crearGuardadoColeccion('config', () => ({
   configDocumentos: state.configDocumentos, firmantesDocumentos: state.firmantesDocumentos, plantillasUsuarioDocumentos: state.plantillasUsuarioDocumentos,
 }), 'No se pudo guardar la configuración. Intenta de nuevo.');
 const auditoriaSaveDebouncer = crearGuardadoColeccion('auditoria', () => state.auditoria, 'No se pudo guardar el registro de actividad.');
+const notificacionesSaveDebouncer = crearGuardadoColeccion('notificaciones', () => state.notificaciones, 'No se pudo guardar la notificación.');
 
 // Registro simple de "quién guardó qué colección y cuándo" (no el detalle de
 // qué cambió). currentUser puede ser null muy al principio (auto-login
@@ -1308,6 +1317,11 @@ async function saveClientesRemuneraciones(){ registrarAuditoria('clientesRemuner
 async function saveRRHHFichas(){ registrarAuditoria('rrhhFichas'); rrhhFichasSaveDebouncer.run(); }
 async function saveDocumentosTrabajo(){ registrarAuditoria('documentosTrabajo'); documentosTrabajoSaveDebouncer.run(); }
 async function saveConfig(){ registrarAuditoria('config'); configSaveDebouncer.run(); }
+// Sin registrarAuditoria acá a propósito: un solo sondeo de vencimientos puede
+// crear decenas de notificaciones de una vez, y auditoria tiene un tope de
+// 500 entradas (arriba) pensado para "quién tocó qué colección", no para este
+// volumen.
+async function saveNotificaciones(){ notificacionesSaveDebouncer.run(); }
 
 let creds = null; // { usuarios: { id: hash } }
 const CREDS_KEY = 'credenciales';
@@ -1370,6 +1384,7 @@ function flushPendingSaves(){
   documentosTrabajoSaveDebouncer.flush();
   configSaveDebouncer.flush();
   auditoriaSaveDebouncer.flush();
+  notificacionesSaveDebouncer.flush();
   credsSaveDebouncer.flush();
 }
 
@@ -1478,7 +1493,7 @@ function goToGate(){
   flushPendingSaves();
   searchDebouncer.cancel();
   clearBulkSelections();
-  detenerPollingRequerimientos();
+  detenerPollingNotificaciones();
   currentUser = null;
   searchQuery = '';
   activeFolder = 'todos';
@@ -1601,7 +1616,7 @@ function enterAsUsuario(id){
   activeFolder = 'todos';
   showWhoami();
   renderApp();
-  iniciarPollingRequerimientos();
+  iniciarPollingNotificaciones();
 }
 
 function showWhoami(){
@@ -1807,6 +1822,14 @@ function sectionNav(){
   `;
 }
 
+// Qué tipos de notificación se marcan como leídos al entrar a cada pestaña
+// (mismo espíritu que marcarRequerimientosLeidos(), pero genérico).
+const TAB_A_TIPOS_NOTIF = {
+  requerimientos: ['requerimiento_asignado', 'requerimiento_estado'],
+  'trabajos-especiales': ['trabajo_especial_asignado'],
+  cartera: ['cliente_reasignado'],
+};
+
 function setTab(tab){
   flushPendingSaves();
   searchDebouncer.cancel();
@@ -1817,6 +1840,7 @@ function setTab(tab){
   tablePage = 1;
   inicioReqExpandido = false;
   if(tab === 'requerimientos') marcarRequerimientosLeidos();
+  if(TAB_A_TIPOS_NOTIF[tab]) marcarNotificacionesLeidasPorTipo(TAB_A_TIPOS_NOTIF[tab]);
   renderApp();
 }
 
@@ -2927,6 +2951,7 @@ async function saveClientDetail(id){
     claveFacturador: valorClaveOculta('dt_factura_clave'),
     claveCertificado: valorClaveOculta('dt_factura_clave_cert')
   };
+  const encargadoIdAnterior = c.encargadoId;
   const encSel = document.getElementById('dt_encargado');
   if(currentUser.isAdmin || (encSel && encSel.tagName === 'SELECT')){
     if(encSel) c.encargadoId = encSel.value || null;
@@ -2957,6 +2982,7 @@ async function saveClientDetail(id){
   c.sociedades = document.getElementById('dt_sociedades_doc').value.split('\n').map(s=>s.trim()).filter(Boolean);
   c.socios = document.getElementById('dt_socios_doc').value.split('\n').map(s=>s.trim()).filter(Boolean);
   await saveClientes();
+  notificarReasignacionCliente(c, encargadoIdAnterior, c.encargadoId);
   showToast('Datos del cliente actualizados.');
   closeClientDetail();
   renderApp();
@@ -3733,18 +3759,96 @@ async function marcarRequerimientosLeidos(){
 // currentUser y que todavía no marcó como leído es, ni más ni menos, una
 // notificación pendiente. No hay una colección separada que mantener en
 // sync — se deriva de state.requerimientos en cada render.
+//
+// NOTA: lo de arriba describe SOLO el caso de Requerimientos. state.notificaciones
+// (crearNotificacion/crearNotificacionesParaVarios, abajo) es la colección real y
+// genérica que además cubre Trabajos Especiales, Clientes y vencimientos.
+
+// Nunca notifica a quien hizo la acción (currentUser) a sí mismo/a.
+async function crearNotificacion({ tipo, destinatarioId, entidadTipo, entidadId, mensaje }){
+  if(!destinatarioId || destinatarioId === currentUser.id) return;
+  state.notificaciones.push({
+    id: uid('n'), tipo, destinatarioId, actorId: currentUser.id,
+    entidadTipo: entidadTipo || null, entidadId: entidadId || null,
+    mensaje, creadaEn: Date.now(), leida: false, leidaEn: null
+  });
+  await saveNotificaciones();
+}
+
+// Igual que crearNotificacion pero para varios destinatarios a la vez (p.ej.
+// los varios "dirigidoA" de un requerimiento), sin duplicar destinatarios.
+async function crearNotificacionesParaVarios(destinatarioIds, datosComunes){
+  const unicos = [...new Set(destinatarioIds || [])];
+  for(const id of unicos) await crearNotificacion({ ...datosComunes, destinatarioId: id });
+}
+
+// Único punto que notifica una reasignación de cliente: lo llaman los 3
+// lugares donde encargadoId cambia (saveClientDetail, reassignClient,
+// derivarCarteraMasiva) para no triplicar esta lógica.
+function notificarReasignacionCliente(cliente, encargadoIdAnterior, encargadoIdNuevo){
+  if(!encargadoIdNuevo || encargadoIdNuevo === encargadoIdAnterior || encargadoIdNuevo === currentUser.id) return;
+  crearNotificacion({
+    tipo: 'cliente_reasignado', destinatarioId: encargadoIdNuevo,
+    entidadTipo: 'cliente', entidadId: cliente.id,
+    mensaje: `${currentUser.name} te asignó el cliente "${cliente.name}"`
+  });
+}
+
 let notifPanelOpen = false;
 
-function misNotificacionesRequerimientos(){
-  return state.requerimientos
-    .filter(esNoLeidoParaMi)
-    .sort((a,b) => (b.fechaCreacion||'').localeCompare(a.fechaCreacion||''));
+// Fuente de datos real de la campana: notificaciones sin leer dirigidas a
+// currentUser, más recientes primero. (esNoLeidoParaMi/r.leidoPor siguen
+// existiendo aparte, sin tocar — alimentan los badges "Nuevo" de Inicio y de
+// la tabla de Requerimientos, que no son la campana.)
+function notificacionesDeUsuarioActual(){
+  return state.notificaciones
+    .filter(n => n.destinatarioId === currentUser.id && !n.leida)
+    .sort((a,b) => b.creadaEn - a.creadaEn);
+}
+
+function nombreDeUsuario(userId){
+  const u = state.usuarios.find(u => u.id === userId);
+  return u ? u.name : '';
+}
+
+function formatoFechaHoraNotif(epochMs){
+  if(!epochMs) return '';
+  return new Date(epochMs).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
 }
 
 function inicialesUsuario(nombre){
   if(!nombre) return '?';
   const partes = nombre.trim().split(/\s+/);
   return ((partes[0]||'')[0] + (partes[1]?partes[1][0]:'')).toUpperCase();
+}
+
+async function marcarNotificacionesLeidas(ids){
+  const idsSet = new Set(ids);
+  let cambio = false;
+  state.notificaciones.forEach(n => {
+    if(idsSet.has(n.id) && !n.leida){
+      n.leida = true;
+      n.leidaEn = Date.now();
+      cambio = true;
+    }
+  });
+  if(cambio){ await saveNotificaciones(); renderNotifBell(); }
+}
+
+// Llamado desde setTab(): al entrar a una pestaña, se marcan como leídas solo
+// las notificaciones de los tipos que corresponden a esa pestaña (no todas),
+// mismo espíritu que marcarRequerimientosLeidos() ya hace para las suyas.
+async function marcarNotificacionesLeidasPorTipo(tipos){
+  const ids = state.notificaciones
+    .filter(n => tipos.includes(n.tipo) && n.destinatarioId === currentUser.id && !n.leida)
+    .map(n => n.id);
+  if(ids.length) await marcarNotificacionesLeidas(ids);
+}
+
+async function marcarTodasNotificacionesLeidas(ev){
+  if(ev) ev.stopPropagation();
+  const ids = notificacionesDeUsuarioActual().map(n => n.id);
+  if(ids.length) await marcarNotificacionesLeidas(ids);
 }
 
 function toggleNotifPanel(ev){
@@ -3762,18 +3866,33 @@ function cerrarNotifPanel(){
   if(notifPanelOpen){ notifPanelOpen = false; renderNotifBell(); }
 }
 
-// Al abrir una notificación se va a Requerimientos, que ya marca todo lo
-// dirigido a mí como leído (ver setTab) — mismo efecto de "abrir y que se
-// limpien las notificaciones" que se espera de una campana tipo Facebook.
-function irANotificacion(){
+// Navega según el tipo de la notificación y la marca como leída. 'sistema'
+// no tiene a dónde ir (es un aviso general) — solo cierra el panel.
+function irANotificacion(id){
+  const notif = state.notificaciones.find(n => n.id === id);
   notifPanelOpen = false;
-  setTab('requerimientos');
+  if(!notif){ renderApp(); return; }
+  marcarNotificacionesLeidas([notif.id]);
+  if(notif.tipo === 'requerimiento_asignado' || notif.tipo === 'requerimiento_estado'){
+    setTab('requerimientos');
+  }else if(notif.tipo === 'trabajo_especial_asignado'){
+    setTab('trabajos-especiales');
+  }else if(notif.tipo === 'cliente_reasignado'){
+    setTab('cartera');
+    if(notif.entidadId) openClientDetail(notif.entidadId);
+  }else if(notif.tipo === 'vencimiento'){
+    if(notif.entidadTipo === 'estimacionF29') setTab('f29');
+    else if(notif.entidadTipo === 'obligacion') setTab('obligaciones');
+    else setTab('requerimientos');
+  }else{
+    renderApp();
+  }
 }
 
 function renderNotifBell(){
   const box = document.getElementById('notifBox');
   if(!box || !currentUser) return;
-  const notifs = misNotificacionesRequerimientos();
+  const notifs = notificacionesDeUsuarioActual();
   const count = notifs.length;
   box.innerHTML = `
     <div class="notif-wrap" id="notifWrap">
@@ -3786,13 +3905,16 @@ function renderNotifBell(){
       </button>
       ${notifPanelOpen ? `
         <div class="notif-panel">
-          <div class="notif-panel-head">Notificaciones</div>
-          ${notifs.length ? notifs.map(r => `
-            <div class="notif-item" onclick="irANotificacion()">
-              <div class="notif-avatar">${escapeHtml(inicialesUsuario(nombreCreador(r)))}</div>
+          <div class="notif-panel-head">
+            <span>Notificaciones</span>
+            ${count > 0 ? `<button class="notif-marcar-todas" onclick="marcarTodasNotificacionesLeidas(event)">Marcar todas como leídas</button>` : ''}
+          </div>
+          ${notifs.length ? notifs.map(n => `
+            <div class="notif-item" onclick="irANotificacion('${n.id}')">
+              <div class="notif-avatar">${escapeHtml(inicialesUsuario(nombreDeUsuario(n.actorId)))}</div>
               <div style="flex:1;">
-                <div class="notif-text"><b>${escapeHtml(nombreCreador(r) || 'Alguien')}</b> te asignó un requerimiento solicitado: <b>${escapeHtml(r.tipo)}</b></div>
-                <div class="notif-time">${escapeHtml(r.fechaCreacion || '')}</div>
+                <div class="notif-text">${escapeHtml(n.mensaje)}</div>
+                <div class="notif-time">${escapeHtml(formatoFechaHoraNotif(n.creadaEn))}</div>
               </div>
               <div class="notif-dot"></div>
             </div>
@@ -3824,65 +3946,90 @@ function nombresDirigidoA(r){
 }
 
 /* ---------------- Notificaciones en vivo (polling) ---------------- */
-// El backend es Apps Script + Sheets, sin websockets ni push real. Para que
-// un requerimiento recién creado avise "en vivo" a quienes fue dirigido sin
-// que tengan que recargar la página, cada cierto tiempo se vuelve a pedir
-// SOLO la llave 'requerimientos' y se compara contra lo que ya había en
-// memoria por id: lo nuevo dirigido a currentUser dispara un toast y
-// refresca la campana. No reemplaza el resto de `state` ni interrumpe a
-// nadie que esté escribiendo en un formulario.
-const REQUERIMIENTOS_POLL_MS = 20000;
-let requerimientosPollTimer = null;
+// El backend es Apps Script + Sheets, sin websockets ni push real. Cada
+// cierto tiempo se piden en un solo request por lote (kvGetMany) las llaves
+// 'requerimientos' y 'notificaciones', y se comparan contra lo que ya había
+// en memoria por id. Dos efectos, independientes entre sí:
+//  1) toda notificación nueva dirigida a currentUser dispara un toast y
+//     refresca la campana (cubre Requerimientos, Trabajos Especiales,
+//     Clientes y vencimientos por igual).
+//  2) si además esa notificación nueva es de un requerimiento y ya estoy
+//     parado en la pestaña Requerimientos, la lista se refresca para que el
+//     nuevo aparezca sin recargar — mismo comportamiento puntual que existía
+//     antes de generalizar esto, solo que ahora lo dispara la notificación
+//     en vez de leer requerimientos por separado.
+// No reemplaza el resto de `state` ni interrumpe a nadie que esté
+// escribiendo en un formulario.
+const NOTIFICACIONES_POLL_MS = 20000;
+let notificacionesPollTimer = null;
 
-function iniciarPollingRequerimientos(){
-  if(requerimientosPollTimer) return;
-  requerimientosPollTimer = setInterval(sondearRequerimientosNuevos, REQUERIMIENTOS_POLL_MS);
+function iniciarPollingNotificaciones(){
+  if(notificacionesPollTimer) return;
+  notificacionesPollTimer = setInterval(sondearNotificacionesNuevas, NOTIFICACIONES_POLL_MS);
 }
 
-function detenerPollingRequerimientos(){
-  if(requerimientosPollTimer){ clearInterval(requerimientosPollTimer); requerimientosPollTimer = null; }
+function detenerPollingNotificaciones(){
+  if(notificacionesPollTimer){ clearInterval(notificacionesPollTimer); notificacionesPollTimer = null; }
 }
 
-async function sondearRequerimientosNuevos(){
+async function sondearNotificacionesNuevas(){
   if(!currentUser || !BACKEND_URL) return;
+  const datos = await kvGetMany(['requerimientos', 'notificaciones']);
+  if(!datos) return;
+
+  let notificacionesNuevasParaMi = [];
+  // Mismo resguardo que el de requerimientos más abajo: si hay un guardado de
+  // notificaciones pendiente o en curso (p.ej. recién marqué una como
+  // leída), no se pisa con la respuesta vieja del servidor.
+  if(!notificacionesSaveDebouncer.isPending()){
+    try{
+      const notifs = datos.notificaciones ? JSON.parse(datos.notificaciones) : [];
+      if(Array.isArray(notifs)){
+        const idsAntes = new Set(state.notificaciones.map(n => n.id));
+        notificacionesNuevasParaMi = notifs.filter(n => !idsAntes.has(n.id) && n.destinatarioId === currentUser.id);
+        state.notificaciones = notifs;
+        // Importante: actualizar también la base de comparación, no solo el
+        // estado. Sin esto, calcularDiffColeccion() sigue comparando contra lo
+        // último que ESTA pestaña guardó, no contra lo que el poll acaba de
+        // traer — y una notificación que llegó por poll (creada por otra
+        // persona) nunca podría borrarse desde acá, porque el diff nunca la
+        // reconocería como "ya existente".
+        actualizarBaseSnapshot('notificaciones', notifs);
+        if(notificacionesNuevasParaMi.length === 1){
+          showToast(notificacionesNuevasParaMi[0].mensaje);
+        }else if(notificacionesNuevasParaMi.length > 1){
+          showToast(`Tienes ${notificacionesNuevasParaMi.length} notificaciones nuevas.`);
+        }
+        renderNotifBell();
+      }
+    }catch(e){ /* respuesta rara del backend: se ignora este ciclo, se reintenta en el próximo poll */ }
+  }
+
   // Si hay un guardado de requerimientos pendiente o en curso (p.ej. se acaba
   // de crear/editar uno hace instantes), no se pisa con lo que devuelva el
   // servidor: ese guardado todavía no llegó, y aplicar la respuesta vieja
   // haría "desaparecer" momentáneamente el cambio recién hecho localmente.
   // Se reintenta solo en el próximo ciclo, cuando el guardado ya se hizo.
   if(requerimientosSaveDebouncer.isPending()) return;
-  const res = await kvGet('requerimientos');
-  if(!res) return;
-  let nuevos;
-  try{ nuevos = JSON.parse(res.value); }catch(e){ return; }
-  if(!Array.isArray(nuevos)) return;
-
-  const idsAntes = new Set(state.requerimientos.map(r => r.id));
-  const recienDirigidosAMi = nuevos.filter(r =>
-    !idsAntes.has(r.id) && esNoLeidoParaMi(r) && r.creadoPor !== currentUser.id
-  );
-
-  state.requerimientos = nuevos;
-  recienDirigidosAMi.forEach(r => {
-    showToast(`${nombreCreador(r) || 'Alguien'} te asignó un requerimiento: ${r.tipo}`);
-  });
-  renderNotifBell();
-
-  // Si ya estoy parado en Requerimientos, refresco la lista para que el
-  // nuevo aparezca sin recargar — salvo que tenga el foco en un campo del
-  // formulario de creación, para no borrarle a la persona lo que está
-  // escribiendo.
-  const enFormulario = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement && document.activeElement.tagName);
-  if(activeTab === 'requerimientos' && !enFormulario && recienDirigidosAMi.length){
-    renderApp();
-  }
+  try{
+    const reqs = datos.requerimientos ? JSON.parse(datos.requerimientos) : [];
+    if(Array.isArray(reqs)){
+      state.requerimientos = reqs;
+      actualizarBaseSnapshot('requerimientos', reqs); // mismo motivo que en notificaciones, arriba
+      const enFormulario = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement && document.activeElement.tagName);
+      const hayRequerimientoNuevoParaMi = notificacionesNuevasParaMi.some(n => n.tipo === 'requerimiento_asignado');
+      if(activeTab === 'requerimientos' && !enFormulario && hayRequerimientoNuevoParaMi){
+        renderApp();
+      }
+    }
+  }catch(e){ /* idem */ }
 }
 
 // Los navegadores frenan los setInterval de pestañas en segundo plano; al
 // volver a primer plano se sondea de inmediato para no esperar hasta el
 // próximo tick.
 document.addEventListener('visibilitychange', () => {
-  if(!document.hidden && currentUser) sondearRequerimientosNuevos();
+  if(!document.hidden && currentUser) sondearNotificacionesNuevas();
 });
 
 function puedeDerivarTax(r){
@@ -4649,11 +4796,19 @@ async function submitTrabajoEspecial(linea){
   const montoUF = isNaN(montoParsed) ? null : montoParsed;
   if(!titulo) return showToast('Escribe un título para el trabajo.');
   if(!asignadoA) return showToast('Selecciona a quién se asigna.');
-  state.trabajosEspeciales.push({
+  const nuevoTrabajo = {
     id: uid('te'), titulo, descripcion, clienteId, asignadoA, montoUF, linea,
     asignadoPor: currentUser.id, fechaCreacion: todayISO(), fechaLimite, estado: 'Pendiente', archivos: []
-  });
+  };
+  state.trabajosEspeciales.push(nuevoTrabajo);
   await saveTrabajosEspeciales();
+  if(asignadoA !== currentUser.id){
+    crearNotificacion({
+      tipo: 'trabajo_especial_asignado', destinatarioId: asignadoA,
+      entidadTipo: 'trabajoEspecial', entidadId: nuevoTrabajo.id,
+      mensaje: `${currentUser.name} te asignó un trabajo especial: ${titulo}`
+    });
+  }
   showToast('Trabajo especial asignado.');
   renderApp();
 }
@@ -5022,6 +5177,10 @@ async function submitRequerimiento(){
   document.getElementById('reqDescripcion').value = '';
   await saveRequerimientos();
   enviarNotificacionCorreoRequerimiento(nuevoReq); // no bloqueante: si falla el correo, el requerimiento ya quedó guardado igual
+  crearNotificacionesParaVarios(dirigidoA, { // no bloqueante, igual que el correo de arriba
+    tipo: 'requerimiento_asignado', entidadTipo: 'requerimiento', entidadId: nuevoReq.id,
+    mensaje: `${currentUser.name} te asignó un requerimiento: ${tipo}`
+  });
   // Si había algún filtro activo (chip de urgencia, "Dirigido a" en una
   // persona puntual, o un rango de fecha límite) de una visita anterior, y
   // el requerimiento recién creado no calza con él, quedaba guardado pero
@@ -5071,11 +5230,19 @@ async function enviarNotificacionCorreoRequerimiento(r){
 async function updateRequerimientoEstado(id, estado){
   const r = state.requerimientos.find(r => r.id === id);
   if(!r) return;
+  const estadoAnterior = r.estado;
   r.estado = estado;
   // Fecha en que se marcó Resuelto, para el Reporte Semanal de Contabilidad.
   // Si se revierte el estado, se limpia (ya no cuenta como resuelto).
   r.fechaResolucion = estado === 'Resuelto' ? todayISO() : null;
   await saveRequerimientos();
+  if(estado !== estadoAnterior && r.creadoPor && r.creadoPor !== currentUser.id){
+    crearNotificacion({
+      tipo: 'requerimiento_estado', destinatarioId: r.creadoPor,
+      entidadTipo: 'requerimiento', entidadId: r.id,
+      mensaje: `${currentUser.name} cambió el estado de tu requerimiento "${r.tipo}" a ${estado}`
+    });
+  }
 }
 
 async function derivarRequerimiento(id, destino){
@@ -9045,6 +9212,7 @@ async function derivarCarteraMasiva(){
   }else{
     clientesOrigen.forEach(c => { c.encargadoId = destinoId; });
     await saveClientes();
+    clientesOrigen.forEach(c => notificarReasignacionCliente(c, origenId, destinoId));
   }
 
   renderApp();
@@ -9365,8 +9533,10 @@ async function removeClient(id){
 async function reassignClient(clientId, encargadoId){
   const c = state.clientes.find(c => c.id === clientId);
   if(!c) return;
+  const encargadoIdAnterior = c.encargadoId;
   c.encargadoId = encargadoId || null;
   await saveClientes();
+  notificarReasignacionCliente(c, encargadoIdAnterior, c.encargadoId);
   renderApp();
   showToast('Cliente reasignado.');
 }
