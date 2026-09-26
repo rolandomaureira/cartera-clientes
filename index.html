@@ -1091,6 +1091,25 @@ async function obtenerNotificacionesBackend(usuarioId){
   }
 }
 
+// Mismo patrón que obtenerNotificacionesBackend: el filtrado por
+// puedeVerRequerimiento ahora ocurre en el servidor (ver Code.gs), no
+// después de traer la colección completa.
+async function obtenerRequerimientosBackend(usuarioId){
+  if(!BACKEND_URL) return [];
+  try{
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ accion: 'obtenerRequerimientos', usuarioId, token: API_TOKEN })
+    });
+    const data = await res.json().catch(() => null);
+    return (data && data.ok && Array.isArray(data.requerimientos)) ? data.requerimientos : [];
+  }catch(e){
+    console.error('No se pudieron obtener los requerimientos:', e);
+    return [];
+  }
+}
+
 // Declaraciones juradas de renta más comunes para pymes (fuente: SII / Operación
 // Renta), usadas como plantilla inicial de la sub-pestaña "Declaraciones Juradas".
 const DECLARACIONES_JURADAS_DEFAULT = [
@@ -1124,7 +1143,10 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // colección no se trae completa (ver obtenerNotificacionesBackend/
 // sondearNotificacionesNuevas) — el servidor la filtra por usuario antes de
 // devolverla, así que se carga aparte, recién cuando ya hay currentUser.
-const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'requerimientos', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo'];
+// 'requerimientos' deliberadamente EXCLUIDA — igual que 'notificaciones' (ver
+// más abajo): la lectura ahora pasa por obtenerRequerimientosBackend, filtrada
+// por servidor según puedeVerRequerimiento_ (mismo criterio que el HTML).
+const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo'];
 
 // Colecciones que se guardan por FUSIÓN (merge) en vez de mandar el arreglo
 // completo cada vez: el backend solo toca, por id, los registros que de
@@ -1256,6 +1278,8 @@ async function loadState(){
   // (la acción obtenerNotificaciones la necesita). Este default evita que
   // algo la lea como undefined en la ventana entre cargar el estado y loguearse.
   state.notificaciones = [];
+  // Mismo motivo: obtenerRequerimientosBackend también necesita currentUser.
+  state.requerimientos = [];
 
   try{
     const config = valores.config ? JSON.parse(valores.config) : null;
@@ -1653,7 +1677,14 @@ async function enterAsUsuario(id){
   iniciarPollingNotificaciones();
   state.notificaciones = await obtenerNotificacionesBackend(currentUser.id);
   actualizarBaseSnapshot('notificaciones', state.notificaciones);
-  renderNotifBell();
+  // Igual que notificaciones: se guarda por fusión (ID_POR_COLECCION_MERGE),
+  // así que la base de comparación tiene que quedar en el mismo subconjunto
+  // filtrado que state.requerimientos — si no, el próximo guardado
+  // interpretaría cualquier requerimiento ajeno (invisible para este
+  // usuario, pero presente en el backend) como "borrado".
+  state.requerimientos = await obtenerRequerimientosBackend(currentUser.id);
+  actualizarBaseSnapshot('requerimientos', state.requerimientos);
+  renderApp(); // ya incluye renderNotifBell() al final
 }
 
 function showWhoami(){
@@ -4064,14 +4095,13 @@ function detenerPollingNotificaciones(){
 async function sondearNotificacionesNuevas(){
   if(!currentUser || !BACKEND_URL) return;
 
-  // En paralelo: notificaciones (ya filtradas por servidor, ver
-  // obtenerNotificacionesBackend) y requerimientos (colección completa, igual
-  // que siempre). Son dos llamadas en vez de una sola en lote porque
-  // obtenerNotificaciones es una acción POST propia, no una llave más del
-  // modo "keys" de kvGetMany.
-  const [notifs, datosReq] = await Promise.all([
+  // En paralelo: notificaciones y requerimientos, ambos ya filtrados por
+  // servidor según el usuario actual (ver obtenerNotificacionesBackend /
+  // obtenerRequerimientosBackend) — ninguna de las dos trae la colección
+  // completa.
+  const [notifs, reqs] = await Promise.all([
     obtenerNotificacionesBackend(currentUser.id),
-    kvGetMany(['requerimientos'])
+    obtenerRequerimientosBackend(currentUser.id)
   ]);
 
   let notificacionesNuevasParaMi = [];
@@ -4106,19 +4136,14 @@ async function sondearNotificacionesNuevas(){
   // servidor: ese guardado todavía no llegó, y aplicar la respuesta vieja
   // haría "desaparecer" momentáneamente el cambio recién hecho localmente.
   // Se reintenta solo en el próximo ciclo, cuando el guardado ya se hizo.
-  if(requerimientosSaveDebouncer.isPending() || !datosReq) return;
-  try{
-    const reqs = datosReq.requerimientos ? JSON.parse(datosReq.requerimientos) : [];
-    if(Array.isArray(reqs)){
-      state.requerimientos = reqs;
-      actualizarBaseSnapshot('requerimientos', reqs); // mismo motivo que en notificaciones, arriba
-      const enFormulario = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement && document.activeElement.tagName);
-      const hayRequerimientoNuevoParaMi = notificacionesNuevasParaMi.some(n => n.tipo === 'requerimiento_asignado');
-      if(activeTab === 'requerimientos' && !enFormulario && hayRequerimientoNuevoParaMi){
-        renderApp();
-      }
-    }
-  }catch(e){ /* respuesta rara del backend: se ignora este ciclo, se reintenta en el próximo poll */ }
+  if(requerimientosSaveDebouncer.isPending() || !Array.isArray(reqs)) return;
+  state.requerimientos = reqs;
+  actualizarBaseSnapshot('requerimientos', reqs); // mismo motivo que en notificaciones, arriba
+  const enFormulario = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement && document.activeElement.tagName);
+  const hayRequerimientoNuevoParaMi = notificacionesNuevasParaMi.some(n => n.tipo === 'requerimiento_asignado');
+  if(activeTab === 'requerimientos' && !enFormulario && hayRequerimientoNuevoParaMi){
+    renderApp();
+  }
 }
 
 // Los navegadores frenan los setInterval de pestañas en segundo plano; al
