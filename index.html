@@ -1110,6 +1110,27 @@ async function obtenerRequerimientosBackend(usuarioId){
   }
 }
 
+// Mismo patrón que obtenerRequerimientosBackend. El criterio de visibilidad
+// (puedeVerTrabajoEspecial, portado en Code.gs) preserva exactamente la
+// vista de equipo completa que ya tenían Administrador/Contabilidad/TAX (y,
+// para la línea de remuneraciones, Encargado/Asistente Remuneraciones) —
+// nadie que hoy vea la lista completa deja de verla.
+async function obtenerTrabajosEspecialesBackend(usuarioId){
+  if(!BACKEND_URL) return [];
+  try{
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ accion: 'obtenerTrabajosEspeciales', usuarioId, token: API_TOKEN })
+    });
+    const data = await res.json().catch(() => null);
+    return (data && data.ok && Array.isArray(data.trabajosEspeciales)) ? data.trabajosEspeciales : [];
+  }catch(e){
+    console.error('No se pudieron obtener los trabajos especiales:', e);
+    return [];
+  }
+}
+
 // Declaraciones juradas de renta más comunes para pymes (fuente: SII / Operación
 // Renta), usadas como plantilla inicial de la sub-pestaña "Declaraciones Juradas".
 const DECLARACIONES_JURADAS_DEFAULT = [
@@ -1143,10 +1164,11 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // colección no se trae completa (ver obtenerNotificacionesBackend/
 // sondearNotificacionesNuevas) — el servidor la filtra por usuario antes de
 // devolverla, así que se carga aparte, recién cuando ya hay currentUser.
-// 'requerimientos' deliberadamente EXCLUIDA — igual que 'notificaciones' (ver
-// más abajo): la lectura ahora pasa por obtenerRequerimientosBackend, filtrada
-// por servidor según puedeVerRequerimiento_ (mismo criterio que el HTML).
-const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'obligaciones', 'reuniones', 'trabajosEspeciales', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo'];
+// 'requerimientos' y 'trabajosEspeciales' deliberadamente EXCLUIDAS — igual
+// que 'notificaciones' (ver más abajo): la lectura de ambas ahora pasa por su
+// propia acción filtrada por servidor (obtenerRequerimientosBackend /
+// obtenerTrabajosEspecialesBackend), no por el fetch en lote de acá.
+const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'obligaciones', 'reuniones', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo'];
 
 // Colecciones que se guardan por FUSIÓN (merge) en vez de mandar el arreglo
 // completo cada vez: el backend solo toca, por id, los registros que de
@@ -1280,6 +1302,8 @@ async function loadState(){
   state.notificaciones = [];
   // Mismo motivo: obtenerRequerimientosBackend también necesita currentUser.
   state.requerimientos = [];
+  // Mismo motivo: obtenerTrabajosEspecialesBackend también necesita currentUser.
+  state.trabajosEspeciales = [];
 
   try{
     const config = valores.config ? JSON.parse(valores.config) : null;
@@ -1684,6 +1708,11 @@ async function enterAsUsuario(id){
   // usuario, pero presente en el backend) como "borrado".
   state.requerimientos = await obtenerRequerimientosBackend(currentUser.id);
   actualizarBaseSnapshot('requerimientos', state.requerimientos);
+  // Mismo motivo que requerimientos: base y estado tienen que quedar en el
+  // mismo subconjunto filtrado, o el próximo guardado vería como "borrado"
+  // cualquier trabajo especial ajeno que este usuario no puede ver.
+  state.trabajosEspeciales = await obtenerTrabajosEspecialesBackend(currentUser.id);
+  actualizarBaseSnapshot('trabajosEspeciales', state.trabajosEspeciales);
   renderApp(); // ya incluye renderNotifBell() al final
 }
 
