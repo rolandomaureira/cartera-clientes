@@ -322,6 +322,12 @@
     transition:all .25s ease;pointer-events:none;
   }
   .toast.show{opacity:1;transform:translateY(0);}
+  .push-banner{
+    position:fixed;bottom:24px;left:24px;max-width:340px;background:var(--white);color:var(--ink);
+    border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+    box-shadow:0 4px 18px rgba(16,24,40,0.12);font-size:13px;z-index:500;
+  }
+  .push-banner span{display:block;margin-bottom:10px;}
   .manage-section{margin-top:34px;}
   .manage-section h3{font-size:15px;margin-bottom:10px;}
 
@@ -656,6 +662,7 @@
 <div id="app"></div>
 <div class="toast" id="toast"></div>
 <div id="modalRoot"></div>
+<div id="pushBannerBox"></div>
 
 <script type="application/json" id="credsDataJson">
 {"usuarios": {"u_04addb": "ee186eda89dd5bbc2c54af104c0af8ea40394d5670f21e8e8bda8cd110e7f3a5", "u_5e6f56": "1fec5c2dd9e5422370473ac63a000e8e83a4eddd4e1ba9f42cae67539f10495f", "u_3f388c": "2d2929e779b04c7a2a50fe3288de27fceaa2894213fff5719489b62f443ac756", "u_775f73": "a70a60102b89c778a76eca7b743a6eedc23cd452ebefe2698f0c5737cf6d091b", "e_rolando": "6111a8b16908a58d4f22c8cccc3d1d54b387b096f710427a18bd9216445dbf1a", "e_stefania": "de885be841a036339fa6585c4a4b12db85f8a26634df9f1266bced9a74c9080e", "e_benjamin": "eb94e5c8dd84f31757cb5be98a27839c00ec7f0a150e10532e17fcde36f3646c", "e_valentina": "af7b60b6a7d1cfb87ac076c552af1ae551bcea9cbb629d6b7dfb81ab6f0ed61e", "u_38d8c8": "217cd7330c17349fd7efb85c2e18f70749a4f6d2b97c4f2128041b028a9531c7", "u_37db54": "9c56b7cdde89727a512874d34861fd12ec2b0df8e35d391ab34c7b8becf661ee", "u_550d71": "0cb16cc2b8b38d354e5c84ce750323553d1f7eab697aab6ed7abfe7f97232cf5", "u_46a45f": "1f4f51144dd9689c6917a1d1ffdc3a73b282451d6a68d11421cc20ea698e2801", "u_52fcde": "9e451b2ef36d3f29bc6a29e073f15c41bbc585821384d556128a564e8abd6ee5", "u_4d3444": "6217e1dbb4a9fc9b16710cb62d0c64cbe4ebb18a80144fd156fdc0468a19338e", "u_06258b": "942dc892a0fdaab1fbbadc87251199e79b32ab87011cabec6eda12bb7d881529", "u_a405c3": "a998f7d581c48e73f1ed2bce4f298cfb7aa484c0cd2af642fad2d14789e329c5", "u_99a957": "3fe48336e201ef8d08cfaa4cdf89a41c1ce008b45d0517b856279d25ee963c50", "u_a7aaa2": "7b5442228b29024deec2d9c7fa2807bcf9ec1e6ad9242b532f1dc3039a7a4660"}}
@@ -1660,6 +1667,7 @@ function showWhoami(){
   renderUFBadge();
   renderDolarBadge();
   renderNotifBell();
+  renderPushBanner();
 }
 
 /* ---------------- MAIN APP ---------------- */
@@ -4082,9 +4090,13 @@ async function sondearNotificacionesNuevas(){
     // reconocería como "ya existente".
     actualizarBaseSnapshot('notificaciones', notifs);
     if(notificacionesNuevasParaMi.length === 1){
-      showToast(notificacionesNuevasParaMi[0].mensaje);
+      const unica = notificacionesNuevasParaMi[0];
+      showToast(unica.mensaje);
+      notificarPush('BPO Gestión', unica.mensaje, () => irANotificacion(unica.id));
     }else if(notificacionesNuevasParaMi.length > 1){
-      showToast(`Tienes ${notificacionesNuevasParaMi.length} notificaciones nuevas.`);
+      const texto = `Tienes ${notificacionesNuevasParaMi.length} notificaciones nuevas.`;
+      showToast(texto);
+      notificarPush('BPO Gestión', texto, () => { notifPanelOpen = true; renderNotifBell(); });
     }
     renderNotifBell();
   }
@@ -4115,6 +4127,66 @@ async function sondearNotificacionesNuevas(){
 document.addEventListener('visibilitychange', () => {
   if(!document.hidden && currentUser) sondearNotificacionesNuevas();
 });
+
+/* ---------------- Notificaciones push del navegador (opcional) ----------------
+   Complementa el toast/campana de arriba: si el usuario da permiso, además se
+   muestra una notificación nativa del sistema operativo cuando el poll trae
+   algo nuevo y la pestaña está oculta o sin foco (si la está mirando, el
+   toast ya alcanza). Sigue dependiendo del mismo poll de 20s de arriba —
+   requiere que la pestaña siga abierta (los navegadores frenan, pero no
+   detienen del todo, los timers en segundo plano: puede llegar con hasta
+   ~1 minuto de atraso). Con la pestaña o el navegador cerrados del todo no
+   hay forma de avisar sin un servidor de push real (Service Worker + VAPID),
+   que este proyecto no tiene — eso sería un cambio de arquitectura mucho
+   más grande, no lo que esto implementa. */
+const PUSH_BANNER_DESCARTADO_KEY = 'cartera_push_banner_descartado_v1';
+
+function pushBannerElegible(){
+  if(typeof Notification === 'undefined' || Notification.permission !== 'default') return false;
+  try{ return !localStorage.getItem(PUSH_BANNER_DESCARTADO_KEY); }catch(e){ return true; }
+}
+
+function renderPushBanner(){
+  const box = document.getElementById('pushBannerBox');
+  if(!box) return;
+  if(!pushBannerElegible()){ box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <div class="push-banner">
+      <span>¿Recibir un aviso en tu computador cuando llegue una notificación, aunque no tengas esta pestaña al frente?</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn small" onclick="activarNotificacionesPush()">Activar</button>
+        <button class="btn secondary small" onclick="descartarPushBanner()">Ahora no</button>
+      </div>
+    </div>
+  `;
+}
+
+function descartarPushBanner(){
+  try{ localStorage.setItem(PUSH_BANNER_DESCARTADO_KEY, '1'); }catch(e){ /* sin localStorage: se pierde la preferencia, no bloquea nada */ }
+  renderPushBanner();
+}
+
+async function activarNotificacionesPush(){
+  try{
+    const resultado = await Notification.requestPermission();
+    if(resultado === 'granted'){
+      showToast('Notificaciones activadas.');
+      new Notification('BPO Gestión', { body: 'Así se verán tus avisos.', icon: LOGO_DATA_URI, tag: 'bpo-notif' });
+    }
+  }catch(e){ /* navegador sin soporte, o contexto no seguro (http sin ser localhost): se ignora */ }
+  descartarPushBanner(); // no se vuelve a preguntar, haya quedado 'granted' o 'denied'
+}
+
+function notificarPush(titulo, cuerpo, alHacerClic){
+  if(typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  if(!document.hidden && document.hasFocus()) return; // ya está viendo la app: el toast alcanza
+  const n = new Notification(titulo, { body: cuerpo, icon: LOGO_DATA_URI, tag: 'bpo-notif' });
+  n.onclick = () => {
+    window.focus();
+    n.close();
+    if(alHacerClic) alHacerClic();
+  };
+}
 
 function puedeDerivarTax(r){
   return r.tipo === 'Impuestos (TAX)' && currentUser.name === 'Maria Fernanda Doyhamberry';
