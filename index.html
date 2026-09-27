@@ -1131,6 +1131,29 @@ async function obtenerTrabajosEspecialesBackend(usuarioId){
   }
 }
 
+// Mismo patrón que obtenerRequerimientosBackend/obtenerTrabajosEspecialesBackend.
+// El servidor (Code.gs) devuelve: colección completa si puedeVerTodasLasCarteras,
+// si no la cartera propia (carterasDeUsuario) MÁS cualquier cliente referenciado
+// por un trabajo especial asignado a este usuario — un trabajo especial puede
+// asignarse sobre un cliente fuera de la cartera propia a propósito (ver
+// comentario en TRABAJOS ESPECIALES), y sin esa unión el nombre del cliente
+// quedaría en blanco en "Mis trabajos especiales" para quien lo reciba.
+async function obtenerClientesBackend(usuarioId){
+  if(!BACKEND_URL) return [];
+  try{
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ accion: 'obtenerClientes', usuarioId, token: API_TOKEN })
+    });
+    const data = await res.json().catch(() => null);
+    return (data && data.ok && Array.isArray(data.clientes)) ? data.clientes : [];
+  }catch(e){
+    console.error('No se pudieron obtener los clientes:', e);
+    return [];
+  }
+}
+
 // Declaraciones juradas de renta más comunes para pymes (fuente: SII / Operación
 // Renta), usadas como plantilla inicial de la sub-pestaña "Declaraciones Juradas".
 const DECLARACIONES_JURADAS_DEFAULT = [
@@ -1164,11 +1187,16 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // colección no se trae completa (ver obtenerNotificacionesBackend/
 // sondearNotificacionesNuevas) — el servidor la filtra por usuario antes de
 // devolverla, así que se carga aparte, recién cuando ya hay currentUser.
-// 'requerimientos' y 'trabajosEspeciales' deliberadamente EXCLUIDAS — igual
-// que 'notificaciones' (ver más abajo): la lectura de ambas ahora pasa por su
-// propia acción filtrada por servidor (obtenerRequerimientosBackend /
-// obtenerTrabajosEspecialesBackend), no por el fetch en lote de acá.
-const COLECCIONES_ESTADO = ['usuarios', 'clientes', 'obligaciones', 'reuniones', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo'];
+// 'requerimientos', 'trabajosEspeciales' y 'clientes' deliberadamente
+// EXCLUIDAS — igual que 'notificaciones' (ver más abajo): la lectura de las
+// tres ahora pasa por su propia acción filtrada por servidor
+// (obtenerRequerimientosBackend / obtenerTrabajosEspecialesBackend /
+// obtenerClientesBackend), no por el fetch en lote de acá. Para clientes,
+// "filtrada" es la cartera propia MÁS cualquier cliente referenciado por un
+// trabajo especial asignado a este usuario (ver comentario junto a
+// obtenerClientesBackend) — Administrador/Contabilidad/TAX siguen viendo la
+// colección completa, igual que antes.
+const COLECCIONES_ESTADO = ['usuarios', 'obligaciones', 'reuniones', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo'];
 
 // Colecciones que se guardan por FUSIÓN (merge) en vez de mandar el arreglo
 // completo cada vez: el backend solo toca, por id, los registros que de
@@ -1304,6 +1332,8 @@ async function loadState(){
   state.requerimientos = [];
   // Mismo motivo: obtenerTrabajosEspecialesBackend también necesita currentUser.
   state.trabajosEspeciales = [];
+  // Mismo motivo: obtenerClientesBackend también necesita currentUser.
+  state.clientes = [];
 
   try{
     const config = valores.config ? JSON.parse(valores.config) : null;
@@ -1713,6 +1743,12 @@ async function enterAsUsuario(id){
   // cualquier trabajo especial ajeno que este usuario no puede ver.
   state.trabajosEspeciales = await obtenerTrabajosEspecialesBackend(currentUser.id);
   actualizarBaseSnapshot('trabajosEspeciales', state.trabajosEspeciales);
+  // Mismo motivo que requerimientos/trabajosEspeciales: base y estado tienen
+  // que quedar en el mismo subconjunto filtrado, o el próximo guardado vería
+  // como "borrado" cualquier cliente fuera de la cartera propia (y no
+  // referenciado por un trabajo especial propio) que este usuario no puede ver.
+  state.clientes = await obtenerClientesBackend(currentUser.id);
+  actualizarBaseSnapshot('clientes', state.clientes);
   renderApp(); // ya incluye renderNotifBell() al final
 }
 
