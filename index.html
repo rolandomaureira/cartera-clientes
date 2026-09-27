@@ -1154,6 +1154,44 @@ async function obtenerClientesBackend(usuarioId){
   }
 }
 
+// Mismo patrón que las demás. Sin concepto de cartera: el servidor devuelve
+// la colección completa solo si el usuario es Administrador (rol exacto,
+// igual que la pestaña RR.HH. en el nav — ver construirGruposNav), o []
+// para cualquier otro rol.
+async function obtenerRRHHFichasBackend(usuarioId){
+  if(!BACKEND_URL) return [];
+  try{
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ accion: 'obtenerRRHHFichas', usuarioId, token: API_TOKEN })
+    });
+    const data = await res.json().catch(() => null);
+    return (data && data.ok && Array.isArray(data.rrhhFichas)) ? data.rrhhFichas : [];
+  }catch(e){
+    console.error('No se pudieron obtener las fichas de RR.HH.:', e);
+    return [];
+  }
+}
+
+// Mismo patrón que obtenerClientesBackend (misma cartera propia); cada
+// propuesta pertenece a un cliente y solo se consulta desde su ficha.
+async function obtenerPropuestasBackend(usuarioId){
+  if(!BACKEND_URL) return [];
+  try{
+    const res = await fetch(BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ accion: 'obtenerPropuestas', usuarioId, token: API_TOKEN })
+    });
+    const data = await res.json().catch(() => null);
+    return (data && data.ok && Array.isArray(data.propuestas)) ? data.propuestas : [];
+  }catch(e){
+    console.error('No se pudieron obtener las propuestas:', e);
+    return [];
+  }
+}
+
 // Declaraciones juradas de renta más comunes para pymes (fuente: SII / Operación
 // Renta), usadas como plantilla inicial de la sub-pestaña "Declaraciones Juradas".
 const DECLARACIONES_JURADAS_DEFAULT = [
@@ -1187,16 +1225,23 @@ const DECLARACIONES_JURADAS_DEFAULT = [
 // colección no se trae completa (ver obtenerNotificacionesBackend/
 // sondearNotificacionesNuevas) — el servidor la filtra por usuario antes de
 // devolverla, así que se carga aparte, recién cuando ya hay currentUser.
-// 'requerimientos', 'trabajosEspeciales' y 'clientes' deliberadamente
-// EXCLUIDAS — igual que 'notificaciones' (ver más abajo): la lectura de las
-// tres ahora pasa por su propia acción filtrada por servidor
-// (obtenerRequerimientosBackend / obtenerTrabajosEspecialesBackend /
-// obtenerClientesBackend), no por el fetch en lote de acá. Para clientes,
-// "filtrada" es la cartera propia MÁS cualquier cliente referenciado por un
-// trabajo especial asignado a este usuario (ver comentario junto a
-// obtenerClientesBackend) — Administrador/Contabilidad/TAX siguen viendo la
-// colección completa, igual que antes.
-const COLECCIONES_ESTADO = ['usuarios', 'obligaciones', 'reuniones', 'auditoria', 'estimacionesF29', 'propuestas', 'clientesRemuneraciones', 'rrhhFichas', 'documentosTrabajo'];
+// 'requerimientos', 'trabajosEspeciales', 'clientes', 'rrhhFichas' y
+// 'propuestas' deliberadamente EXCLUIDAS — igual que 'notificaciones' (ver
+// más abajo): la lectura de todas ahora pasa por su propia acción filtrada
+// por servidor (obtenerRequerimientosBackend / obtenerTrabajosEspecialesBackend
+// / obtenerClientesBackend / obtenerRRHHFichasBackend / obtenerPropuestasBackend),
+// no por el fetch en lote de acá. Para clientes, "filtrada" es la cartera
+// propia MÁS cualquier cliente referenciado por un trabajo especial asignado
+// a este usuario (ver comentario junto a obtenerClientesBackend). Para
+// rrhhFichas no hay cartera de por medio — son datos del equipo interno, no
+// de clientes — así que "filtrada" es un candado de rol: solo Administrador
+// (esRolAdmin exacto, igual que en construirGruposNav — ni Contabilidad
+// entra acá) recibe la colección completa, cualquier otro rol recibe [].
+// Para propuestas, "filtrada" es la misma cartera propia que clientes (cada
+// propuesta pertenece a un cliente y solo se consulta desde su ficha).
+// Administrador/Contabilidad/TAX siguen viendo todo lo que ya veían, igual
+// que antes.
+const COLECCIONES_ESTADO = ['usuarios', 'obligaciones', 'reuniones', 'auditoria', 'estimacionesF29', 'clientesRemuneraciones', 'documentosTrabajo'];
 
 // Colecciones que se guardan por FUSIÓN (merge) en vez de mandar el arreglo
 // completo cada vez: el backend solo toca, por id, los registros que de
@@ -1334,6 +1379,10 @@ async function loadState(){
   state.trabajosEspeciales = [];
   // Mismo motivo: obtenerClientesBackend también necesita currentUser.
   state.clientes = [];
+  // Mismo motivo: obtenerRRHHFichasBackend también necesita currentUser.
+  state.rrhhFichas = [];
+  // Mismo motivo: obtenerPropuestasBackend también necesita currentUser.
+  state.propuestas = [];
 
   try{
     const config = valores.config ? JSON.parse(valores.config) : null;
@@ -1749,6 +1798,12 @@ async function enterAsUsuario(id){
   // referenciado por un trabajo especial propio) que este usuario no puede ver.
   state.clientes = await obtenerClientesBackend(currentUser.id);
   actualizarBaseSnapshot('clientes', state.clientes);
+  // Mismo motivo que arriba: base y estado en el mismo subconjunto filtrado
+  // (para RR.HH., [] entero si no es Administrador).
+  state.rrhhFichas = await obtenerRRHHFichasBackend(currentUser.id);
+  actualizarBaseSnapshot('rrhhFichas', state.rrhhFichas);
+  state.propuestas = await obtenerPropuestasBackend(currentUser.id);
+  actualizarBaseSnapshot('propuestas', state.propuestas);
   renderApp(); // ya incluye renderNotifBell() al final
 }
 
