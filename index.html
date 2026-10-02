@@ -4267,12 +4267,23 @@ async function sondearNotificacionesNuevas(){
     obtenerNotificacionesBackend(currentUser.id),
     obtenerRequerimientosBackend(currentUser.id)
   ]);
+  // Refleja acá cualquier cambio de coleccionesConErrorDeCarga (nuevo fallo
+  // del poll, o recuperación de uno anterior) aunque el resto de la función
+  // corte más abajo con un return temprano — ambas llamadas de arriba ya
+  // terminaron de marcar/desmarcar el Set antes de esta línea.
+  renderErrorCargaBanner();
 
   let notificacionesNuevasParaMi = [];
   // Mismo resguardo que el de requerimientos más abajo: si hay un guardado de
   // notificaciones pendiente o en curso (p.ej. recién marqué una como
-  // leída), no se pisa con la respuesta vieja del servidor.
-  if(!notificacionesSaveDebouncer.isPending() && Array.isArray(notifs)){
+  // leída), no se pisa con la respuesta vieja del servidor. El chequeo de
+  // coleccionesConErrorDeCarga es necesario además de Array.isArray:
+  // obtenerNotificacionesBackend devuelve [] tanto si de verdad no hay
+  // notificaciones como si la carga falló (incluso tras los reintentos
+  // automáticos) — sin esto, un fallo sostenido del poll vaciaría
+  // silenciosamente state.notificaciones (y su base de comparación), y el
+  // próximo guardado interpretaría cualquier notificación real como "borrada".
+  if(!notificacionesSaveDebouncer.isPending() && Array.isArray(notifs) && !coleccionesConErrorDeCarga.has('notificaciones')){
     const idsAntes = new Set(state.notificaciones.map(n => n.id));
     notificacionesNuevasParaMi = notifs.filter(n => !idsAntes.has(n.id));
     state.notificaciones = notifs;
@@ -4300,7 +4311,9 @@ async function sondearNotificacionesNuevas(){
   // servidor: ese guardado todavía no llegó, y aplicar la respuesta vieja
   // haría "desaparecer" momentáneamente el cambio recién hecho localmente.
   // Se reintenta solo en el próximo ciclo, cuando el guardado ya se hizo.
-  if(requerimientosSaveDebouncer.isPending() || !Array.isArray(reqs)) return;
+  // Mismo motivo que arriba para coleccionesConErrorDeCarga: [] no distingue
+  // "sin requerimientos" de "falló la carga".
+  if(requerimientosSaveDebouncer.isPending() || !Array.isArray(reqs) || coleccionesConErrorDeCarga.has('requerimientos')) return;
   state.requerimientos = reqs;
   actualizarBaseSnapshot('requerimientos', reqs); // mismo motivo que en notificaciones, arriba
   const enFormulario = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement && document.activeElement.tagName);
