@@ -663,6 +663,7 @@
 <div class="toast" id="toast"></div>
 <div id="modalRoot"></div>
 <div id="pushBannerBox"></div>
+<div id="errorCargaBox"></div>
 
 <script type="application/json" id="credsDataJson">
 {"usuarios": {"u_04addb": "ee186eda89dd5bbc2c54af104c0af8ea40394d5670f21e8e8bda8cd110e7f3a5", "u_5e6f56": "1fec5c2dd9e5422370473ac63a000e8e83a4eddd4e1ba9f42cae67539f10495f", "u_3f388c": "2d2929e779b04c7a2a50fe3288de27fceaa2894213fff5719489b62f443ac756", "u_775f73": "a70a60102b89c778a76eca7b743a6eedc23cd452ebefe2698f0c5737cf6d091b", "e_rolando": "6111a8b16908a58d4f22c8cccc3d1d54b387b096f710427a18bd9216445dbf1a", "e_stefania": "de885be841a036339fa6585c4a4b12db85f8a26634df9f1266bced9a74c9080e", "e_benjamin": "eb94e5c8dd84f31757cb5be98a27839c00ec7f0a150e10532e17fcde36f3646c", "e_valentina": "af7b60b6a7d1cfb87ac076c552af1ae551bcea9cbb629d6b7dfb81ab6f0ed61e", "u_38d8c8": "217cd7330c17349fd7efb85c2e18f70749a4f6d2b97c4f2128041b028a9531c7", "u_37db54": "9c56b7cdde89727a512874d34861fd12ec2b0df8e35d391ab34c7b8becf661ee", "u_550d71": "0cb16cc2b8b38d354e5c84ce750323553d1f7eab697aab6ed7abfe7f97232cf5", "u_46a45f": "1f4f51144dd9689c6917a1d1ffdc3a73b282451d6a68d11421cc20ea698e2801", "u_52fcde": "9e451b2ef36d3f29bc6a29e073f15c41bbc585821384d556128a564e8abd6ee5", "u_4d3444": "6217e1dbb4a9fc9b16710cb62d0c64cbe4ebb18a80144fd156fdc0468a19338e", "u_06258b": "942dc892a0fdaab1fbbadc87251199e79b32ab87011cabec6eda12bb7d881529", "u_a405c3": "a998f7d581c48e73f1ed2bce4f298cfb7aa484c0cd2af642fad2d14789e329c5", "u_99a957": "3fe48336e201ef8d08cfaa4cdf89a41c1ce008b45d0517b856279d25ee963c50", "u_a7aaa2": "7b5442228b29024deec2d9c7fa2807bcf9ec1e6ad9242b532f1dc3039a7a4660"}}
@@ -1072,23 +1073,44 @@ async function verificarLoginBackend(usuarioId, hash){
   }
 }
 
+// Reintenta automáticamente antes de darse por vencido: una falla transitoria
+// (de red, o el error pasajero de infraestructura de Google que a veces
+// responde con un error genérico en vez de la respuesta esperada) ya no deja
+// a estas 7 colecciones viéndose "vacías" a la primera. `payload` no lleva
+// token: se agrega acá para no repetirlo en cada llamada.
+async function fetchBackendConReintento_(payload, intentos = 2){
+  for(let intento = 1; intento <= intentos; intento++){
+    try{
+      const res = await fetch(BACKEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ ...payload, token: API_TOKEN })
+      });
+      const data = await res.json().catch(() => null);
+      if(data && data.ok) return data;
+    }catch(e){
+      if(intento === intentos) console.error(`Fallo tras ${intentos} intento(s) (${payload.accion}):`, e);
+    }
+    if(intento < intentos) await new Promise(r => setTimeout(r, 700));
+  }
+  return null;
+}
+
+// Qué colecciones fallaron en el último intento de carga (enterAsUsuario o
+// reintentarCargaFallida). A propósito fuera de `state`: no es una colección
+// que se guarda ni se fusiona, es solo la señal para el banner de "no se
+// pudo cargar / reintentar".
+let coleccionesConErrorDeCarga = new Set();
+
 // A diferencia de kvGet/kvGetMany (que devuelven la colección completa a
 // cualquiera con el token), esta acción filtra en el servidor y solo trae
 // las notificaciones de "usuarioId" — ver obtenerNotificaciones en Code.gs.
 async function obtenerNotificacionesBackend(usuarioId){
   if(!BACKEND_URL) return [];
-  try{
-    const res = await fetch(BACKEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ accion: 'obtenerNotificaciones', usuarioId, token: API_TOKEN })
-    });
-    const data = await res.json().catch(() => null);
-    return (data && data.ok && Array.isArray(data.notificaciones)) ? data.notificaciones : [];
-  }catch(e){
-    console.error('No se pudieron obtener las notificaciones:', e);
-    return [];
-  }
+  const data = await fetchBackendConReintento_({ accion: 'obtenerNotificaciones', usuarioId });
+  if(!data){ coleccionesConErrorDeCarga.add('notificaciones'); return []; }
+  coleccionesConErrorDeCarga.delete('notificaciones');
+  return Array.isArray(data.notificaciones) ? data.notificaciones : [];
 }
 
 // Mismo patrón que obtenerNotificacionesBackend: el filtrado por
@@ -1096,18 +1118,10 @@ async function obtenerNotificacionesBackend(usuarioId){
 // después de traer la colección completa.
 async function obtenerRequerimientosBackend(usuarioId){
   if(!BACKEND_URL) return [];
-  try{
-    const res = await fetch(BACKEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ accion: 'obtenerRequerimientos', usuarioId, token: API_TOKEN })
-    });
-    const data = await res.json().catch(() => null);
-    return (data && data.ok && Array.isArray(data.requerimientos)) ? data.requerimientos : [];
-  }catch(e){
-    console.error('No se pudieron obtener los requerimientos:', e);
-    return [];
-  }
+  const data = await fetchBackendConReintento_({ accion: 'obtenerRequerimientos', usuarioId });
+  if(!data){ coleccionesConErrorDeCarga.add('requerimientos'); return []; }
+  coleccionesConErrorDeCarga.delete('requerimientos');
+  return Array.isArray(data.requerimientos) ? data.requerimientos : [];
 }
 
 // Mismo patrón que obtenerRequerimientosBackend. El criterio de visibilidad
@@ -1117,18 +1131,10 @@ async function obtenerRequerimientosBackend(usuarioId){
 // nadie que hoy vea la lista completa deja de verla.
 async function obtenerTrabajosEspecialesBackend(usuarioId){
   if(!BACKEND_URL) return [];
-  try{
-    const res = await fetch(BACKEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ accion: 'obtenerTrabajosEspeciales', usuarioId, token: API_TOKEN })
-    });
-    const data = await res.json().catch(() => null);
-    return (data && data.ok && Array.isArray(data.trabajosEspeciales)) ? data.trabajosEspeciales : [];
-  }catch(e){
-    console.error('No se pudieron obtener los trabajos especiales:', e);
-    return [];
-  }
+  const data = await fetchBackendConReintento_({ accion: 'obtenerTrabajosEspeciales', usuarioId });
+  if(!data){ coleccionesConErrorDeCarga.add('trabajosEspeciales'); return []; }
+  coleccionesConErrorDeCarga.delete('trabajosEspeciales');
+  return Array.isArray(data.trabajosEspeciales) ? data.trabajosEspeciales : [];
 }
 
 // Mismo patrón que obtenerRequerimientosBackend/obtenerTrabajosEspecialesBackend.
@@ -1140,18 +1146,10 @@ async function obtenerTrabajosEspecialesBackend(usuarioId){
 // quedaría en blanco en "Mis trabajos especiales" para quien lo reciba.
 async function obtenerClientesBackend(usuarioId){
   if(!BACKEND_URL) return [];
-  try{
-    const res = await fetch(BACKEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ accion: 'obtenerClientes', usuarioId, token: API_TOKEN })
-    });
-    const data = await res.json().catch(() => null);
-    return (data && data.ok && Array.isArray(data.clientes)) ? data.clientes : [];
-  }catch(e){
-    console.error('No se pudieron obtener los clientes:', e);
-    return [];
-  }
+  const data = await fetchBackendConReintento_({ accion: 'obtenerClientes', usuarioId });
+  if(!data){ coleccionesConErrorDeCarga.add('clientes'); return []; }
+  coleccionesConErrorDeCarga.delete('clientes');
+  return Array.isArray(data.clientes) ? data.clientes : [];
 }
 
 // Mismo patrón que las demás. Sin concepto de cartera: el servidor devuelve
@@ -1160,36 +1158,20 @@ async function obtenerClientesBackend(usuarioId){
 // para cualquier otro rol.
 async function obtenerRRHHFichasBackend(usuarioId){
   if(!BACKEND_URL) return [];
-  try{
-    const res = await fetch(BACKEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ accion: 'obtenerRRHHFichas', usuarioId, token: API_TOKEN })
-    });
-    const data = await res.json().catch(() => null);
-    return (data && data.ok && Array.isArray(data.rrhhFichas)) ? data.rrhhFichas : [];
-  }catch(e){
-    console.error('No se pudieron obtener las fichas de RR.HH.:', e);
-    return [];
-  }
+  const data = await fetchBackendConReintento_({ accion: 'obtenerRRHHFichas', usuarioId });
+  if(!data){ coleccionesConErrorDeCarga.add('rrhhFichas'); return []; }
+  coleccionesConErrorDeCarga.delete('rrhhFichas');
+  return Array.isArray(data.rrhhFichas) ? data.rrhhFichas : [];
 }
 
 // Mismo patrón que obtenerClientesBackend (misma cartera propia); cada
 // propuesta pertenece a un cliente y solo se consulta desde su ficha.
 async function obtenerPropuestasBackend(usuarioId){
   if(!BACKEND_URL) return [];
-  try{
-    const res = await fetch(BACKEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ accion: 'obtenerPropuestas', usuarioId, token: API_TOKEN })
-    });
-    const data = await res.json().catch(() => null);
-    return (data && data.ok && Array.isArray(data.propuestas)) ? data.propuestas : [];
-  }catch(e){
-    console.error('No se pudieron obtener las propuestas:', e);
-    return [];
-  }
+  const data = await fetchBackendConReintento_({ accion: 'obtenerPropuestas', usuarioId });
+  if(!data){ coleccionesConErrorDeCarga.add('propuestas'); return []; }
+  coleccionesConErrorDeCarga.delete('propuestas');
+  return Array.isArray(data.propuestas) ? data.propuestas : [];
 }
 
 // Mismo patrón que obtenerRRHHFichasBackend (candado de rol, no cartera);
@@ -1197,18 +1179,10 @@ async function obtenerPropuestasBackend(usuarioId){
 // COLECCIONES_ESTADO.
 async function obtenerDocumentosTrabajoBackend(usuarioId){
   if(!BACKEND_URL) return [];
-  try{
-    const res = await fetch(BACKEND_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ accion: 'obtenerDocumentosTrabajo', usuarioId, token: API_TOKEN })
-    });
-    const data = await res.json().catch(() => null);
-    return (data && data.ok && Array.isArray(data.documentosTrabajo)) ? data.documentosTrabajo : [];
-  }catch(e){
-    console.error('No se pudieron obtener los documentos de trabajo:', e);
-    return [];
-  }
+  const data = await fetchBackendConReintento_({ accion: 'obtenerDocumentosTrabajo', usuarioId });
+  if(!data){ coleccionesConErrorDeCarga.add('documentosTrabajo'); return []; }
+  coleccionesConErrorDeCarga.delete('documentosTrabajo');
+  return Array.isArray(data.documentosTrabajo) ? data.documentosTrabajo : [];
 }
 
 // Declaraciones juradas de renta más comunes para pymes (fuente: SII / Operación
@@ -1792,6 +1766,30 @@ async function checkLogin(){
   enterAsUsuario(u.id);
 }
 
+// Las 7 colecciones que se cargan al entrar como un usuario: independientes
+// entre sí (ninguna depende del resultado de otra), así que se piden todas en
+// paralelo en vez de una por una — antes eran 7 round-trips secuenciales al
+// backend, ahora es 1 tanda simultánea. Reutilizado también por
+// reintentarCargaFallida() para repetir solo lo que falló la primera vez.
+const CARGA_INICIAL_USUARIO = [
+  { clave: 'notificaciones',     fetch: obtenerNotificacionesBackend },
+  { clave: 'requerimientos',     fetch: obtenerRequerimientosBackend },
+  { clave: 'trabajosEspeciales', fetch: obtenerTrabajosEspecialesBackend },
+  { clave: 'clientes',           fetch: obtenerClientesBackend },
+  { clave: 'rrhhFichas',         fetch: obtenerRRHHFichasBackend },
+  { clave: 'propuestas',         fetch: obtenerPropuestasBackend },
+  { clave: 'documentosTrabajo',  fetch: obtenerDocumentosTrabajoBackend },
+];
+
+// Nombres legibles para el banner de "no se pudo cargar" — mismas 7 claves
+// de CARGA_INICIAL_USUARIO.
+const NOMBRE_COLECCION_LEGIBLE = {
+  notificaciones: 'Notificaciones', requerimientos: 'Requerimientos',
+  trabajosEspeciales: 'Trabajos Especiales', clientes: 'Clientes',
+  rrhhFichas: 'RR.HH.', propuestas: 'Propuestas',
+  documentosTrabajo: 'Documentos de Trabajo',
+};
+
 async function enterAsUsuario(id){
   const u = state.usuarios.find(u => u.id === id);
   if(!u) return;
@@ -1806,35 +1804,51 @@ async function enterAsUsuario(id){
   showWhoami();
   renderApp();
   iniciarPollingNotificaciones();
-  state.notificaciones = await obtenerNotificacionesBackend(currentUser.id);
-  actualizarBaseSnapshot('notificaciones', state.notificaciones);
-  // Igual que notificaciones: se guarda por fusión (ID_POR_COLECCION_MERGE),
-  // así que la base de comparación tiene que quedar en el mismo subconjunto
-  // filtrado que state.requerimientos — si no, el próximo guardado
-  // interpretaría cualquier requerimiento ajeno (invisible para este
-  // usuario, pero presente en el backend) como "borrado".
-  state.requerimientos = await obtenerRequerimientosBackend(currentUser.id);
-  actualizarBaseSnapshot('requerimientos', state.requerimientos);
-  // Mismo motivo que requerimientos: base y estado tienen que quedar en el
-  // mismo subconjunto filtrado, o el próximo guardado vería como "borrado"
-  // cualquier trabajo especial ajeno que este usuario no puede ver.
-  state.trabajosEspeciales = await obtenerTrabajosEspecialesBackend(currentUser.id);
-  actualizarBaseSnapshot('trabajosEspeciales', state.trabajosEspeciales);
-  // Mismo motivo que requerimientos/trabajosEspeciales: base y estado tienen
-  // que quedar en el mismo subconjunto filtrado, o el próximo guardado vería
-  // como "borrado" cualquier cliente fuera de la cartera propia (y no
-  // referenciado por un trabajo especial propio) que este usuario no puede ver.
-  state.clientes = await obtenerClientesBackend(currentUser.id);
-  actualizarBaseSnapshot('clientes', state.clientes);
-  // Mismo motivo que arriba: base y estado en el mismo subconjunto filtrado
-  // (para RR.HH., [] entero si no es Administrador).
-  state.rrhhFichas = await obtenerRRHHFichasBackend(currentUser.id);
-  actualizarBaseSnapshot('rrhhFichas', state.rrhhFichas);
-  state.propuestas = await obtenerPropuestasBackend(currentUser.id);
-  actualizarBaseSnapshot('propuestas', state.propuestas);
-  state.documentosTrabajo = await obtenerDocumentosTrabajoBackend(currentUser.id);
-  actualizarBaseSnapshot('documentosTrabajo', state.documentosTrabajo);
+  coleccionesConErrorDeCarga.clear();
+  // Todas se guardan por fusión (ID_POR_COLECCION_MERGE) con el subconjunto
+  // que el servidor ya filtró para este usuario: la base de comparación
+  // (actualizarBaseSnapshot) tiene que quedar en ese mismo subconjunto, o el
+  // próximo guardado interpretaría como "borrado" cualquier fila ajena
+  // (invisible para este usuario, pero presente en el backend).
+  const resultados = await Promise.all(CARGA_INICIAL_USUARIO.map(c => c.fetch(currentUser.id)));
+  CARGA_INICIAL_USUARIO.forEach((c, i) => {
+    state[c.clave] = resultados[i];
+    actualizarBaseSnapshot(c.clave, state[c.clave]);
+  });
+  renderErrorCargaBanner();
   renderApp(); // ya incluye renderNotifBell() al final
+}
+
+async function reintentarCargaFallida(){
+  if(!currentUser || !coleccionesConErrorDeCarga.size) return;
+  const pendientes = CARGA_INICIAL_USUARIO.filter(c => coleccionesConErrorDeCarga.has(c.clave));
+  showToast('Reintentando...');
+  const resultados = await Promise.all(pendientes.map(c => c.fetch(currentUser.id)));
+  pendientes.forEach((c, i) => {
+    state[c.clave] = resultados[i];
+    actualizarBaseSnapshot(c.clave, state[c.clave]);
+  });
+  renderErrorCargaBanner();
+  renderApp();
+}
+
+// Banner fijo (mismo contenedor/estilo que pushBannerBox) que avisa cuando
+// alguna de las 7 colecciones de arriba no se pudo cargar ni tras los
+// reintentos automáticos — antes esto se veía indistinguible de "no tengo
+// datos" (p.ej. "Sin clientes aquí todavía" con la lista realmente vacía).
+function renderErrorCargaBanner(){
+  const box = document.getElementById('errorCargaBox');
+  if(!box) return;
+  if(!coleccionesConErrorDeCarga.size){ box.innerHTML = ''; return; }
+  const nombres = [...coleccionesConErrorDeCarga].map(k => NOMBRE_COLECCION_LEGIBLE[k] || k).join(', ');
+  box.innerHTML = `
+    <div class="push-banner" style="border-color:var(--danger);">
+      <span style="color:var(--danger);">No se pudo cargar: ${nombres}. Puede que falten datos en pantalla.</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn small" onclick="reintentarCargaFallida()">Reintentar</button>
+      </div>
+    </div>
+  `;
 }
 
 function showWhoami(){
