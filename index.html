@@ -4027,6 +4027,26 @@ function notificarReasignacionCliente(cliente, encargadoIdAnterior, encargadoIdN
   });
 }
 
+// Variante para traspasos masivos (derivarCarteraMasiva): UN solo aviso con la
+// cantidad, en vez de uno por cliente — una cartera completa son decenas o
+// cientos de clientes y llenaría la campana de una sola vez. Con un único
+// cliente se usa el aviso normal, que lo nombra. Al abrirlo solo lleva a
+// Cartera (entidadId null: no hay un cliente puntual que abrir).
+function notificarReasignacionCarteraMasiva(clientes, encargadoIdAnterior, encargadoIdNuevo, nombreOrigen){
+  if(!clientes.length) return;
+  if(clientes.length === 1){
+    notificarReasignacionCliente(clientes[0], encargadoIdAnterior, encargadoIdNuevo);
+    return;
+  }
+  if(!encargadoIdNuevo || encargadoIdNuevo === encargadoIdAnterior || encargadoIdNuevo === currentUser.id) return;
+  const deLaCartera = encargadoIdAnterior === currentUser.id ? 'de su cartera' : `de la cartera de ${nombreOrigen}`;
+  crearNotificacion({
+    tipo: 'cliente_reasignado', destinatarioId: encargadoIdNuevo,
+    entidadTipo: 'cartera', entidadId: null,
+    mensaje: `${currentUser.name} te asignó ${clientes.length} clientes ${deLaCartera}`
+  });
+}
+
 let notifPanelOpen = false;
 
 // Fuente de datos real de la campana: notificaciones sin leer dirigidas a
@@ -4231,9 +4251,10 @@ function nombresDirigidoA(r){
 
 /* ---------------- Notificaciones en vivo (polling) ---------------- */
 // El backend es Apps Script + Sheets, sin websockets ni push real. Cada
-// cierto tiempo se piden en un solo request por lote (kvGetMany) las llaves
-// 'requerimientos' y 'notificaciones', y se comparan contra lo que ya había
-// en memoria por id. Dos efectos, independientes entre sí:
+// NOTIFICACIONES_POLL_MS se pide UNA sola colección, 'notificaciones' (ya
+// filtrada por servidor, ver obtenerNotificacionesBackend), y se compara
+// contra lo que ya había en memoria por id. Dos efectos, independientes
+// entre sí:
 //  1) toda notificación nueva dirigida a currentUser dispara un toast y
 //     refresca la campana (cubre Requerimientos, Trabajos Especiales,
 //     Clientes y vencimientos por igual).
@@ -4242,13 +4263,27 @@ function nombresDirigidoA(r){
 //     nuevo aparezca sin recargar — mismo comportamiento puntual que existía
 //     antes de generalizar esto, solo que ahora lo dispara la notificación
 //     en vez de leer requerimientos por separado.
+// 'requerimientos' ya NO se pide en cada ciclo. El servidor (Code.gs,
+// LIMITE_SOLICITUDES_POR_MINUTO) tiene un tope GLOBAL de 240 solicitudes por
+// minuto compartido entre todos los usuarios, y pedir las dos colecciones
+// cada 20 s gastaba 6 solicitudes/min por pestaña abierta: el doble de lo
+// necesario. Ahora se vuelve a pedir solo cuando (a) llega una notificación
+// nueva de un requerimiento, (b) se vuelve a la pestaña del navegador
+// (visibilitychange) o (c) pasaron REQUERIMIENTOS_REFRESCO_CADA_N_CICLOS
+// ciclos sin hacerlo. El (c) es una red de seguridad a propósito: un cambio
+// a un requerimiento que NO genera notificación (p.ej. otra persona le edita
+// la fecha límite) igual tiene que llegar a esta pestaña, porque guardar
+// desde una copia desactualizada pisaría ese cambio.
 // No reemplaza el resto de `state` ni interrumpe a nadie que esté
 // escribiendo en un formulario.
 const NOTIFICACIONES_POLL_MS = 20000;
+const REQUERIMIENTOS_REFRESCO_CADA_N_CICLOS = 3; // 3 x 20 s: como máximo ~60 s sin refrescar
+let ciclosSinRefrescarRequerimientos = 0;
 let notificacionesPollTimer = null;
 
 function iniciarPollingNotificaciones(){
   if(notificacionesPollTimer) return;
+  ciclosSinRefrescarRequerimientos = 0; // la carga inicial de enterAsUsuario ya trae requerimientos frescos
   notificacionesPollTimer = setInterval(sondearNotificacionesNuevas, NOTIFICACIONES_POLL_MS);
 }
 
@@ -4256,21 +4291,20 @@ function detenerPollingNotificaciones(){
   if(notificacionesPollTimer){ clearInterval(notificacionesPollTimer); notificacionesPollTimer = null; }
 }
 
-async function sondearNotificacionesNuevas(){
+// opciones.forzarRequerimientos === true: pide también requerimientos en este
+// ciclo aunque no toque (lo usa visibilitychange al volver a la pestaña).
+async function sondearNotificacionesNuevas(opciones){
   if(!currentUser || !BACKEND_URL) return;
+  const forzarRequerimientos = !!(opciones && opciones.forzarRequerimientos === true);
 
-  // En paralelo: notificaciones y requerimientos, ambos ya filtrados por
-  // servidor según el usuario actual (ver obtenerNotificacionesBackend /
-  // obtenerRequerimientosBackend) — ninguna de las dos trae la colección
-  // completa.
-  const [notifs, reqs] = await Promise.all([
-    obtenerNotificacionesBackend(currentUser.id),
-    obtenerRequerimientosBackend(currentUser.id)
-  ]);
+  // Solo notificaciones en cada ciclo, ya filtradas por servidor según el
+  // usuario actual (ver obtenerNotificacionesBackend) — no trae la colección
+  // completa. Requerimientos se pide más abajo, y solo cuando corresponde.
+  const notifs = await obtenerNotificacionesBackend(currentUser.id);
   // Refleja acá cualquier cambio de coleccionesConErrorDeCarga (nuevo fallo
   // del poll, o recuperación de uno anterior) aunque el resto de la función
-  // corte más abajo con un return temprano — ambas llamadas de arriba ya
-  // terminaron de marcar/desmarcar el Set antes de esta línea.
+  // corte más abajo con un return temprano — la llamada de arriba ya
+  // terminó de marcar/desmarcar el Set antes de esta línea.
   renderErrorCargaBanner();
 
   let notificacionesNuevasParaMi = [];
@@ -4306,14 +4340,26 @@ async function sondearNotificacionesNuevas(){
     renderNotifBell();
   }
 
+  // Requerimientos: solo si llegó una notificación de requerimiento, si se
+  // pidió explícitamente (volver a la pestaña) o si ya pasaron
+  // REQUERIMIENTOS_REFRESCO_CADA_N_CICLOS ciclos sin refrescarlos (ver el
+  // comentario de arriba de NOTIFICACIONES_POLL_MS).
+  ciclosSinRefrescarRequerimientos++;
+  const llegoRequerimientoNuevo = notificacionesNuevasParaMi.some(n => n.tipo === 'requerimiento_asignado' || n.tipo === 'requerimiento_estado');
+  if(!forzarRequerimientos && !llegoRequerimientoNuevo && ciclosSinRefrescarRequerimientos < REQUERIMIENTOS_REFRESCO_CADA_N_CICLOS) return;
+
+  const reqs = await obtenerRequerimientosBackend(currentUser.id);
+  renderErrorCargaBanner(); // idem: refleja el resultado de esta llamada aunque abajo se corte
   // Si hay un guardado de requerimientos pendiente o en curso (p.ej. se acaba
   // de crear/editar uno hace instantes), no se pisa con lo que devuelva el
   // servidor: ese guardado todavía no llegó, y aplicar la respuesta vieja
   // haría "desaparecer" momentáneamente el cambio recién hecho localmente.
-  // Se reintenta solo en el próximo ciclo, cuando el guardado ya se hizo.
+  // Se reintenta solo en el próximo ciclo (el contador de abajo solo se
+  // reinicia cuando de verdad se aplica), cuando el guardado ya se hizo.
   // Mismo motivo que arriba para coleccionesConErrorDeCarga: [] no distingue
   // "sin requerimientos" de "falló la carga".
   if(requerimientosSaveDebouncer.isPending() || !Array.isArray(reqs) || coleccionesConErrorDeCarga.has('requerimientos')) return;
+  ciclosSinRefrescarRequerimientos = 0;
   state.requerimientos = reqs;
   actualizarBaseSnapshot('requerimientos', reqs); // mismo motivo que en notificaciones, arriba
   const enFormulario = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement && document.activeElement.tagName);
@@ -4327,7 +4373,7 @@ async function sondearNotificacionesNuevas(){
 // volver a primer plano se sondea de inmediato para no esperar hasta el
 // próximo tick.
 document.addEventListener('visibilitychange', () => {
-  if(!document.hidden && currentUser) sondearNotificacionesNuevas();
+  if(!document.hidden && currentUser) sondearNotificacionesNuevas({ forzarRequerimientos: true });
 });
 
 /* ---------------- Notificaciones push del navegador (opcional) ----------------
@@ -5606,6 +5652,7 @@ async function updateRequerimientoEstado(id, estado){
 async function derivarRequerimiento(id, destino){
   const r = state.requerimientos.find(r => r.id === id);
   if(!r) return;
+  const asignadosAntes = [...dirigidoAIds(r)];
   if(destino === 'administracion'){
     r.dirigidoA = ['Kevin Varela','Eduardo Llanos'].map(buscarUsuarioPorNombre).filter(Boolean).map(u=>u.id);
   }else if(destino === 'tax'){
@@ -5613,6 +5660,14 @@ async function derivarRequerimiento(id, destino){
     r.dirigidoA = tax ? [tax.id] : [];
   }
   await saveRequerimientos();
+  // Avisa solo a quienes pasan a estar dirigidos al requerimiento y antes no
+  // lo estaban (derivarlo a quien ya lo tenía no repite el aviso). Mismo tipo
+  // que al crearlo (submitRequerimiento), así la campana, el auto-leído al
+  // entrar a Requerimientos y el refresco en vivo del poll funcionan igual.
+  crearNotificacionesParaVarios(dirigidoAIds(r).filter(idUsuario => !asignadosAntes.includes(idUsuario)), { // no bloqueante
+    tipo: 'requerimiento_asignado', entidadTipo: 'requerimiento', entidadId: r.id,
+    mensaje: `${currentUser.name} te derivó un requerimiento: ${r.tipo}`
+  });
   renderApp();
   showToast('Requerimiento derivado.');
 }
@@ -9570,7 +9625,7 @@ async function derivarCarteraMasiva(){
   }else{
     clientesOrigen.forEach(c => { c.encargadoId = destinoId; });
     await saveClientes();
-    clientesOrigen.forEach(c => notificarReasignacionCliente(c, origenId, destinoId));
+    notificarReasignacionCarteraMasiva(clientesOrigen, origenId, destinoId, origen.name);
   }
 
   renderApp();
