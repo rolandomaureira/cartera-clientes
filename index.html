@@ -2991,7 +2991,7 @@ function renderModal(){
           <label>Inicio de actividades
             <input type="date" id="dt_fecha_inicio" value="${escapeAttr(c.fechaInicioActividades||'')}">
           </label>
-          <label>Capital enterado ($)
+          <label>Capital enterado (M$, miles de pesos)
             <input type="number" id="dt_capital" min="0" step="1" placeholder="Sin registrar" value="${c.capitalEnterado != null ? escapeAttr(String(c.capitalEnterado)) : ''}">
           </label>
           <label style="grid-column:1 / -1;">Dirección
@@ -3250,7 +3250,7 @@ function renderModal(){
 //   representantesLegales [{nombre, rut}]     -> el primero se copia a representanteLegal / representanteLegalRut
 //                                                (campos antiguos que usan otras pantallas)
 //   sociosDetalle [{nombre, rut, porcentaje}] -> distinto de c.socios (lista de nombres para Memos y Propuestas)
-//   actividadesEconomicas [{codigo, glosa}], fechaInicioActividades (AAAA-MM-DD), direccion, capitalEnterado (pesos)
+//   actividadesEconomicas [{codigo, glosa}], fechaInicioActividades (AAAA-MM-DD), direccion, capitalEnterado (M$ = miles de pesos, como lo informa el SII)
 //   siiObservacion, siiRevisado (AAAA-MM-DD)  -> resultado de la última carga del Excel del SII
 
 // Texto comparable: sin tildes, en mayúsculas, sin puntuación y con espacios simples.
@@ -3570,12 +3570,22 @@ function regimenDesdeExcel(t){
   if(n.includes('TRANSPARENTE')) return opcion('TRANSPARENTE');
   if(n.includes('PRO PYME')) return REGIMENES_TRIBUTARIOS.find(r => normTexto(r).includes('PRO PYME') && !normTexto(r).includes('TRANSPARENTE')) || '';
   if(n.includes('SEMI INTEGRADO')) return opcion('SEMI INTEGRADO');
+  // personas que tributan solo en 2ª categoría (honorarios) o que ya vienen como "Persona Natural"
+  if(n.includes('PERSONA NATURAL') || /(^| )(2DA|2A|SEGUNDA) CATEGORIA( |$)/.test(n)) return opcion('PERSONA NATURAL');
+  return '';
+}
+
+// "Temuco" / "Concepción" (con o sin tilde, en cualquier tamaño de letra) -> el valor que usa la app; '' si no se reconoce.
+function sucursalDesdeTexto(t){
+  const n = normTexto(t);
+  if(n.indexOf('TEMUCO') === 0) return 'Temuco';
+  if(n.indexOf('CONCEPCION') === 0) return 'Concepcion';
   return '';
 }
 
 function combinarRegistros(a, b){
   const r = Object.assign({}, a);
-  ['razon', 'grupo', 'encargado', 'clave', 'claveUnica', 'regimen', 'inicio', 'direccion'].forEach(k => { if(!r[k] && b[k]) r[k] = b[k]; });
+  ['razon', 'grupo', 'encargado', 'sucursal', 'clave', 'claveUnica', 'regimen', 'inicio', 'direccion'].forEach(k => { if(!r[k] && b[k]) r[k] = b[k]; });
   if(r.capital == null && b.capital != null) r.capital = b.capital;
   r.reps = unirPersonas(a.reps, b.reps).lista;
   r.socios = unirPersonas(a.socios, b.socios, (ex, p) => {
@@ -3596,7 +3606,7 @@ function leerRegistrosCaracteristicas(filas){
   const idx = nombre => enc.indexOf(normTexto(nombre));
   const col = {
     rut: idx('Rut'), razon: idx('Razon Social'), grupo: idx('Grupo'), clave: idx('Clave'), claveUnica: idx('Clave unica'),
-    encargado: idx('Encargado'), regimen: idx('REGIMEN TRIBUTARIO'), actividades: idx('ACTIVIDADES ECONOMICAS'),
+    encargado: idx('Encargado'), sucursal: idx('Sucursal'), regimen: idx('REGIMEN TRIBUTARIO'), actividades: idx('ACTIVIDADES ECONOMICAS'),
     inicio: idx('FECHA DE INICIO'), direccion: idx('DIRECCION'), capital: idx('CAPITAL ENTERADO'), obs: idx('OBSERVACIONES SII'),
     reps: [], socios: []
   };
@@ -3618,7 +3628,7 @@ function leerRegistrosCaracteristicas(filas){
     }
     const reg = {
       fila: r + 1, rut, rutTxt: limpiarRut(txt(f, col.rut)),
-      razon: txt(f, col.razon), grupo: txt(f, col.grupo), encargado: txt(f, col.encargado),
+      razon: txt(f, col.razon), grupo: txt(f, col.grupo), encargado: txt(f, col.encargado), sucursal: sucursalDesdeTexto(txt(f, col.sucursal)),
       clave: txt(f, col.clave), claveUnica: txt(f, col.claveUnica),
       regimen: regimenDesdeExcel(txt(f, col.regimen)),
       reps: col.reps.map(c => ({ nombre: txt(f, c.nombre), rut: limpiarRut(txt(f, c.rut)) })).filter(p => p.nombre || p.rut),
@@ -3758,13 +3768,19 @@ function planificarImportacion(registros){
   return plan;
 }
 
+// Sucursal con la que se crea un cliente nuevo: la de su encargado si el Excel lo trae; si no, la columna "Sucursal"
+// del Excel; y si tampoco, Concepción (como siempre).
+function sucursalDeNuevo(e){
+  const enc = e.encargado ? usuarioDesdeTextoEncargado(e.encargado, { sucursal: 'Concepcion' }) : null;
+  return enc && enc.sucursal !== 'Ambas' ? enc.sucursal : (e.sucursal || 'Concepcion');
+}
 function construirClienteNuevo(e, grupos){
   const enc = e.encargado ? usuarioDesdeTextoEncargado(e.encargado, { sucursal: 'Concepcion' }) : null;
   const cli = {
     id: uid('c'), name: e.razon || e.rutTxt, rut: e.rutTxt, clave: e.clave || '',
     regimenTributario: '', representanteLegal: '', actividadEconomica: '', valorServicioMensual: null,
     encargadoId: enc ? enc.id : null,
-    sucursal: enc && enc.sucursal !== 'Ambas' ? enc.sucursal : 'Concepcion',
+    sucursal: sucursalDeNuevo(e),
     notas: '', f29Estado: 'no_enviado', f29Requerido: false
   };
   cambiosParaCliente(cli, e, grupos).forEach(it => Object.assign(cli, it.set));
@@ -3828,7 +3844,7 @@ function renderImportarCaracteristicas(){
   let cuerpo = '';
   if(s.fase === 'inicio'){
     cuerpo = `
-      <p style="font-size:13px;color:#6b6a5f;margin:0 0 12px;">Sube el Excel de características (columnas Grupo, Rut, Clave, Razon Social, Régimen, Representantes, Socios, Actividades, Dirección…). El archivo se lee en este computador. No se duplica nada: se completa lo que está vacío, se actualiza lo que cambió y se deja tal cual lo que el Excel trae en blanco.</p>
+      <p style="font-size:13px;color:#6b6a5f;margin:0 0 12px;">Sube el Excel de características (columnas Grupo, Rut, Clave, Razon Social, Sucursal (solo para clientes nuevos), Régimen, Representantes, Socios, Actividades, Dirección…). El archivo se lee en este computador. No se duplica nada: se completa lo que está vacío, se actualiza lo que cambió y se deja tal cual lo que el Excel trae en blanco.</p>
       <input type="file" accept=".xlsx" onchange="procesarArchivoCaracteristicas(this.files[0])">
       ${s.error ? `<div style="margin-top:12px;font-size:13px;color:var(--danger);">${escapeHtml(s.error)}</div>` : ''}`;
   }else if(s.fase === 'leyendo'){
@@ -3886,7 +3902,7 @@ function vistaPlanImportacion(s){
     ${opcion('imp_op_clavesdif', false, `Reemplazar la clave SII cuando el Excel trae una distinta (${nClaveD})`, nClaveD)}
     ${opcion('imp_op_razon', false, `Actualizar la razón social cuando difiere (${nRazon})`, nRazon)}
     ${opcion('imp_op_enc', false, `Actualizar el encargado cuando difiere (${nEnc}${nEncNA ? `; ${nEncNA} sin equivalencia clara se dejan igual` : ''})`, nEnc)}
-    ${opcion('imp_op_crear', false, `Crear los ${nNuevos} clientes que están en el Excel y no en la página`, nNuevos)}
+    ${opcion('imp_op_crear', false, `Crear los ${nNuevos} clientes que están en el Excel y no en la página${nNuevos ? ` (sucursal: ${Object.entries(p.noEncontrados.reduce((m, e) => { const k = sucursalDeNuevo(e); m[k] = (m[k] || 0) + 1; return m; }, {})).map(([k, n]) => `${k === 'Concepcion' ? 'Concepción' : k} ${n}`).join(' · ')})` : ''}`, nNuevos)}
     <div style="display:flex;gap:10px;margin-top:16px;">
       <button class="btn secondary" onclick="cerrarImportarCaracteristicas()">Cancelar</button>
       <button class="btn" style="flex:1;" onclick="aplicarImportacionCaracteristicas()">Aplicar cambios</button>
