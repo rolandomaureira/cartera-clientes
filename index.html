@@ -447,6 +447,61 @@
     .whoami{gap:8px;font-size:13px;}
   }
 
+  /* ---------- Mallas Societarias (pestaña de Clientes) ---------- */
+  /* Paleta de la malla = la del PDF "Malla_Societaria_Clientes.pdf" (azul marino #0C1A8A, verde cliente, azul persona
+     natural, ámbar sociedad que no es cliente). El diagrama (SVG) lleva sus propios estilos adentro para que se vea
+     igual al exportarlo a PDF. */
+  .ms-mut{color:#6b6a5f;}
+  .ms-estado{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:600;border:1px solid;white-space:nowrap;}
+  .ms-estado.ok{color:#14452B;background:#E4F3EA;border-color:#86C3A0;}
+  .ms-estado.revisar{color:#6A4A00;background:#FFF3D6;border-color:#E0BF6A;}
+  .ms-estado.sin-datos{color:#555F7A;background:#F3F4F8;border-color:#C9CEDC;}
+  .ms-estado.pn{color:#26457A;background:#EAF1FC;border-color:#9FB6DE;}
+  .ms-lista thead th, .ms-lista .row-actions .btn{white-space:nowrap;}
+  .ms-doc{background:var(--white);border:1px solid var(--line);border-radius:16px;padding:22px 28px;box-shadow:0 1px 2px rgba(16,24,40,0.03), 0 1px 6px rgba(16,24,40,0.05);}
+  .ms-doc.ms-exportando{border:none;border-radius:0;box-shadow:none;padding:0;}
+  .ms-doc.ms-exportando .ms-svg{max-height:105mm;}  /* en el PDF, un diagrama alto no debe dejar media hoja en blanco */
+  .ms-doc.ms-exportando .ms-sec{break-inside:avoid;}  /* en el PDF, un título no se separa de su tabla (html2pdf respeta break-inside) */
+  .ms-cab{display:flex;align-items:center;gap:14px;border-bottom:2px solid #0C1A8A;padding-bottom:10px;margin-bottom:12px;}
+  .ms-cab img{width:44px;height:44px;object-fit:contain;flex-shrink:0;border-radius:8px;}
+  .ms-tit{flex:1;min-width:0;}
+  .ms-kicker{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#0C1A8A;font-weight:600;}
+  .ms-cab h3{margin:2px 0 0;font-size:23px;line-height:1.2;font-weight:600;color:var(--ink);}
+  .ms-fecha{font-size:11px;color:#6b6a5f;text-align:right;white-space:nowrap;}
+  .ms-chips{display:flex;flex-wrap:wrap;gap:6px 8px;margin:0 0 12px;}
+  .ms-chip{background:#EEF1FA;border:1px solid #D3D9EF;color:#26325E;border-radius:12px;padding:3px 11px;font-size:12px;}
+  .ms-chip b{font-weight:600;}
+  .ms-chip.link{cursor:pointer;}
+  .ms-chip.link:hover{border-color:#0C1A8A;text-decoration:underline;}
+  .ms-aviso{background:#FFF6DB;border:1px solid #E6C770;color:#6A4A00;border-radius:6px;padding:7px 12px;margin:0 0 8px;font-size:13px;}
+  .ms-aviso.rojo{background:#FDECEC;border-color:#E5A3A3;color:#7B1D1D;}
+  .ms-svg{width:100%;height:auto;display:block;margin:6px 0 4px;}
+  .ms-lnk{cursor:pointer;}
+  .ms-lnk:hover rect:first-of-type{stroke-width:2;}
+  .ms-leyenda{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#4B5563;margin:2px 0 6px;}
+  .ms-leyenda i{display:inline-block;width:11px;height:11px;border-radius:2px;vertical-align:-1px;margin-right:4px;border:1px solid;}
+  .ms-doc h4{margin:18px 0 8px;padding-bottom:3px;font-size:14px;font-weight:600;color:#0C1A8A;border-bottom:1px solid #D3D9EF;}
+  .ms-doc table{border-radius:8px;box-shadow:none;font-size:13px;}
+  .ms-doc thead th{padding:8px 12px;}
+  .ms-doc tbody td{padding:7px 12px;font-size:13px;}
+  .ms-doc tr.ms-tot td{font-weight:600;background:#F8F9FD;}
+  .ms-tag{font-size:10.5px;border:1px solid;border-radius:9px;padding:0 6px;margin-left:5px;white-space:nowrap;}
+  .ms-tag.pn{color:#26457A;border-color:#9FB6DE;}
+  .ms-tag.so{color:#6A4A00;border-color:#E0BF6A;}
+  .ms-tag.cl{color:#14452B;border-color:#86C3A0;}
+  .ms-link{color:var(--teal-dark);cursor:pointer;text-decoration:underline;text-decoration-color:#B8C0DC;text-underline-offset:3px;}
+  .ms-link:hover{text-decoration-color:var(--teal-dark);}
+  .ms-hermanas .ms-link{white-space:nowrap;}
+  .ms-pie{margin-top:16px;padding-top:8px;border-top:1px solid var(--line);font-size:11px;color:#6b6a5f;}
+  @media (max-width:600px){
+    .ms-doc{padding:16px 14px;}
+    .ms-cab h3{font-size:18px;}
+    .ms-fecha{display:none;}
+  }
+  @media print{
+    .ms-doc{border:none;border-radius:0;box-shadow:none;padding:0;}
+  }
+
   /* ---------- Impresión (usada por "Descargar PDF" del Reporte Semanal) ---------- */
   @media print{
     .topbar, .folders, .no-print, .toast{ display:none !important; }
@@ -2010,6 +2065,7 @@ function construirGruposNav(){
         {tab:'archivos', label:'Archivos'},
         {tab:'facturacion', label:'Facturación'},
         {tab:'cobranza', label:'Cobranza'},
+        {tab:'mallas-societarias', label:'Mallas Societarias'},
         {tab:'incorporar', label:'Incorporar Clientes'},
       ]},
       { key:'gestion', label:'Gestión', icon: NAV_ICONS.list, tabs: [
@@ -2114,6 +2170,7 @@ function setTab(tab){
   searchQuery = '';
   tablePage = 1;
   inicioReqExpandido = false;
+  if(tab === 'mallas-societarias'){ mallaSel = null; mallaPila = []; mallaFiltroGrupo = '__todos__'; mallaFiltroEstado = 'todos'; }
   if(tab === 'requerimientos') marcarRequerimientosLeidos();
   if(TAB_A_TIPOS_NOTIF[tab]) marcarNotificacionesLeidasPorTipo(TAB_A_TIPOS_NOTIF[tab]);
   renderApp();
@@ -2237,6 +2294,8 @@ function adminLayout(){
           ? actividadContent()
           : activeTab === 'agenda-eduardo'
           ? agendaEduardoContent()
+          : activeTab === 'mallas-societarias'
+          ? mallasSocietariasContent()
           : activeTab === 'rrhh'
           ? rrhhContent()
           : adminMainContent(unassigned)}
@@ -2300,6 +2359,8 @@ function contabilidadLayout(){
           ? actividadContent()
           : activeTab === 'agenda-eduardo'
           ? agendaEduardoContent()
+          : activeTab === 'mallas-societarias'
+          ? mallasSocietariasContent()
           : activeTab === 'reporte-semanal'
           ? reporteSemanalContent()
           : activeTab === 'derivar-cartera'
@@ -2421,6 +2482,7 @@ async function submitIncorporarCliente(isAdmin){
     name, rut, clave,
     regimenTributario: regimen,
     representanteLegal,
+    representantesLegales: representanteLegal ? [{ nombre: representanteLegal, rut: '' }] : [],
     actividadEconomica,
     valorServicioMensual,
     encargadoId,
@@ -2462,6 +2524,7 @@ function adminMainContent(unassigned){
       </div>
       <input type="text" id="searchBox" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" style="min-width:240px;">
       <button class="btn secondary" onclick="exportarCarteraCSV()">Exportar CSV</button>
+      ${currentUser.isAdmin ? '<button class="btn secondary" onclick="abrirImportarCaracteristicas()">Importar características (Excel)</button>' : ''}
     </div>
 
     ${puedeAgregarCliente ? `
@@ -2925,11 +2988,14 @@ function renderModal(){
           <label id="dt_codigo_actividad_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'flex'};">Código actividad económica
             <input type="text" id="dt_codigo_actividad" placeholder="Sin registrar" value="${escapeAttr(c.codigoActividadEconomica||'')}">
           </label>
-          <label id="dt_rep_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'flex'};">Representante(s) legal(es)
-            <input type="text" id="dt_rep" placeholder="Sin registrar" value="${escapeAttr(c.representanteLegal||'')}">
+          <label>Inicio de actividades
+            <input type="date" id="dt_fecha_inicio" value="${escapeAttr(c.fechaInicioActividades||'')}">
           </label>
-          <label id="dt_rep_rut_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'flex'};">Rut representante legal
-            <input type="text" id="dt_rep_rut" placeholder="Sin registrar" value="${escapeAttr(c.representanteLegalRut||'')}">
+          <label>Capital enterado ($)
+            <input type="number" id="dt_capital" min="0" step="1" placeholder="Sin registrar" value="${c.capitalEnterado != null ? escapeAttr(String(c.capitalEnterado)) : ''}">
+          </label>
+          <label style="grid-column:1 / -1;">Dirección
+            <input type="text" id="dt_direccion" placeholder="Sin registrar" value="${escapeAttr(c.direccion||'')}">
           </label>
           <label>Encargado
             ${isAdmin ? `<select id="dt_encargado">
@@ -2969,6 +3035,42 @@ function renderModal(){
           </label>
           <div style="font-size:12px;color:#8a8879;margin-top:4px;">Útil para clientes "Persona Natural", que por defecto no entran a la nómina de Iva. Se desmarca solo al pasar el mes.</div>
         </div>
+
+        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
+          <h4 style="margin:0 0 10px;font-size:14px;">Contacto</h4>
+          <div class="onboard-grid" style="margin-bottom:0;">
+            <label>Nombre de contacto
+              <input type="text" id="dt_nombre_contacto" placeholder="Persona con quien se conversa" value="${escapeAttr(c.nombreContacto||'')}">
+            </label>
+            <label>Teléfono de contacto
+              <input type="text" id="dt_telefono_contacto" placeholder="Ej: +56 9 1234 5678" value="${escapeAttr(c.telefonoContacto||'')}">
+            </label>
+            <label style="grid-column:1 / -1;">Correo de contacto
+              <input type="text" id="dt_correo_contacto" placeholder="correo@cliente.cl" value="${escapeAttr(c.correoContacto||'')}">
+            </label>
+          </div>
+        </div>
+
+        <div id="dt_estructura_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'block'};margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
+          <h4 style="margin:0 0 10px;font-size:14px;">Estructura societaria</h4>
+          <div style="font-size:12px;font-weight:600;color:#6b6a5f;margin-bottom:6px;">Representantes legales</div>
+          <div id="dt_reps_lista">${representantesDelCliente(c).map(r => filaRepresentanteHtml(r)).join('')}</div>
+          <button type="button" class="btn secondary small" onclick="agregarFilaRepresentante()">+ Agregar representante</button>
+          <div style="font-size:12px;font-weight:600;color:#6b6a5f;margin:16px 0 6px;">Socios</div>
+          <div id="dt_socios_lista">${(c.sociosDetalle||[]).map(s => filaSocioHtml(s)).join('')}</div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button type="button" class="btn secondary small" onclick="agregarFilaSocio()">+ Agregar socio</button>
+            <button type="button" class="btn secondary small" onclick="copiarSociosAMemos()">Copiar personas naturales a Memos y Propuestas</button>
+            <span id="dt_socios_total" style="font-size:12px;color:#8a8879;"></span>
+          </div>
+        </div>
+
+        <div id="dt_actividades_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'block'};margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
+          <h4 style="margin:0 0 10px;font-size:14px;">Actividades económicas (SII)</h4>
+          <textarea id="dt_actividades" rows="4" placeholder="Una por línea: Descripción (código)" style="width:100%;font-size:13px;color:var(--ink);padding:10px 12px;border:1px solid var(--line);border-radius:4px;font-family:'IBM Plex Sans',sans-serif;resize:vertical;">${escapeHtml((c.actividadesEconomicas||[]).map(a => a.codigo ? `${a.glosa} (${a.codigo})` : a.glosa).join('\n'))}</textarea>
+          <div style="font-size:11px;color:#8a8879;margin-top:4px;">La actividad y el código de arriba son los principales; aquí van todas las que figuran en el SII.</div>
+        </div>
+        ${c.siiObservacion ? `<div style="margin:-8px 0 20px;font-size:12px;color:${String(c.siiObservacion).trim().toUpperCase()==='OK' ? '#8a8879' : 'var(--danger)'};">Revisión SII${c.siiRevisado ? ` (${escapeHtml(c.siiRevisado)})` : ''}: ${escapeHtml(c.siiObservacion)}</div>` : ''}
 
         <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
           <h4 style="margin:0 0 10px;font-size:14px;">Otros datos relevantes</h4>
@@ -3060,12 +3162,6 @@ function renderModal(){
         <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
           <h4 style="margin:0 0 10px;font-size:14px;">Ficha de Cobranza</h4>
           <div class="onboard-grid" style="margin-bottom:12px;">
-            <label>Teléfono de contacto
-              <input type="text" id="dt_telefono_contacto" placeholder="Ej: +56 9 1234 5678" value="${escapeAttr(c.telefonoContacto||'')}">
-            </label>
-            <label>Correo de contacto
-              <input type="text" id="dt_correo_contacto" placeholder="correo@cliente.cl" value="${escapeAttr(c.correoContacto||'')}">
-            </label>
             <label>Forma de pago
               <select id="dt_forma_pago">
                 <option value="">Sin definir</option>
@@ -3143,13 +3239,766 @@ function renderModal(){
       </div>
     </div>
   `;
+  recalcularTotalSocios();
+}
+
+// =====================================================================================
+// FICHA DEL CLIENTE — estructura societaria, datos del SII y contacto
+// =====================================================================================
+// Campos que se suman al cliente (todos opcionales: un cliente antiguo que no los trae se ve igual que antes):
+//   nombreContacto (+ telefonoContacto y correoContacto, que ya existían en la Ficha de Cobranza)
+//   representantesLegales [{nombre, rut}]     -> el primero se copia a representanteLegal / representanteLegalRut
+//                                                (campos antiguos que usan otras pantallas)
+//   sociosDetalle [{nombre, rut, porcentaje}] -> distinto de c.socios (lista de nombres para Memos y Propuestas)
+//   actividadesEconomicas [{codigo, glosa}], fechaInicioActividades (AAAA-MM-DD), direccion, capitalEnterado (pesos)
+//   siiObservacion, siiRevisado (AAAA-MM-DD)  -> resultado de la última carga del Excel del SII
+
+// Texto comparable: sin tildes, en mayúsculas, sin puntuación y con espacios simples.
+function normTexto(s){
+  return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+// RUT comparable: "12.345.678-k " -> "12345678-K". Vacío si no tiene al menos cuerpo y dígito verificador.
+function normRut(r){
+  const t = String(r == null ? '' : r).replace(/[^0-9kK]/g, '').toUpperCase();
+  return t.length >= 2 ? t.slice(0, -1) + '-' + t.slice(-1) : '';
+}
+function limpiarRut(r){
+  return String(r == null ? '' : r).trim().replace(/k$/, 'K');
+}
+// Los RUT de empresas parten en 50.000.000; los de personas naturales son menores.
+function rutEsPersonaNatural(r){
+  const n = parseInt(normRut(r).split('-')[0], 10);
+  return !isNaN(n) && n < 50000000;
+}
+
+function representantesDelCliente(c){
+  if(Array.isArray(c.representantesLegales) && c.representantesLegales.length){
+    return c.representantesLegales.map(r => ({ nombre: r.nombre || '', rut: r.rut || '' }));
+  }
+  if(c.representanteLegal || c.representanteLegalRut){
+    return [{ nombre: c.representanteLegal || '', rut: c.representanteLegalRut || '' }];
+  }
+  return [];
+}
+// Los campos antiguos (un solo representante) siguen existiendo porque otras pantallas los leen.
+function sincronizarRepresentanteAntiguo(c){
+  const p = (c.representantesLegales || [])[0];
+  c.representanteLegal = p ? (p.nombre || '') : '';
+  c.representanteLegalRut = p ? (p.rut || '') : '';
+}
+
+// Misma persona = mismo RUT; si a alguno le falta el RUT, mismo nombre normalizado.
+function indiceDePersona(lista, p){
+  const rut = normRut(p.rut);
+  const nom = normTexto(p.nombre);
+  let i = rut ? lista.findIndex(x => normRut(x.rut) === rut) : -1;
+  if(i < 0 && nom) i = lista.findIndex(x => normTexto(x.nombre) === nom && (!rut || !normRut(x.rut)));
+  return i;
+}
+// Une dos listas de personas SIN duplicar: a las que ya estaban les completa/actualiza lo que el Excel trae
+// (nunca borra nada) y agrega las que faltan. `extra(existente, nueva)` copia campos adicionales (p. ej. porcentaje)
+// y devuelve true si cambió algo.
+function unirPersonas(actuales, nuevas, extra){
+  const lista = actuales.map(x => Object.assign({}, x));
+  let agregados = 0, actualizados = 0;
+  nuevas.forEach(p => {
+    const i = indiceDePersona(lista, p);
+    if(i < 0){ lista.push(Object.assign({}, p)); agregados++; return; }
+    const ex = lista[i];
+    let cambio = false;
+    if(p.nombre && normTexto(p.nombre) !== normTexto(ex.nombre)){ ex.nombre = p.nombre; cambio = true; }
+    if(p.rut && !normRut(ex.rut)){ ex.rut = p.rut; cambio = true; }
+    if(extra && extra(ex, p)) cambio = true;
+    if(cambio) actualizados++;
+  });
+  return { lista, agregados, actualizados };
+}
+function unirActividades(actuales, nuevas){
+  const lista = actuales.map(a => Object.assign({}, a));
+  let agregados = 0, actualizados = 0;
+  nuevas.forEach(n => {
+    let i = n.codigo ? lista.findIndex(a => String(a.codigo || '') === n.codigo) : -1;
+    if(i < 0 && n.glosa) i = lista.findIndex(a => normTexto(a.glosa) === normTexto(n.glosa));
+    if(i < 0){ lista.push({ codigo: n.codigo || '', glosa: n.glosa || '' }); agregados++; return; }
+    const ex = lista[i];
+    let cambio = false;
+    if(n.codigo && !ex.codigo){ ex.codigo = n.codigo; cambio = true; }
+    if(n.glosa && normTexto(n.glosa) !== normTexto(ex.glosa)){ ex.glosa = n.glosa; cambio = true; }
+    if(cambio) actualizados++;
+  });
+  return { lista, agregados, actualizados };
+}
+
+// "GLOSA (016200); OTRA GLOSA (151100)" -> [{codigo, glosa}]. Cada actividad termina en su código entre paréntesis.
+function parseActividadesTexto(t){
+  const s = String(t == null ? '' : t).trim();
+  if(!s) return [];
+  const out = [];
+  const re = /\s*;?\s*(.+?)\s*\((\d{4,6})\)/gs;
+  let m, ultimo = 0;
+  while((m = re.exec(s)) !== null){
+    out.push({ codigo: m[2], glosa: m[1].trim() });
+    ultimo = re.lastIndex;
+  }
+  const resto = s.slice(ultimo).replace(/^[\s;]+/, '').trim();
+  if(resto) out.push({ codigo: '', glosa: resto });
+  return out;
+}
+function parseActividadesLineas(texto){
+  const out = [];
+  String(texto || '').split('\n').map(l => l.trim()).filter(Boolean).forEach(l => {
+    parseActividadesTexto(l).forEach(a => out.push(a));
+  });
+  return out;
+}
+// "05-03-2019" -> "2019-03-05" ('' si no es una fecha válida)
+function parseFechaDMA(t){
+  const m = String(t == null ? '' : t).trim().match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/);
+  if(!m) return '';
+  const d = +m[1], mo = +m[2], y = +m[3];
+  if(mo < 1 || mo > 12 || d < 1 || d > 31 || y < 1900 || y > 2100) return '';
+  const iso = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const dt = new Date(iso + 'T00:00:00Z');
+  return (!isNaN(dt) && dt.getUTCDate() === d) ? iso : '';
+}
+// "1.500.000" -> 1500000
+function parseCapital(v){
+  if(v == null || v === '') return null;
+  if(typeof v === 'number') return Math.round(v);
+  const dig = String(v).replace(/[^0-9]/g, '');
+  return dig ? parseInt(dig, 10) : null;
+}
+function parsePorcentaje(v){
+  if(v == null || v === '') return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace('%', '').replace(',', '.'));
+  return isNaN(n) ? null : Math.round(n * 100) / 100;
+}
+
+// ---- filas editables de la ficha (representantes y socios) ----
+function filaRepresentanteHtml(r){
+  r = r || {};
+  return `<div class="fila-rep" style="display:flex;gap:8px;margin-bottom:6px;align-items:center;">
+    <input type="text" class="f-nombre" placeholder="Nombre" value="${escapeAttr(r.nombre||'')}" style="flex:1;min-width:0;">
+    <input type="text" class="f-rut" placeholder="RUT" value="${escapeAttr(r.rut||'')}" style="width:130px;">
+    <button type="button" class="btn secondary small" title="Quitar" onclick="this.parentNode.remove();">×</button>
+  </div>`;
+}
+function filaSocioHtml(s){
+  s = s || {};
+  return `<div class="fila-socio" style="display:flex;gap:8px;margin-bottom:6px;align-items:center;">
+    <input type="text" class="f-nombre" placeholder="Nombre o razón social" value="${escapeAttr(s.nombre||'')}" style="flex:1;min-width:0;">
+    <input type="text" class="f-rut" placeholder="RUT" value="${escapeAttr(s.rut||'')}" style="width:130px;">
+    <input type="text" class="f-pct" inputmode="decimal" placeholder="%" value="${s.porcentaje != null ? escapeAttr(String(s.porcentaje)) : ''}" style="width:70px;" oninput="recalcularTotalSocios()">
+    <button type="button" class="btn secondary small" title="Quitar" onclick="this.parentNode.remove();recalcularTotalSocios();">×</button>
+  </div>`;
+}
+function agregarFilaRepresentante(){
+  const cont = document.getElementById('dt_reps_lista');
+  if(cont) cont.insertAdjacentHTML('beforeend', filaRepresentanteHtml({}));
+}
+function agregarFilaSocio(){
+  const cont = document.getElementById('dt_socios_lista');
+  if(cont) cont.insertAdjacentHTML('beforeend', filaSocioHtml({}));
+}
+function leerFilasRepresentantes(){
+  return Array.from(document.querySelectorAll('#dt_reps_lista .fila-rep')).map(f => ({
+    nombre: f.querySelector('.f-nombre').value.trim(),
+    rut: f.querySelector('.f-rut').value.trim()
+  })).filter(r => r.nombre || r.rut);
+}
+function leerFilasSocios(){
+  return Array.from(document.querySelectorAll('#dt_socios_lista .fila-socio')).map(f => {
+    const txt = f.querySelector('.f-pct').value.trim().replace(',', '.');
+    const pct = txt === '' ? null : parseFloat(txt);
+    return {
+      nombre: f.querySelector('.f-nombre').value.trim(),
+      rut: f.querySelector('.f-rut').value.trim(),
+      porcentaje: (pct == null || isNaN(pct)) ? null : pct
+    };
+  }).filter(s => s.nombre || s.rut);
+}
+function recalcularTotalSocios(){
+  const el = document.getElementById('dt_socios_total');
+  if(!el) return;
+  const socios = leerFilasSocios().filter(s => s.porcentaje != null);
+  if(!socios.length){ el.textContent = ''; return; }
+  const total = Math.round(socios.reduce((a, s) => a + s.porcentaje, 0) * 100) / 100;
+  const ok = Math.abs(total - 100) <= 0.05;
+  el.style.color = ok ? '#8a8879' : 'var(--danger)';
+  el.textContent = `Participación total: ${total.toLocaleString('es-CL', { maximumFractionDigits: 2 })} %${ok ? '' : ' (no suma 100 %)'}`;
+}
+// Agrega a "Memos y Propuestas" las personas naturales de la lista de socios que todavía no están ahí (sin duplicar).
+function copiarSociosAMemos(){
+  const ta = document.getElementById('dt_socios_doc');
+  if(!ta) return;
+  const lineas = ta.value.split('\n').map(s => s.trim()).filter(Boolean);
+  const vistos = new Set(lineas.map(normTexto));
+  let n = 0;
+  leerFilasSocios().forEach(s => {
+    if(!s.nombre) return;
+    if(normRut(s.rut) && !rutEsPersonaNatural(s.rut)) return;
+    if(vistos.has(normTexto(s.nombre))) return;
+    lineas.push(s.nombre);
+    vistos.add(normTexto(s.nombre));
+    n++;
+  });
+  ta.value = lineas.join('\n');
+  showToast(n ? `${n} socio${n === 1 ? '' : 's'} agregado${n === 1 ? '' : 's'} a Memos y Propuestas (falta guardar la ficha).` : 'No hay socios nuevos para copiar.');
+}
+
+// =====================================================================================
+// IMPORTAR CARACTERÍSTICAS DESDE EL EXCEL DEL SII (solo Administrador)
+// =====================================================================================
+// El Excel se lee en el propio navegador (no sale de este computador). Cruza por RUT con los clientes que ya
+// están en la página, NO duplica nada: completa lo vacío, actualiza lo que cambió y deja como estaba todo lo que
+// el Excel trae en blanco. Antes de guardar muestra cuántos clientes cambiarían, campo por campo.
+
+// ---- lector mínimo de .xlsx (un .xlsx es un ZIP de XML): sin librerías externas ----
+async function inflarRaw(bytes){
+  if(typeof DecompressionStream === 'undefined') throw new Error('Este navegador no puede leer Excel. Usa Chrome o Edge actualizado.');
+  const flujo = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(flujo).arrayBuffer());
+}
+function leerZip(buf){
+  const u8 = new Uint8Array(buf);
+  const dv = new DataView(buf);
+  let eocd = -1;
+  for(let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--){
+    if(dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+  }
+  if(eocd < 0) throw new Error('El archivo no parece un Excel (.xlsx) válido.');
+  const total = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+  const dec = new TextDecoder('utf-8');
+  const entradas = {};
+  for(let i = 0; i < total; i++){
+    if(dv.getUint32(p, true) !== 0x02014b50) throw new Error('No reconozco la estructura interna del Excel.');
+    const metodo = dv.getUint16(p + 10, true);
+    const csize = dv.getUint32(p + 20, true);
+    const nlen = dv.getUint16(p + 28, true), elen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
+    const loff = dv.getUint32(p + 42, true);
+    entradas[dec.decode(u8.subarray(p + 46, p + 46 + nlen))] = { metodo, csize, loff };
+    p += 46 + nlen + elen + clen;
+  }
+  return { u8, dv, entradas };
+}
+async function extraerDeZip(zip, nombre){
+  const e = zip.entradas[nombre];
+  if(!e) return null;
+  const nlen = zip.dv.getUint16(e.loff + 26, true), elen = zip.dv.getUint16(e.loff + 28, true);
+  const ini = e.loff + 30 + nlen + elen;
+  const datos = zip.u8.subarray(ini, ini + e.csize);
+  if(e.metodo === 0) return datos;
+  if(e.metodo === 8) return await inflarRaw(datos);
+  throw new Error('El Excel usa una compresión que no puedo leer.');
+}
+function colDeReferencia(ref){
+  const m = /^([A-Z]+)(\d+)$/.exec(ref);
+  if(!m) return null;
+  let n = 0;
+  for(const ch of m[1]) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return { col: n - 1, fila: parseInt(m[2], 10) - 1 };
+}
+// Devuelve la primera hoja como matriz de filas (arreglos de texto/número; '' si la celda está vacía).
+async function leerXlsxPrimeraHoja(buf){
+  const zip = leerZip(buf);
+  const dec = new TextDecoder('utf-8');
+  const leerXml = async nombre => {
+    const d = await extraerDeZip(zip, nombre);
+    if(!d) return null;
+    const doc = new DOMParser().parseFromString(dec.decode(d), 'application/xml');
+    if(doc.getElementsByTagName('parsererror').length) throw new Error('El Excel está dañado o no se puede leer.');
+    return doc;
+  };
+  // hoja: la primera del libro (workbook.xml + relaciones); si algo falla, sheet1.xml
+  let rutaHoja = 'xl/worksheets/sheet1.xml';
+  try{
+    const wb = await leerXml('xl/workbook.xml');
+    const rels = await leerXml('xl/_rels/workbook.xml.rels');
+    const primera = wb && wb.getElementsByTagName('sheet')[0];
+    if(primera && rels){
+      const rid = primera.getAttribute('r:id') || primera.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+      const rel = Array.from(rels.getElementsByTagName('Relationship')).find(r => r.getAttribute('Id') === rid);
+      if(rel){
+        const t = rel.getAttribute('Target');
+        rutaHoja = t.charAt(0) === '/' ? t.slice(1) : 'xl/' + t;
+      }
+    }
+  }catch(e){ /* se usa sheet1.xml */ }
+  const hoja = await leerXml(rutaHoja);
+  if(!hoja) throw new Error('No encuentro la hoja de datos dentro del Excel.');
+  const compartidas = [];
+  const ss = await leerXml('xl/sharedStrings.xml');
+  if(ss){
+    Array.from(ss.getElementsByTagName('si')).forEach(si => {
+      compartidas.push(Array.from(si.getElementsByTagName('t')).filter(t => !t.parentNode || t.parentNode.nodeName !== 'rPh').map(t => t.textContent).join(''));
+    });
+  }
+  const celdas = [];
+  let maxCol = 0, maxFila = 0;
+  Array.from(hoja.getElementsByTagName('c')).forEach(c => {
+    const pos = colDeReferencia(c.getAttribute('r') || '');
+    if(!pos) return;
+    const tipo = c.getAttribute('t');
+    const vEl = c.getElementsByTagName('v')[0];
+    let valor = '';
+    if(tipo === 'inlineStr'){
+      valor = Array.from(c.getElementsByTagName('t')).map(t => t.textContent).join('');
+    }else if(vEl){
+      const txt = vEl.textContent;
+      if(tipo === 's') valor = compartidas[parseInt(txt, 10)] != null ? compartidas[parseInt(txt, 10)] : '';
+      else if(tipo === 'str') valor = txt;
+      else if(tipo === 'b') valor = txt === '1';
+      else if(tipo === 'e') valor = '';
+      else{ const n = Number(txt); valor = isNaN(n) ? txt : n; }
+    }
+    celdas.push([pos.fila, pos.col, valor]);
+    if(pos.col > maxCol) maxCol = pos.col;
+    if(pos.fila > maxFila) maxFila = pos.fila;
+  });
+  const filas = Array.from({ length: maxFila + 1 }, () => new Array(maxCol + 1).fill(''));
+  celdas.forEach(([f, c, v]) => { filas[f][c] = v; });
+  return filas;
+}
+
+function regimenDesdeExcel(t){
+  const n = normTexto(t);
+  if(!n) return '';
+  const opcion = clave => REGIMENES_TRIBUTARIOS.find(r => normTexto(r).includes(clave)) || '';
+  if(n.includes('RENTA PRESUNTA')) return opcion('RENTA PRESUNTA');
+  if(n.includes('TRANSPARENTE')) return opcion('TRANSPARENTE');
+  if(n.includes('PRO PYME')) return REGIMENES_TRIBUTARIOS.find(r => normTexto(r).includes('PRO PYME') && !normTexto(r).includes('TRANSPARENTE')) || '';
+  if(n.includes('SEMI INTEGRADO')) return opcion('SEMI INTEGRADO');
+  return '';
+}
+
+function combinarRegistros(a, b){
+  const r = Object.assign({}, a);
+  ['razon', 'grupo', 'encargado', 'clave', 'claveUnica', 'regimen', 'inicio', 'direccion'].forEach(k => { if(!r[k] && b[k]) r[k] = b[k]; });
+  if(r.capital == null && b.capital != null) r.capital = b.capital;
+  r.reps = unirPersonas(a.reps, b.reps).lista;
+  r.socios = unirPersonas(a.socios, b.socios, (ex, p) => {
+    if(ex.porcentaje == null && p.porcentaje != null){ ex.porcentaje = p.porcentaje; return true; }
+    return false;
+  }).lista;
+  r.actividades = unirActividades(a.actividades, b.actividades).lista;
+  if(!/^OK/i.test(a.obs || '') && /^OK/i.test(b.obs || '')) r.obs = b.obs;
+  else if(!r.obs) r.obs = b.obs;
+  return r;
+}
+
+// Matriz del Excel -> un registro por cliente (RUT). Ubica las columnas por su encabezado; los encabezados
+// repetidos (RUT, PORCENTAJE) se asignan a la persona que tienen a su izquierda.
+function leerRegistrosCaracteristicas(filas){
+  if(!filas.length) throw new Error('El Excel está vacío.');
+  const enc = filas[0].map(h => normTexto(h));
+  const idx = nombre => enc.indexOf(normTexto(nombre));
+  const col = {
+    rut: idx('Rut'), razon: idx('Razon Social'), grupo: idx('Grupo'), clave: idx('Clave'), claveUnica: idx('Clave unica'),
+    encargado: idx('Encargado'), regimen: idx('REGIMEN TRIBUTARIO'), actividades: idx('ACTIVIDADES ECONOMICAS'),
+    inicio: idx('FECHA DE INICIO'), direccion: idx('DIRECCION'), capital: idx('CAPITAL ENTERADO'), obs: idx('OBSERVACIONES SII'),
+    reps: [], socios: []
+  };
+  if(col.rut < 0) throw new Error('No encuentro la columna "Rut" en la primera fila del Excel.');
+  if(col.razon < 0) throw new Error('No encuentro la columna "Razon Social" en la primera fila del Excel.');
+  enc.forEach((h, i) => {
+    if(/^REPRESENTANTE LEGAL \d+$/.test(h)) col.reps.push({ nombre: i, rut: enc[i + 1] === 'RUT' ? i + 1 : -1 });
+    else if(/^SOCIO \d+$/.test(h)) col.socios.push({ nombre: i, rut: enc[i + 1] === 'RUT' ? i + 1 : -1, pct: enc[i + 2] === 'PORCENTAJE' ? i + 2 : -1 });
+  });
+  const txt = (f, i) => (i >= 0 && f[i] != null) ? String(f[i]).trim() : '';
+  const porRut = new Map();
+  let sinRut = 0, repetidos = 0;
+  for(let r = 1; r < filas.length; r++){
+    const f = filas[r];
+    const rut = normRut(txt(f, col.rut));
+    if(!rut){
+      if(f.some(v => String(v == null ? '' : v).trim() !== '')) sinRut++;
+      continue;
+    }
+    const reg = {
+      fila: r + 1, rut, rutTxt: limpiarRut(txt(f, col.rut)),
+      razon: txt(f, col.razon), grupo: txt(f, col.grupo), encargado: txt(f, col.encargado),
+      clave: txt(f, col.clave), claveUnica: txt(f, col.claveUnica),
+      regimen: regimenDesdeExcel(txt(f, col.regimen)),
+      reps: col.reps.map(c => ({ nombre: txt(f, c.nombre), rut: limpiarRut(txt(f, c.rut)) })).filter(p => p.nombre || p.rut),
+      socios: col.socios.map(c => ({ nombre: txt(f, c.nombre), rut: limpiarRut(txt(f, c.rut)), porcentaje: c.pct >= 0 ? parsePorcentaje(f[c.pct]) : null })).filter(p => p.nombre || p.rut),
+      actividades: parseActividadesTexto(txt(f, col.actividades)),
+      inicio: parseFechaDMA(txt(f, col.inicio)),
+      direccion: txt(f, col.direccion),
+      capital: col.capital >= 0 ? parseCapital(f[col.capital]) : null,
+      obs: txt(f, col.obs).slice(0, 160)
+    };
+    if(porRut.has(rut)){ repetidos++; porRut.set(rut, combinarRegistros(porRut.get(rut), reg)); }
+    else porRut.set(rut, reg);
+  }
+  return { registros: Array.from(porRut.values()), filasLeidas: filas.length - 1, sinRut, repetidos };
+}
+
+// Equivalente en la página de lo que el Excel llama "Encargado" (nombre de pila o "Depto. Tax").
+// undefined = no hay una equivalencia clara (no se toca nada).
+function usuarioDesdeTextoEncargado(texto, c){
+  const t = normTexto(texto);
+  if(!t) return null;
+  if(t.includes('TAX')){
+    const tax = state.usuarios.filter(u => u.rol === 'TAX');
+    return tax.length === 1 ? tax[0] : undefined;
+  }
+  const primero = t.split(' ')[0];
+  let cand = state.usuarios.filter(u => normTexto(u.name).split(' ')[0] === primero);
+  if(cand.length > 1){
+    const suc = cand.filter(u => u.sucursal === c.sucursal || u.sucursal === 'Ambas');
+    if(suc.length) cand = suc;
+  }
+  return cand.length === 1 ? cand[0] : undefined;
+}
+
+// Cambios que el registro `e` del Excel produciría sobre el cliente `c` (no modifica `c`).
+// Cada cambio: { c, cat, tipo: 'completar' | 'actualizar' | 'info', set: {campos} }
+function cambiosParaCliente(c, e, grupos){
+  const out = [];
+  const add = (cat, tipo, set) => out.push({ c, cat, tipo, set });
+
+  if(e.regimen && c.regimenTributario !== 'Persona Natural'){
+    if(!c.regimenTributario) add('regimen', 'completar', { regimenTributario: e.regimen });
+    else if(c.regimenTributario !== e.regimen) add('regimen', 'actualizar', { regimenTributario: e.regimen });
+  }
+  // El Excel numera los grupos ("Grupo 12"); la página ya tiene nombres de grupo con sentido, así que un grupo
+  // existente nunca se pisa: solo se completa cuando el cliente no tiene ninguno.
+  if(e.grupo && !(c.grupo || '').trim()){
+    add('grupo', 'completar', { grupo: grupos.get(normTexto(e.grupo)) || e.grupo });
+  }
+  if(e.reps.length){
+    const previos = representantesDelCliente(c);
+    const u = unirPersonas(previos, e.reps);
+    if(u.agregados || u.actualizados){
+      add('representantes', previos.length ? 'actualizar' : 'completar', {
+        representantesLegales: u.lista,
+        representanteLegal: u.lista[0].nombre || '',
+        representanteLegalRut: u.lista[0].rut || ''
+      });
+    }
+  }
+  if(e.socios.length){
+    const previos = c.sociosDetalle || [];
+    const u = unirPersonas(previos, e.socios, (ex, p) => {
+      if(p.porcentaje != null && ex.porcentaje !== p.porcentaje){ ex.porcentaje = p.porcentaje; return true; }
+      return false;
+    });
+    if(u.agregados || u.actualizados) add('socios', previos.length ? 'actualizar' : 'completar', { sociosDetalle: u.lista });
+  }
+  if(e.actividades.length){
+    const previas = c.actividadesEconomicas || [];
+    const u = unirActividades(previas, e.actividades);
+    const set = {};
+    if(u.agregados || u.actualizados) set.actividadesEconomicas = u.lista;
+    const primera = e.actividades[0];
+    if(!c.actividadEconomica && primera.glosa) set.actividadEconomica = primera.glosa;
+    if(!c.codigoActividadEconomica && primera.codigo) set.codigoActividadEconomica = primera.codigo;
+    if(Object.keys(set).length) add('actividades', previas.length ? 'actualizar' : 'completar', set);
+  }
+  if(e.inicio){
+    if(!c.fechaInicioActividades) add('inicio', 'completar', { fechaInicioActividades: e.inicio });
+    else if(c.fechaInicioActividades !== e.inicio) add('inicio', 'actualizar', { fechaInicioActividades: e.inicio });
+  }
+  if(e.direccion){
+    if(!c.direccion) add('direccion', 'completar', { direccion: e.direccion });
+    else if(normTexto(c.direccion) !== normTexto(e.direccion)) add('direccion', 'actualizar', { direccion: e.direccion });
+  }
+  if(e.capital != null){
+    if(c.capitalEnterado == null || c.capitalEnterado === '') add('capital', 'completar', { capitalEnterado: e.capital });
+    else if(Number(c.capitalEnterado) !== e.capital) add('capital', 'actualizar', { capitalEnterado: e.capital });
+  }
+  if(e.obs){
+    const hoy = todayISO();
+    if(c.siiObservacion !== e.obs || c.siiRevisado !== hoy){
+      add('obs', c.siiObservacion ? 'actualizar' : 'completar', { siiObservacion: e.obs, siiRevisado: hoy });
+    }
+  }
+  // ---- opcionales (se aplican solo si se marcan en la pantalla de importación) ----
+  if(e.razon && normTexto(e.razon) !== normTexto(c.name)) add('razon', 'actualizar', { name: e.razon });
+  if(e.encargado){
+    const u = usuarioDesdeTextoEncargado(e.encargado, c);
+    if(u === undefined) add('encargadoNA', 'info', {});
+    else if(u && c.encargadoId !== u.id) add('encargado', 'actualizar', { encargadoId: u.id });
+  }
+  if(e.clave){
+    if(!c.clave) add('claveVacia', 'completar', { clave: e.clave });
+    else if(String(c.clave).trim() !== e.clave) add('claveDistinta', 'actualizar', { clave: e.clave });
+  }
+  if(e.claveUnica){
+    // La Clave Única guardada viene cifrada y no se puede comparar desde acá: solo se completa si está vacía.
+    const cu = c.claveUnica || {};
+    if(!cu.clave) add('claveUnicaVacia', 'completar', { claveUnica: { activo: true, rut: cu.rut || '', clave: e.claveUnica } });
+  }
+  return out;
+}
+
+function planificarImportacion(registros){
+  const porRut = new Map();
+  state.clientes.forEach(c => {
+    const k = normRut(c.rut);
+    if(!k) return;
+    if(!porRut.has(k)) porRut.set(k, []);
+    porRut.get(k).push(c);
+  });
+  const grupos = new Map(gruposExistentes().map(g => [normTexto(g), g]));
+  const plan = { items: [], noEncontrados: [], ambiguos: 0, coincidencias: 0, grupos };
+  registros.forEach(e => {
+    let cands = porRut.get(e.rut) || [];
+    if(cands.length > 1){
+      const mismos = cands.filter(c => normTexto(c.name) === normTexto(e.razon));
+      cands = mismos.length === 1 ? mismos : [];
+      if(!cands.length){ plan.ambiguos++; return; }
+    }
+    if(!cands.length){ plan.noEncontrados.push(e); return; }
+    plan.coincidencias++;
+    cambiosParaCliente(cands[0], e, grupos).forEach(it => plan.items.push(it));
+  });
+  return plan;
+}
+
+function construirClienteNuevo(e, grupos){
+  const enc = e.encargado ? usuarioDesdeTextoEncargado(e.encargado, { sucursal: 'Concepcion' }) : null;
+  const cli = {
+    id: uid('c'), name: e.razon || e.rutTxt, rut: e.rutTxt, clave: e.clave || '',
+    regimenTributario: '', representanteLegal: '', actividadEconomica: '', valorServicioMensual: null,
+    encargadoId: enc ? enc.id : null,
+    sucursal: enc && enc.sucursal !== 'Ambas' ? enc.sucursal : 'Concepcion',
+    notas: '', f29Estado: 'no_enviado', f29Requerido: false
+  };
+  cambiosParaCliente(cli, e, grupos).forEach(it => Object.assign(cli, it.set));
+  return cli;
+}
+
+// Guarda los clientes y espera a que el servidor confirme; true si quedó todo guardado.
+async function guardarClientesYEsperar(){
+  await saveClientes();
+  clientesSaveDebouncer.flush();
+  const t0 = Date.now();
+  while(clientesSaveDebouncer.isPending() && Date.now() - t0 < 180000){
+    await new Promise(r => setTimeout(r, 400));
+  }
+  const { cambios, eliminados } = calcularDiffColeccion('clientes', state.clientes);
+  return !cambios.length && !eliminados.length;
+}
+
+// ---- pantalla de importación ----
+let impCarac = null;
+
+function importRootEl(){
+  let r = document.getElementById('importCaracRoot');
+  if(!r){
+    r = document.createElement('div');
+    r.id = 'importCaracRoot';
+    document.body.appendChild(r);
+  }
+  return r;
+}
+function abrirImportarCaracteristicas(){
+  if(!currentUser || !currentUser.isAdmin){ showToast('Solo un administrador puede importar datos.'); return; }
+  impCarac = { fase: 'inicio' };
+  renderImportarCaracteristicas();
+}
+function cerrarImportarCaracteristicas(){
+  if(impCarac && impCarac.fase === 'aplicando') return;
+  impCarac = null;
+  const r = document.getElementById('importCaracRoot');
+  if(r) r.innerHTML = '';
+}
+async function procesarArchivoCaracteristicas(archivo){
+  if(!archivo) return;
+  impCarac = { fase: 'leyendo' };
+  renderImportarCaracteristicas();
+  try{
+    if(!/\.xlsx$/i.test(archivo.name)) throw new Error('El archivo debe ser un Excel .xlsx.');
+    const filas = await leerXlsxPrimeraHoja(await archivo.arrayBuffer());
+    const lectura = leerRegistrosCaracteristicas(filas);
+    if(!lectura.registros.length) throw new Error('El Excel no trae ninguna fila con RUT.');
+    impCarac = { fase: 'listo', lectura, plan: planificarImportacion(lectura.registros) };
+  }catch(e){
+    impCarac = { fase: 'inicio', error: (e && e.message) ? e.message : 'No se pudo leer el archivo.' };
+  }
+  renderImportarCaracteristicas();
+}
+function renderImportarCaracteristicas(){
+  const root = importRootEl();
+  const s = impCarac;
+  if(!s){ root.innerHTML = ''; return; }
+  let cuerpo = '';
+  if(s.fase === 'inicio'){
+    cuerpo = `
+      <p style="font-size:13px;color:#6b6a5f;margin:0 0 12px;">Sube el Excel de características (columnas Grupo, Rut, Clave, Razon Social, Régimen, Representantes, Socios, Actividades, Dirección…). El archivo se lee en este computador. No se duplica nada: se completa lo que está vacío, se actualiza lo que cambió y se deja tal cual lo que el Excel trae en blanco.</p>
+      <input type="file" accept=".xlsx" onchange="procesarArchivoCaracteristicas(this.files[0])">
+      ${s.error ? `<div style="margin-top:12px;font-size:13px;color:var(--danger);">${escapeHtml(s.error)}</div>` : ''}`;
+  }else if(s.fase === 'leyendo'){
+    cuerpo = '<div style="font-size:14px;">Leyendo el Excel…</div>';
+  }else if(s.fase === 'listo'){
+    cuerpo = vistaPlanImportacion(s);
+  }else if(s.fase === 'aplicando'){
+    cuerpo = `<div style="font-size:14px;">Guardando cambios… ${escapeHtml(s.avance || '')}</div><div style="font-size:12px;color:#8a8879;margin-top:6px;">No cierres esta ventana hasta que termine.</div>`;
+  }else if(s.fase === 'fin'){
+    cuerpo = s.resumenFinal;
+  }
+  root.innerHTML = `
+    <div class="modal-backdrop" style="z-index:200;" onclick="if(event.target===this) cerrarImportarCaracteristicas()">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3 class="display">Importar características (Excel)</h3>
+          <button class="switch-btn" onclick="cerrarImportarCaracteristicas()">Cerrar</button>
+        </div>
+        ${cuerpo}
+      </div>
+    </div>`;
+}
+function vistaPlanImportacion(s){
+  const p = s.plan, L = s.lectura;
+  const cuenta = (cat, tipo) => p.items.filter(it => it.cat === cat && it.tipo === tipo).length;
+  const filasTabla = [
+    ['regimen', 'Régimen tributario'], ['grupo', 'Grupo (solo si no tiene)'], ['representantes', 'Representantes legales'], ['socios', 'Socios'],
+    ['actividades', 'Actividades económicas'], ['inicio', 'Inicio de actividades'], ['direccion', 'Dirección'],
+    ['capital', 'Capital enterado'], ['obs', 'Revisión SII (observación)']
+  ];
+  const tabla = filasTabla.map(([cat, et]) =>
+    `<tr><td>${et}</td><td style="text-align:right;">${cuenta(cat, 'completar')}</td><td style="text-align:right;">${cuenta(cat, 'actualizar')}</td></tr>`).join('');
+  const nRazon = cuenta('razon', 'actualizar');
+  const nEnc = cuenta('encargado', 'actualizar');
+  const nEncNA = p.items.filter(it => it.cat === 'encargadoNA').length;
+  const nClaveV = cuenta('claveVacia', 'completar'), nClaveU = cuenta('claveUnicaVacia', 'completar');
+  const nClaveD = cuenta('claveDistinta', 'actualizar');
+  const nNuevos = p.noEncontrados.length;
+  const opcion = (id, marcada, texto, n) => `
+    <label style="flex-direction:row;align-items:flex-start;gap:8px;display:flex;margin-bottom:8px;font-size:13px;text-transform:none;letter-spacing:normal;font-weight:400;color:var(--ink);">
+      <input type="checkbox" id="${id}" ${marcada ? 'checked' : ''} ${n ? '' : 'disabled'} style="width:auto;margin-top:2px;">
+      <span>${texto}</span>
+    </label>`;
+  return `
+    <div style="font-size:13px;margin-bottom:12px;line-height:1.6;">
+      <div><b>Excel:</b> ${L.filasLeidas} filas · ${L.registros.length} clientes distintos${L.sinRut ? ` · ${L.sinRut} fila${L.sinRut === 1 ? '' : 's'} sin RUT (se ignoran)` : ''}${L.repetidos ? ` · ${L.repetidos} RUT repetido${L.repetidos === 1 ? '' : 's'} (unificado${L.repetidos === 1 ? '' : 's'})` : ''}</div>
+      <div><b>En la página:</b> ${p.coincidencias} encontrados · ${nNuevos} no encontrados${p.ambiguos ? ` · ${p.ambiguos} con RUT repetido en la página (no se tocan)` : ''}</div>
+    </div>
+    <table style="width:100%;font-size:13px;margin-bottom:14px;">
+      <thead><tr><th style="text-align:left;">Dato</th><th style="text-align:right;">Completar (estaba vacío)</th><th style="text-align:right;">Actualizar (cambia)</th></tr></thead>
+      <tbody>${tabla}</tbody>
+    </table>
+    <div style="font-size:12px;color:#6b6a5f;margin-bottom:8px;">Se aplica siempre lo de la tabla. Marca además, si quieres:</div>
+    ${opcion('imp_op_claves', true, `Completar claves que estén vacías (clave SII: ${nClaveV} · Clave Única: ${nClaveU})`, nClaveV + nClaveU)}
+    ${opcion('imp_op_clavesdif', false, `Reemplazar la clave SII cuando el Excel trae una distinta (${nClaveD})`, nClaveD)}
+    ${opcion('imp_op_razon', false, `Actualizar la razón social cuando difiere (${nRazon})`, nRazon)}
+    ${opcion('imp_op_enc', false, `Actualizar el encargado cuando difiere (${nEnc}${nEncNA ? `; ${nEncNA} sin equivalencia clara se dejan igual` : ''})`, nEnc)}
+    ${opcion('imp_op_crear', false, `Crear los ${nNuevos} clientes que están en el Excel y no en la página`, nNuevos)}
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn secondary" onclick="cerrarImportarCaracteristicas()">Cancelar</button>
+      <button class="btn" style="flex:1;" onclick="aplicarImportacionCaracteristicas()">Aplicar cambios</button>
+    </div>`;
+}
+// Vuelve a pedirle los clientes al servidor y comprueba que lo que se acaba de guardar quedó completo (por si
+// el servidor aceptara el guardado pero no lo dejara entero). Devuelve '' si todo está bien, o el motivo del problema.
+async function verificarGuardadoImportacion(items, nuevos){
+  const remotos = await obtenerClientesBackend(currentUser.id);
+  if(coleccionesConErrorDeCarga.has('clientes') || !Array.isArray(remotos) || !remotos.length){
+    return 'No pude volver a leer los clientes desde el servidor para comprobar el guardado.';
+  }
+  if(remotos.length !== state.clientes.length){
+    return `El servidor tiene ${remotos.length} clientes y esta pantalla ${state.clientes.length}.`;
+  }
+  const mapa = new Map(remotos.map(c => [c.id, c]));
+  const canon = v => JSON.stringify(v == null ? null : v);
+  let mal = 0;
+  items.forEach(it => {
+    const r = mapa.get(it.c.id);
+    const campos = Object.keys(it.set).filter(k => k !== 'clave' && k !== 'claveUnica');
+    if(!r || campos.some(k => canon(r[k]) !== canon(it.c[k]))) mal++;
+  });
+  (nuevos || []).forEach(c => { if(!mapa.has(c.id)) mal++; });
+  return mal ? `${mal} cliente${mal === 1 ? '' : 's'} no quedó${mal === 1 ? '' : 'aron'} completo${mal === 1 ? '' : 's'} en el servidor.` : '';
+}
+
+async function aplicarImportacionCaracteristicas(){
+  const s = impCarac;
+  if(!s || s.fase !== 'listo') return;
+  if(!currentUser || !currentUser.isAdmin){ showToast('Solo un administrador puede importar datos.'); return; }
+  const marcada = id => { const el = document.getElementById(id); return !!(el && el.checked && !el.disabled); };
+  const permitidas = new Set(['regimen', 'grupo', 'representantes', 'socios', 'actividades', 'inicio', 'direccion', 'capital', 'obs']);
+  if(marcada('imp_op_claves')){ permitidas.add('claveVacia'); permitidas.add('claveUnicaVacia'); }
+  if(marcada('imp_op_clavesdif')) permitidas.add('claveDistinta');
+  if(marcada('imp_op_razon')) permitidas.add('razon');
+  if(marcada('imp_op_enc')) permitidas.add('encargado');
+  const crear = marcada('imp_op_crear');
+
+  const porCliente = new Map();
+  s.plan.items.filter(it => permitidas.has(it.cat)).forEach(it => {
+    if(!porCliente.has(it.c)) porCliente.set(it.c, []);
+    porCliente.get(it.c).push(it);
+  });
+  const lotes = Array.from(porCliente.entries());
+  const nuevos = crear ? s.plan.noEncontrados.map(e => construirClienteNuevo(e, s.plan.grupos)) : [];
+  const total = lotes.length + nuevos.length;
+  if(!total){ showToast('No hay nada que cambiar con las opciones elegidas.'); return; }
+
+  const contadores = {};
+  s.items = [];
+  s.fase = 'aplicando';
+  s.avance = `0 de ${total}`;
+  renderImportarCaracteristicas();
+  let hechos = 0;
+  const TAM = 100;
+  try{
+    for(let i = 0; i < lotes.length; i += TAM){
+      const itemsTrozo = [];
+      lotes.slice(i, i + TAM).forEach(([c, its]) => its.forEach(it => {
+        Object.assign(c, it.set);
+        itemsTrozo.push(it);
+        const k = it.cat + ':' + it.tipo;
+        contadores[k] = (contadores[k] || 0) + 1;
+      }));
+      hechos = Math.min(i + TAM, lotes.length);
+      s.avance = `${hechos} de ${total}`;
+      renderImportarCaracteristicas();
+      if(!(await guardarClientesYEsperar())) throw new Error(`No se pudo guardar el grupo de clientes que termina en el ${hechos}.`);
+      const motivo = await verificarGuardadoImportacion(itemsTrozo, []);
+      if(motivo) throw new Error(motivo);
+    }
+    for(let i = 0; i < nuevos.length; i += TAM){
+      const trozoNuevos = nuevos.slice(i, i + TAM);
+      trozoNuevos.forEach(c => state.clientes.push(c));
+      hechos = lotes.length + Math.min(i + TAM, nuevos.length);
+      s.avance = `${hechos} de ${total}`;
+      renderImportarCaracteristicas();
+      if(!(await guardarClientesYEsperar())) throw new Error('No se pudieron guardar los clientes nuevos.');
+      const motivo = await verificarGuardadoImportacion([], trozoNuevos);
+      if(motivo) throw new Error(motivo);
+    }
+  }catch(e){
+    s.fase = 'listo';
+    renderImportarCaracteristicas();
+    alert((e && e.message ? e.message : 'No se pudo guardar.') + '\n\nLos cambios siguen en pantalla y se reintentarán al guardar. Si el aviso se repite, NO sigas guardando cambios: recarga la página y avisa para revisar el historial de versiones de la planilla. Volver a importar el mismo Excel no duplica nada.');
+    return;
+  }
+  const lineas = Object.keys(contadores).sort().map(k => {
+    const [cat, tipo] = k.split(':');
+    const et = { regimen: 'Régimen', grupo: 'Grupo', representantes: 'Representantes', socios: 'Socios', actividades: 'Actividades', inicio: 'Inicio de actividades', direccion: 'Dirección', capital: 'Capital', obs: 'Revisión SII', razon: 'Razón social', encargado: 'Encargado', claveVacia: 'Clave SII (vacía)', claveUnicaVacia: 'Clave Única (vacía)', claveDistinta: 'Clave SII (distinta)' }[cat] || cat;
+    return `<li>${et}: ${contadores[k]} ${tipo === 'completar' ? 'completados' : 'actualizados'}</li>`;
+  }).join('');
+  s.fase = 'fin';
+  s.resumenFinal = `
+    <div style="font-size:14px;margin-bottom:10px;"><b>Listo.</b> ${lotes.length} cliente${lotes.length === 1 ? '' : 's'} actualizado${lotes.length === 1 ? '' : 's'}${nuevos.length ? ` y ${nuevos.length} creado${nuevos.length === 1 ? '' : 's'}` : ''}. Comprobado en el servidor: quedó guardado completo.</div>
+    <ul style="font-size:13px;margin:0 0 14px 18px;padding:0;line-height:1.6;">${lineas}</ul>
+    <div style="font-size:12px;color:#8a8879;margin-bottom:14px;">Abre la ficha de un par de clientes para revisar los datos nuevos.</div>
+    <button class="btn" onclick="cerrarImportarCaracteristicas();renderApp();">Cerrar</button>`;
+  renderImportarCaracteristicas();
+  showToast('Importación terminada.');
 }
 
 function toggleDtPersonaNatural(regimen){
   const esPN = regimen === 'Persona Natural';
-  ['dt_actividad_wrap','dt_codigo_actividad_wrap','dt_rep_wrap','dt_rep_rut_wrap'].forEach(id => {
+  ['dt_actividad_wrap','dt_codigo_actividad_wrap'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.style.display = esPN ? 'none' : 'flex';
+  });
+  ['dt_estructura_wrap','dt_actividades_wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = esPN ? 'none' : 'block';
   });
 }
 
@@ -3206,8 +4055,10 @@ async function saveClientDetail(id){
   const esPersonaNaturalDetalle = c.regimenTributario === 'Persona Natural';
   c.actividadEconomica = esPersonaNaturalDetalle ? '' : document.getElementById('dt_actividad').value.trim();
   c.codigoActividadEconomica = esPersonaNaturalDetalle ? '' : document.getElementById('dt_codigo_actividad').value.trim();
-  c.representanteLegal = esPersonaNaturalDetalle ? '' : document.getElementById('dt_rep').value.trim();
-  c.representanteLegalRut = esPersonaNaturalDetalle ? '' : document.getElementById('dt_rep_rut').value.trim();
+  if(document.getElementById('dt_reps_lista')){
+    c.representantesLegales = leerFilasRepresentantes();
+    sincronizarRepresentanteAntiguo(c);
+  }
   const casoEspecialCheck = document.getElementById('dt_iva_caso_especial');
   c.f29CasoEspecialMes = (casoEspecialCheck && casoEspecialCheck.checked) ? mesActualISO() : null;
   c.datosPrevired = {
@@ -3256,6 +4107,15 @@ async function saveClientDetail(id){
   c.saludo = document.getElementById('dt_saludo_doc').value.trim();
   c.sociedades = document.getElementById('dt_sociedades_doc').value.split('\n').map(s=>s.trim()).filter(Boolean);
   c.socios = document.getElementById('dt_socios_doc').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  c.nombreContacto = document.getElementById('dt_nombre_contacto').value.trim();
+  c.fechaInicioActividades = document.getElementById('dt_fecha_inicio').value || '';
+  const capitalInput = document.getElementById('dt_capital');
+  const capitalNum = capitalInput ? parseFloat(capitalInput.value) : NaN;
+  c.capitalEnterado = isNaN(capitalNum) ? null : capitalNum;
+  c.direccion = document.getElementById('dt_direccion').value.trim();
+  if(document.getElementById('dt_socios_lista')) c.sociosDetalle = leerFilasSocios();
+  const actividadesInput = document.getElementById('dt_actividades');
+  if(actividadesInput) c.actividadesEconomicas = parseActividadesLineas(actividadesInput.value);
   await saveClientes();
   notificarReasignacionCliente(c, encargadoIdAnterior, c.encargadoId);
   showToast('Datos del cliente actualizados.');
@@ -3546,7 +4406,8 @@ async function quitarServicioExtra(clienteId, servicioId){
 function clientMeta(c, colorTexto){
   const parts = [];
   if(c.regimenTributario) parts.push(`Régimen: ${escapeHtml(c.regimenTributario)}`);
-  if(c.representanteLegal) parts.push(`Rep. legal: ${escapeHtml(c.representanteLegal)}`);
+  const nombresRep = representantesDelCliente(c).map(r => r.nombre).filter(Boolean);
+  if(nombresRep.length) parts.push(`Rep. legal: ${escapeHtml(nombresRep.join(', '))}`);
   if(c.actividadEconomica) parts.push(`Actividad: ${escapeHtml(c.actividadEconomica)}`);
   if(c.codigoActividadEconomica) parts.push(`Cód. actividad: ${escapeHtml(c.codigoActividadEconomica)}`);
   if(c.datosPrevired && c.datosPrevired.activo) parts.push('Previred');
@@ -6149,13 +7010,14 @@ function cobranzaContent(){
     </div>
     <div style="overflow-x:auto;">
     <table>
-      <thead><tr><th>Cliente</th><th>Teléfono</th><th>Correo</th><th>Forma de pago</th><th>Fecha pactada</th><th>Último registro</th><th></th></tr></thead>
+      <thead><tr><th>Cliente</th><th>Contacto</th><th>Teléfono</th><th>Correo</th><th>Forma de pago</th><th>Fecha pactada</th><th>Último registro</th><th></th></tr></thead>
       <tbody>
         ${pageItems.length ? pageItems.map(c => {
           const u = ultimoRegistro(c);
           return `
           <tr>
             <td class="client-name">${escapeHtml(c.name)}</td>
+            <td>${escapeHtml(c.nombreContacto||'—')}</td>
             <td>${escapeHtml(c.telefonoContacto||'—')}</td>
             <td>${escapeHtml(c.correoContacto||'—')}</td>
             <td>${escapeHtml(c.formaPago||'—')}</td>
@@ -6164,12 +7026,659 @@ function cobranzaContent(){
             <td class="row-actions"><button class="btn secondary small" onclick="openClientDetail('${c.id}')">Ver ficha</button></td>
           </tr>
         `;
-        }).join('') : `<tr><td colspan="7" style="padding:32px;text-align:center;color:#8a8879;">${q ? 'No hay clientes que coincidan con la búsqueda.' : 'Sin clientes.'}</td></tr>`}
+        }).join('') : `<tr><td colspan="8" style="padding:32px;text-align:center;color:#8a8879;">${q ? 'No hay clientes que coincidan con la búsqueda.' : 'Sin clientes.'}</td></tr>`}
       </tbody>
     </table>
     </div>
     ${paginationControls(page, totalPages)}
   `;
+}
+
+// ==================== MALLAS SOCIETARIAS (pestaña de "Clientes") ====================
+// Para cada cliente: quiénes son sus socios y con qué %, en qué otras sociedades de la cartera participan esos
+// socios (con sus demás socios) y en qué sociedades participa el propio cliente. Es el mismo contenido del PDF
+// "Malla_Societaria_Clientes.pdf", pero calculado en vivo con lo que guarda la ficha de cada cliente
+// (sociosDetalle, representantesLegales, grupo, siiObservacion), así que se va llenando a medida que se completan
+// las fichas (por ejemplo con "Importar características (Excel)" en Cartera de Clientes). Es solo lectura: no
+// guarda nada, y nunca muestra ni usa claves. Los clientes con el mismo RUT se unen en una sola malla.
+let mallaSel = null;                   // clave de la malla abierta (RUT normalizado, o 'id:<id>' si el cliente no tiene RUT); null = listado
+let mallaPila = [];                    // mallas abiertas antes de la actual, para el botón "Atrás"
+let mallaFiltroGrupo = '__todos__';    // '__todos__' | '__sin_grupo__' | nombre de grupo
+let mallaFiltroEstado = 'todos';       // 'todos' | 'ok' | 'revisar' | 'sin-datos' | 'pn'
+const MALLA_MAX_FILA = 8;              // nodos por columna del diagrama; el resto queda en las tablas
+const MALLA_ANCHO_SVG = 1000;
+const MALLA_ESTADOS = [
+  { key: 'ok', label: 'Completas' },
+  { key: 'revisar', label: 'Por revisar' },
+  { key: 'sin-datos', label: 'Sin datos' },
+  { key: 'pn', label: 'Personas naturales' },
+];
+
+// ---- formato ----
+// "12345678-K" -> "12.345.678-K"
+function mallaFmtRut(r){
+  const n = normRut(r);
+  if(!n) return '';
+  const i = n.lastIndexOf('-');
+  const cuerpo = parseInt(n.slice(0, i), 10);
+  if(isNaN(cuerpo)) return n;
+  return String(cuerpo).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + '-' + n.slice(i + 1);
+}
+function mallaFmtPct(p){ return p == null ? '—' : p.toFixed(2).replace('.', ',') + ' %'; }
+function mallaFmtFecha(iso){
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : String(iso || '');
+}
+function mallaCmp(a, b){ return a < b ? -1 : (a > b ? 1 : 0); }
+function mallaRecortar(s, n){
+  s = String(s == null ? '' : s);
+  return s.length <= n ? s : s.slice(0, n - 1).replace(/\s+$/, '') + '…';
+}
+// Parte `texto` en hasta `lineas` líneas de ~`ancho` caracteres (la última con puntos suspensivos si no cabe).
+function mallaPartir(texto, ancho, lineas){
+  const palabras = String(texto == null ? '' : texto).split(/\s+/).filter(Boolean);
+  let out = [], actual = '';
+  palabras.forEach(p => {
+    if(actual.length + p.length + (actual ? 1 : 0) <= ancho){
+      actual = (actual + ' ' + p).trim();
+    }else{
+      if(actual) out.push(actual);
+      actual = p;
+    }
+  });
+  if(actual) out.push(actual);
+  if(out.length > lineas){
+    out = out.slice(0, lineas);
+    const u = out[out.length - 1];
+    out[out.length - 1] = u.length >= ancho ? mallaRecortar(u + '…', ancho) : u + '…';
+  }
+  out = out.map(l => l.length > ancho ? mallaRecortar(l, ancho) : l);
+  return out.length ? out : [''];
+}
+
+// ---- modelo: entidades (una por RUT), participaciones cruzadas y nombres ----
+function construirModeloMallas(){
+  const entidades = new Map();          // clave -> entidad
+  const porRut = new Map();             // RUT normalizado -> entidad (solo clientes con RUT)
+  const nombresPorRut = new Map();      // RUT -> Map(nombre -> veces), para ponerle nombre a quien no es cliente
+  const anotar = (rut, nombre) => {
+    if(!rut || !nombre) return;
+    if(!nombresPorRut.has(rut)) nombresPorRut.set(rut, new Map());
+    const m = nombresPorRut.get(rut);
+    m.set(nombre, (m.get(nombre) || 0) + 1);
+  };
+  (state.clientes || []).forEach(c => {
+    const rut = normRut(c.rut);
+    const clave = rut || ('id:' + c.id);
+    let e = entidades.get(clave);
+    if(!e){
+      e = { clave, rut, razon: '', grupo: '', regimen: '', encargadoId: '', direccion: '', inicio: '', obs: '', revisado: '', clientes: [], socios: [], reps: [] };
+      entidades.set(clave, e);
+      if(rut) porRut.set(rut, e);
+    }
+    e.clientes.push(c);
+    if(!e.razon) e.razon = String(c.name || '').trim();
+    if(!e.grupo) e.grupo = String(c.grupo || '').trim();
+    if(!e.regimen) e.regimen = c.regimenTributario || '';
+    if(!e.encargadoId) e.encargadoId = c.encargadoId || '';
+    if(!e.direccion) e.direccion = String(c.direccion || '').trim();
+    if(!e.inicio) e.inicio = c.fechaInicioActividades || '';
+    const obs = String(c.siiObservacion || '').trim();
+    if(obs && (!e.obs || (!/^OK/i.test(e.obs) && /^OK/i.test(obs)))){ e.obs = obs; e.revisado = c.siiRevisado || ''; }
+    (c.sociosDetalle || []).forEach(s => {
+      const pct = (s.porcentaje == null || s.porcentaje === '' || isNaN(Number(s.porcentaje))) ? null : Number(s.porcentaje);
+      const p = { nombre: String(s.nombre || '').trim(), rut: normRut(s.rut), pct };
+      if(!p.nombre && !p.rut) return;
+      const i = indiceDePersona(e.socios, p);
+      if(i < 0){ e.socios.push(p); anotar(p.rut, p.nombre); }
+      else if(e.socios[i].pct == null && p.pct != null){ e.socios[i].pct = p.pct; }
+    });
+    representantesDelCliente(c).forEach(r => {
+      const p = { nombre: String(r.nombre || '').trim(), rut: normRut(r.rut) };
+      if(!p.nombre && !p.rut) return;
+      if(indiceDePersona(e.reps, p) < 0){ e.reps.push(p); anotar(p.rut, p.nombre); }
+    });
+  });
+
+  // participaciones: RUT del socio -> [{clave de la sociedad cliente, %}]
+  const part = new Map();
+  entidades.forEach(e => e.socios.forEach(s => {
+    if(!s.rut) return;
+    if(!part.has(s.rut)) part.set(s.rut, []);
+    part.get(s.rut).push({ clave: e.clave, pct: s.pct });
+  }));
+  // nombre más frecuente de cada RUT entre los socios y representantes de la cartera
+  const nombreElegido = new Map();
+  nombresPorRut.forEach((mapa, rut) => {
+    let mejor = '', veces = -1;
+    mapa.forEach((n, nombre) => { if(n > veces || (n === veces && nombre.length > mejor.length)){ mejor = nombre; veces = n; } });
+    nombreElegido.set(rut, mejor);
+  });
+
+  const nombre = (rut, respaldo) => {
+    const e = rut ? porRut.get(rut) : null;
+    if(e && e.razon) return e.razon;
+    return nombreElegido.get(rut) || respaldo || mallaFmtRut(rut);
+  };
+  const pctOrden = p => p == null ? -1 : p;
+  // Socios de la sociedad `clave`, de mayor a menor %. `excluirRut`: no incluir a ese socio.
+  const sociosDe = (clave, excluirRut) => {
+    const e = entidades.get(clave);
+    if(!e) return [];
+    return e.socios.slice()
+      .sort((a, b) => (pctOrden(b.pct) - pctOrden(a.pct)) || mallaCmp(normTexto(a.nombre), normTexto(b.nombre)))
+      .filter(s => !(excluirRut && s.rut === excluirRut))
+      .map(s => ({ rut: s.rut, clave: (s.rut && porRut.has(s.rut)) ? s.rut : '', nombre: s.nombre || nombre(s.rut), pct: s.pct }));
+  };
+  // Sociedades clientes en que participa el socio con ese RUT. `excluirClave`: no incluir esa sociedad.
+  const participacionesDe = (rut, excluirClave) => {
+    const lista = (rut && part.get(rut)) || [];
+    const nom = clave => { const e = entidades.get(clave); return e.razon || nombre(e.rut); };
+    return lista.slice()
+      .sort((a, b) => (pctOrden(b.pct) - pctOrden(a.pct)) || mallaCmp(normTexto(nom(a.clave)), normTexto(nom(b.clave))))
+      .filter(p => !(excluirClave && p.clave === excluirClave))
+      .map(p => { const e = entidades.get(p.clave); return { rut: e.rut, clave: e.clave, nombre: nom(p.clave), pct: p.pct }; });
+  };
+
+  // Por grupo (alfabético, sin grupo al final) y por nombre: igual que la Cartera de Clientes.
+  const orden = [...entidades.values()].sort((a, b) => {
+    if(a.grupo !== b.grupo){
+      if(!a.grupo) return 1;
+      if(!b.grupo) return -1;
+      return a.grupo.localeCompare(b.grupo, 'es');
+    }
+    return (a.razon || '').localeCompare(b.razon || '', 'es');
+  });
+
+  const cacheInfo = new Map();
+  const modelo = { entidades, porRut, orden, nombre, sociosDe, participacionesDe, info: null, texto: null };
+  modelo.info = e => {
+    let r = cacheInfo.get(e.clave);
+    if(!r){
+      const esPN = e.regimen === 'Persona Natural' || (!!e.rut && rutEsPersonaNatural(e.rut));
+      const avisos = mallaAvisos(e, esPN);
+      let estado;
+      if(!e.socios.length) estado = esPN ? 'pn' : (e.reps.length ? 'revisar' : 'sin-datos');
+      else estado = avisos.length ? 'revisar' : 'ok';
+      r = { esPN, avisos, estado, nSocios: e.socios.length, nPart: participacionesDe(e.rut).length };
+      cacheInfo.set(e.clave, r);
+    }
+    return r;
+  };
+  // Texto en el que busca el cuadro de búsqueda: cliente, grupo, socios y representantes (y sus RUT).
+  const cacheTexto = new Map();
+  modelo.texto = e => {
+    let t = cacheTexto.get(e.clave);
+    if(!t){
+      const personas = e.socios.concat(e.reps);
+      t = {
+        txt: normTexto([e.razon, e.grupo].concat(personas.map(p => p.nombre)).join(' ')),
+        ruts: [e.rut].concat(personas.map(p => p.rut)).map(r => String(r || '').replace(/[^0-9K]/g, '')).join(' ')
+      };
+      cacheTexto.set(e.clave, t);
+    }
+    return t;
+  };
+  return modelo;
+}
+
+// Avisos sobre la calidad de los datos societarios de una entidad.
+function mallaAvisos(e, esPN){
+  const out = [];
+  const o = String(e.obs || '').toUpperCase();
+  if(o.includes('NO CARG')) out.push({ rojo: true, texto: 'El SII no cargó para este cliente: no hay datos societarios. Revisar a mano en el SII.' });
+  if(o.startsWith('ERROR')) out.push({ rojo: true, texto: 'Hubo un error al consultar el SII: no hay datos societarios para este cliente.' });
+  if(o.includes('SIN CLAVE')) out.push({ rojo: true, texto: 'Sin clave tributaria: no se pudo consultar el SII.' });
+  if(o.includes('MÁS DE 9 SOCIOS') || o.includes('MAS DE 9 SOCIOS')) out.push({ texto: 'El SII informa más de 9 socios: la lista está incompleta (la carga solo trae 9).' });
+  if(o.includes('MÁS DE 3 REPRESENTANTES') || o.includes('MAS DE 3 REPRESENTANTES')) out.push({ texto: 'El SII informa más de 3 representantes legales: solo se listan 3.' });
+  if(e.socios.length){
+    const con = e.socios.map(s => s.pct).filter(p => p != null);
+    const total = Math.round(con.reduce((a, p) => a + p, 0) * 100) / 100;
+    if(con.length < e.socios.length) out.push({ texto: `Hay ${e.socios.length - con.length} socio(s) sin porcentaje informado.` });
+    if(con.length && Math.abs(total - 100) > 0.05) out.push({ texto: `Los porcentajes informados suman ${mallaFmtPct(total)} (no 100 %): la estructura puede estar incompleta.` });
+  }else if(!esPN && !out.length){
+    out.push({ texto: e.reps.length ? 'No hay socios registrados para esta sociedad.' : 'No hay socios ni representantes legales registrados en la ficha de este cliente.' });
+  }
+  return out;
+}
+
+// ---- diagrama (SVG): socios -> sociedad -> sociedades en que participa -> demás socios ----
+const MALLA_SVG_ESTILO = `<style>.ms-nm{font:600 10px 'Segoe UI',Arial,sans-serif}.ms-rt{font:8.6px 'Segoe UI',Arial,sans-serif}.ms-pc{font:600 8.4px 'Segoe UI',Arial,sans-serif;fill:#26325E}.ms-cb{font:600 7.6px 'Segoe UI',Arial,sans-serif;letter-spacing:.7px;fill:#7B86A6}.ms-rl{font:8.4px 'Segoe UI',Arial,sans-serif;fill:#26325E}</style>`;
+
+// [relleno, borde, tinta del nombre, tinta del RUT]
+function mallaEstiloNodo(nodo, esX){
+  if(esX) return ['#0C1A8A', '#0C1A8A', '#FFFFFF', '#C9D0FF'];
+  if(nodo.clave) return ['#E4F3EA', '#2F8F5B', '#14452B', '#2F6B4A'];                // también es cliente
+  if(rutEsPersonaNatural(nodo.rut)) return ['#EAF1FC', '#4C74B8', '#16335F', '#46618F']; // persona natural
+  return ['#FFF3D6', '#C28A00', '#5A3F00', '#7A5A10'];                                  // sociedad que no es cliente
+}
+
+function mallaNodoSvg(x, y, w, h, nodo, esX){
+  const f = n => n.toFixed(1);
+  const [relleno, borde, tinta, tinta2] = mallaEstiloNodo(nodo, esX);
+  const cpl = Math.max(10, Math.floor((w - 14) / 6.3));
+  const lineas = mallaPartir(nodo.nombre, cpl, 2);
+  const partes = [`<rect x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${h}" rx="6" fill="${relleno}" stroke="${borde}" stroke-width="${esX ? 1.6 : 1}"/>`];
+  let ty = y + (h >= 46 ? 13 : 12);
+  lineas.forEach(l => {
+    partes.push(`<text x="${f(x + w / 2)}" y="${f(ty)}" text-anchor="middle" class="ms-nm" fill="${tinta}">${escapeHtml(l)}</text>`);
+    ty += 11;
+  });
+  const sub = nodo.rut ? mallaFmtRut(nodo.rut) : 'sin RUT';
+  partes.push(`<text x="${f(x + w / 2)}" y="${f(y + h - 5)}" text-anchor="middle" class="ms-rt" fill="${tinta2}">${escapeHtml(sub)}</text>`);
+  const titulo = `<title>${escapeHtml(nodo.nombre + (nodo.rut ? ' · ' + mallaFmtRut(nodo.rut) : '') + (nodo.pct !== undefined && !esX ? ' · ' + mallaFmtPct(nodo.pct) : ''))}</title>`;
+  if(nodo.clave && !esX){
+    return `<g class="ms-lnk" data-clave="${escapeAttr(nodo.clave)}" onclick="abrirMalla(this.dataset.clave)">${titulo}${partes.join('')}</g>`;
+  }
+  return `<g>${titulo}${partes.join('')}</g>`;
+}
+
+// Curva del socio (x1,y1) a la sociedad (x2,y2). `tl`: posición de la etiqueta del % a lo largo de la curva
+// (cerca del lado donde las flechas se abren, para que no se amontonen).
+function mallaFlecha(x1, y1, x2, y2, pct, color, tl){
+  const f = n => n.toFixed(1);
+  const dx = Math.max(18, Math.abs(x2 - x1) * 0.45);
+  const sgn = x2 >= x1 ? 1 : -1;
+  const c1x = x1 + sgn * dx, c1y = y1, c2x = x2 - sgn * dx, c2y = y2;
+  const path = `<path d="M${f(x1)},${f(y1)} C${f(c1x)},${f(c1y)} ${f(c2x)},${f(c2y)} ${f(x2)},${f(y2)}" fill="none" stroke="${color}" stroke-width="1.2" marker-end="url(#msFlecha)"/>`;
+  const u = 1 - tl;
+  const mx = u ** 3 * x1 + 3 * u * u * tl * c1x + 3 * u * tl * tl * c2x + tl ** 3 * x2;
+  const my = u ** 3 * y1 + 3 * u * u * tl * c1y + 3 * u * tl * tl * c2y + tl ** 3 * y2;
+  const etiqueta = `<rect x="${f(mx - 21)}" y="${f(my - 7)}" width="42" height="13" rx="3" fill="#FFFFFF" stroke="#C9D1E3" stroke-width="0.6"/>` +
+    `<text x="${f(mx)}" y="${f(my + 3)}" text-anchor="middle" class="ms-pc">${escapeHtml(mallaFmtPct(pct))}</text>`;
+  return [path, etiqueta];
+}
+
+function mallaSvg(modelo, X){
+  const f = n => n.toFixed(1);
+  const xr = X.rut;
+  // --- capas ---
+  const duenos = modelo.sociosDe(X.clave);
+  const nDuenosTot = duenos.length;
+  const capa1 = duenos.slice(0, MALLA_MAX_FILA);
+  let capa2 = [];                                  // [índice del dueño, nodo]
+  capa1.forEach((d, i) => {
+    if(d.clave && d.clave !== X.clave) modelo.sociosDe(d.clave).slice(0, 4).forEach(s => capa2.push([i, s]));
+  });
+  capa2 = capa2.slice(0, MALLA_MAX_FILA);
+  const part = modelo.participacionesDe(xr);
+  const capaP = part.slice(0, MALLA_MAX_FILA);
+  let capaC = [];
+  capaP.forEach((y, i) => { modelo.sociosDe(y.clave, xr).slice(0, 3).forEach(s => capaC.push([i, s])); });
+  capaC = capaC.slice(0, MALLA_MAX_FILA);
+
+  const columnas = [];                             // [clave, título]
+  if(capa2.length) columnas.push(['c2', 'Socios de los socios']);
+  if(capa1.length) columnas.push(['c1', 'Socios']);
+  columnas.push(['x', 'Sociedad']);
+  if(capaP.length) columnas.push(['p', 'Participa en']);
+  if(capaC.length) columnas.push(['c', 'Demás socios']);
+  const nc = columnas.length;
+  const gap = nc >= 4 ? 64 : 90;
+  const w = Math.min(214, (MALLA_ANCHO_SVG - 2 * 8 - (nc - 1) * gap) / nc);
+  const xs = {};
+  columnas.forEach(([k], i) => { xs[k] = 8 + i * (w + gap); });
+
+  const n1 = capa1.length + (nDuenosTot > capa1.length ? 1 : 0);
+  const nP = capaP.length + (part.length > capaP.length ? 1 : 0);
+  const n2 = capa2.length;
+  const nC = capaC.length;
+  const maxn = Math.max(n1, nP, n2, nC);
+  const h = maxn <= 5 ? 46 : 40;                   // filas densas: nodos más bajos para que el texto no se achique
+  const gv = maxn <= 5 ? 12 : 8;
+  const pitch = h + gv;
+  const altura = n => n ? n * h + (n - 1) * gv : 0;
+
+  const reps = X.reps;
+  const altoReps = reps.length ? 16 + 11 * Math.min(3, reps.length) : 0;
+  const hX = h + (reps.length ? 6 + altoReps : 0);
+  const mitad = Math.max(altura(n1), altura(nP), altura(n2), altura(nC), h) / 2;  // media altura de las columnas, alrededor del centro
+  const debajo = Math.max(mitad, hX - h / 2);      // el recuadro de representantes cuelga bajo la sociedad
+  const alto = 22 + mitad + debajo + 12;
+  const cy = 22 + mitad;                           // centro vertical del cuerpo
+  const posiciones = n => { const top = cy - altura(n) / 2; return Array.from({ length: n }, (_, i) => top + i * pitch); };
+
+  const edges = [], nodes = [], labs = [];
+  const cab = columnas.map(([k, t]) => `<text x="${f(xs[k] + w / 2)}" y="12" text-anchor="middle" class="ms-cb">${escapeHtml(t.toUpperCase())}</text>`).join('');
+  const nodoMas = (xc, yy, texto) =>
+    `<rect x="${f(xc)}" y="${f(yy)}" width="${f(w)}" height="${h}" rx="6" fill="#F3F4F8" stroke="#B9BFD0" stroke-dasharray="3 2"/>` +
+    `<text x="${f(xc + w / 2)}" y="${f(yy + h / 2 + 3)}" text-anchor="middle" class="ms-nm" fill="#555F7A">${escapeHtml(texto)}</text>`;
+
+  // nodo X (+ representantes legales debajo)
+  const yx = cy - h / 2;
+  nodes.push(mallaNodoSvg(xs.x, yx, w, h, { rut: xr, clave: X.clave, nombre: X.razon || modelo.nombre(xr) || '(sin nombre)' }, true));
+  if(reps.length){
+    const ry = yx + h + 6;
+    nodes.push(`<rect x="${f(xs.x)}" y="${f(ry)}" width="${f(w)}" height="${f(altoReps)}" rx="5" fill="#FFFFFF" stroke="#9AA6C4" stroke-width="0.8" stroke-dasharray="3 2"/>`);
+    nodes.push(`<text x="${f(xs.x + 6)}" y="${f(ry + 10)}" class="ms-cb">REPRESENTANTES LEGALES</text>`);
+    reps.slice(0, 3).forEach((r, j) => {
+      nodes.push(`<text x="${f(xs.x + 6)}" y="${f(ry + 21 + 11 * j)}" class="ms-rl">${escapeHtml(mallaRecortar(r.nombre || mallaFmtRut(r.rut), Math.floor((w - 12) / 5.0)))}</text>`);
+    });
+  }
+
+  // capa 1 -> X
+  const ys1 = posiciones(n1);
+  capa1.forEach((d, i) => {
+    nodes.push(mallaNodoSvg(xs.c1, ys1[i], w, h, d, false));
+    const [e, l] = mallaFlecha(xs.c1 + w, ys1[i] + h / 2, xs.x, cy, d.pct, '#6D7B99', 0.22);
+    edges.push(e); labs.push(l);
+  });
+  if(nDuenosTot > capa1.length) nodes.push(nodoMas(xs.c1, ys1[capa1.length], `+${nDuenosTot - capa1.length} socios más (ver tabla)`));
+  // capa 2 -> capa 1
+  if(capa2.length){
+    const ys2 = posiciones(n2);
+    capa2.forEach(([i, s], k) => {
+      nodes.push(mallaNodoSvg(xs.c2, ys2[k], w, h, s, false));
+      const [e, l] = mallaFlecha(xs.c2 + w, ys2[k] + h / 2, xs.c1, ys1[i] + h / 2, s.pct, '#8C9CBF', 0.28);
+      edges.push(e); labs.push(l);
+    });
+  }
+  // X -> capa P
+  const ysP = posiciones(nP);
+  capaP.forEach((y, i) => {
+    nodes.push(mallaNodoSvg(xs.p, ysP[i], w, h, y, false));
+    const [e, l] = mallaFlecha(xs.x + w, cy, xs.p, ysP[i] + h / 2, y.pct, '#6D7B99', 0.78);
+    edges.push(e); labs.push(l);
+  });
+  if(part.length > capaP.length) nodes.push(nodoMas(xs.p, ysP[capaP.length], `+${part.length - capaP.length} sociedades más (ver tabla)`));
+  // capa C -> capa P (los demás socios hacia la sociedad)
+  if(capaC.length){
+    const ysC = posiciones(nC);
+    capaC.forEach(([i, s], k) => {
+      nodes.push(mallaNodoSvg(xs.c, ysC[k], w, h, s, false));
+      const [e, l] = mallaFlecha(xs.c, ysC[k] + h / 2, xs.p + w, ysP[i] + h / 2, s.pct, '#8C9CBF', 0.26);
+      edges.push(e); labs.push(l);
+    });
+  }
+
+  const marcador = '<defs><marker id="msFlecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9 z" fill="#6D7B99"/></marker></defs>';
+  const alt = Math.round(alto);
+  return `<svg class="ms-svg" viewBox="0 0 ${MALLA_ANCHO_SVG} ${alt}" width="${MALLA_ANCHO_SVG}" height="${alt}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de la malla societaria">` +
+    `${MALLA_SVG_ESTILO}${marcador}${cab}${edges.join('')}${nodes.join('')}${labs.join('')}</svg>`;
+}
+
+// ---- pantalla ----
+function mallasSocietariasContent(){
+  const modelo = construirModeloMallas();
+  if(mallaSel && !modelo.entidades.has(mallaSel)){ mallaSel = null; mallaPila = []; } // el cliente ya no está
+  return mallaSel ? mallaDetalleHtml(modelo, modelo.entidades.get(mallaSel)) : mallaListadoHtml(modelo);
+}
+
+function mallaListadoHtml(modelo){
+  const todas = modelo.orden.map(e => ({ e, grupo: e.grupo, info: modelo.info(e) }));
+  const grupos = gruposExistentes();
+  // un grupo que ya no existe (por ejemplo, renombrado) no puede seguir filtrando
+  if(mallaFiltroGrupo !== '__todos__' && mallaFiltroGrupo !== '__sin_grupo__' && !grupos.includes(mallaFiltroGrupo)) mallaFiltroGrupo = '__todos__';
+  const q = normTexto(searchQuery);
+  const qd = String(searchQuery || '').replace(/[^0-9kK]/g, '').toUpperCase();
+  const coincide = e => {
+    if(!q) return true;
+    const t = modelo.texto(e);
+    return t.txt.includes(q) || (qd.length >= 3 && t.ruts.includes(qd));
+  };
+  const base = todas.filter(x =>
+    (mallaFiltroGrupo === '__todos__' || (mallaFiltroGrupo === '__sin_grupo__' ? !x.grupo : x.grupo === mallaFiltroGrupo)) && coincide(x.e));
+  const conteo = { ok: 0, revisar: 0, 'sin-datos': 0, pn: 0 };
+  base.forEach(x => { conteo[x.info.estado]++; });
+  if(mallaFiltroEstado !== 'todos' && !MALLA_ESTADOS.some(s => s.key === mallaFiltroEstado)) mallaFiltroEstado = 'todos';
+  const lista = mallaFiltroEstado === 'todos' ? base : base.filter(x => x.info.estado === mallaFiltroEstado);
+  const { pageItems, totalPages, page } = paginate(lista, tablePage);
+  const etiquetaEstado = { ok: 'Completa', revisar: 'Revisar', 'sin-datos': 'Sin datos', pn: 'Persona natural' };
+
+  const fila = x => {
+    const { e, info } = x;
+    const motivo = info.avisos.map(a => a.texto).join(' · ');
+    return `
+      <tr>
+        <td class="client-name"><span class="client-clickable" data-clave="${escapeAttr(e.clave)}" onclick="abrirMalla(this.dataset.clave)">${escapeHtml(e.razon || '(sin nombre)')}</span></td>
+        <td class="mono" style="font-size:12px;white-space:nowrap;">${escapeHtml(mallaFmtRut(e.rut) || '—')}</td>
+        <td>${e.grupo ? escapeHtml(e.grupo) : '<span class="ms-mut">—</span>'}</td>
+        <td style="text-align:center;">${info.nSocios || '—'}</td>
+        <td style="text-align:center;">${info.nPart || '—'}</td>
+        <td><span class="ms-estado ${info.estado}"${motivo ? ` title="${escapeAttr(motivo)}"` : ''}>${etiquetaEstado[info.estado]}</span></td>
+        <td class="row-actions">
+          <button class="btn small" data-clave="${escapeAttr(e.clave)}" onclick="abrirMalla(this.dataset.clave)">Ver malla</button>
+          <button class="btn secondary small" onclick="openClientDetail('${e.clientes[0].id}')">Ficha</button>
+        </td>
+      </tr>`;
+  };
+
+  const nCon = todas.filter(x => x.info.nSocios).length;
+  return `
+    <div class="main-head" style="flex-wrap:wrap;gap:12px 16px;">
+      <div>
+        <h2 class="display">Mallas Societarias</h2>
+        <div class="meta">${todas.length} cliente${todas.length===1?'':'s'} · ${nCon} con socios registrados · ${lista.length} en esta vista</div>
+      </div>
+      <input type="text" id="searchBox" placeholder="Buscar por cliente, RUT, socio o grupo…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" style="flex:1 1 240px;min-width:240px;max-width:360px;">
+    </div>
+    <div class="filter-bar" style="align-items:center;">
+      <div class="filter-chip ${mallaFiltroEstado==='todos'?'active':''}" onclick="mallaSetFiltroEstado('todos')">Todos <span class="count">${base.length}</span></div>
+      ${MALLA_ESTADOS.map(s => `<div class="filter-chip ${mallaFiltroEstado===s.key?'active':''}" onclick="mallaSetFiltroEstado('${s.key}')">${s.label} <span class="count">${conteo[s.key]}</span></div>`).join('')}
+      <select onchange="mallaSetFiltroGrupo(this.value)" title="Filtrar por grupo" style="margin-left:6px;">
+        <option value="__todos__" ${mallaFiltroGrupo==='__todos__'?'selected':''}>Todos los grupos</option>
+        <option value="__sin_grupo__" ${mallaFiltroGrupo==='__sin_grupo__'?'selected':''}>Sin grupo</option>
+        ${grupos.map(g => `<option value="${escapeAttr(g)}" ${mallaFiltroGrupo===g?'selected':''}>${escapeHtml(g)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="ms-lista" style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>Cliente</th><th>RUT</th><th>Grupo</th><th style="text-align:center;">Socios</th><th style="text-align:center;" title="Sociedades de la cartera en las que participa">Participa en</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        ${pageItems.length ? filasConEncabezadoDeGrupo(pageItems, fila, false) : `<tr><td colspan="7" style="padding:32px;text-align:center;color:#8a8879;">${(q || mallaFiltroEstado !== 'todos' || mallaFiltroGrupo !== '__todos__') ? 'No hay clientes que coincidan con la búsqueda o los filtros.' : 'Sin clientes.'}</td></tr>`}
+      </tbody>
+    </table>
+    </div>
+    ${paginationControls(page, totalPages)}
+    <div style="margin-top:14px;font-size:12px;color:#8a8879;max-width:860px;">Las mallas se arman con los socios y representantes legales que guarda la ficha de cada cliente (por ejemplo, cargados con «Importar características (Excel)» en Cartera de Clientes). «Sin datos» significa que la ficha todavía no tiene socios ni representantes.</div>
+  `;
+}
+
+function mallaEntidadActual(){
+  return construirModeloMallas().entidades.get(mallaSel) || null;
+}
+
+function mallaEnlace(nodo, texto){
+  return nodo.clave ? `<span class="ms-link" data-clave="${escapeAttr(nodo.clave)}" onclick="abrirMalla(this.dataset.clave)">${escapeHtml(texto)}</span>` : escapeHtml(texto);
+}
+function mallaEtiqueta(nodo){
+  if(!nodo.rut) return '';
+  if(nodo.clave) return '<span class="ms-tag cl">cliente</span>';
+  return rutEsPersonaNatural(nodo.rut) ? '<span class="ms-tag pn">persona natural</span>' : '<span class="ms-tag so">sociedad</span>';
+}
+// "Nombre (xx %); Nombre (xx %)…" con los demás socios de una sociedad, sin el socio `excluirRut`.
+function mallaDemasSocios(modelo, clave, excluirRut, maximo){
+  const otros = modelo.sociosDe(clave, excluirRut);
+  let txt = otros.slice(0, maximo).map(o => `${escapeHtml(mallaRecortar(o.nombre, 34))} (${mallaFmtPct(o.pct)})`).join('; ');
+  if(otros.length > maximo) txt += `; +${otros.length - maximo} más`;
+  return txt || '<span class="ms-mut">—</span>';
+}
+
+function mallaDetalleHtml(modelo, e){
+  const info = modelo.info(e);
+  const enc = (state.usuarios || []).find(u => u.id === e.encargadoId);
+  const chips = [`<span class="ms-chip"><b>RUT</b> ${escapeHtml(mallaFmtRut(e.rut) || 'sin RUT')}</span>`];
+  if(e.regimen === 'Persona Natural' || (!e.regimen && info.esPN)) chips.push('<span class="ms-chip"><b>Persona natural</b></span>');
+  else if(e.regimen) chips.push(`<span class="ms-chip"><b>Régimen</b> ${escapeHtml(e.regimen.replace(/^Régimen\s+/, ''))}</span>`);
+  chips.push(e.grupo
+    ? `<span class="ms-chip link" title="Ver los clientes de este grupo" data-grupo="${escapeAttr(e.grupo)}" onclick="mallaFiltrarGrupo(this.dataset.grupo)"><b>Grupo</b> ${escapeHtml(e.grupo)}</span>`
+    : '<span class="ms-chip"><b>Grupo</b> <span class="ms-mut">sin grupo</span></span>');
+  if(enc) chips.push(`<span class="ms-chip"><b>Encargado</b> ${escapeHtml(enc.name)}</span>`);
+  if(e.direccion) chips.push(`<span class="ms-chip"><b>Dirección</b> ${escapeHtml(mallaRecortar(e.direccion, 70))}</span>`);
+  if(e.inicio) chips.push(`<span class="ms-chip"><b>Inicio de actividades</b> ${escapeHtml(mallaFmtFecha(e.inicio))}</span>`);
+  if(e.revisado) chips.push(`<span class="ms-chip"><b>Datos del SII al</b> ${escapeHtml(mallaFmtFecha(e.revisado))}</span>`);
+
+  const avisos = info.avisos.slice();
+  if(e.clientes.length > 1) avisos.push({ texto: `Este RUT figura en ${e.clientes.length} clientes de la cartera (${e.clientes.map(c => c.name).join('; ')}): la malla los une.` });
+  const avisosHtml = avisos.map(a => `<div class="ms-aviso${a.rojo ? ' rojo' : ''}">${escapeHtml(a.texto)}</div>`).join('');
+
+  const duenos = modelo.sociosDe(e.clave);
+  let socios = '';
+  if(duenos.length){
+    const filas = duenos.map((d, i) => {
+      const otras = d.rut ? modelo.participacionesDe(d.rut, e.clave).length : 0;
+      return `<tr><td style="text-align:right;width:28px;">${i + 1}</td><td>${mallaEnlace(d, d.nombre)} ${mallaEtiqueta(d)}</td>` +
+        `<td class="mono" style="font-size:12px;white-space:nowrap;">${escapeHtml(mallaFmtRut(d.rut))}</td><td style="text-align:right;white-space:nowrap;">${mallaFmtPct(d.pct)}</td>` +
+        `<td style="text-align:right;">${otras || '—'}</td></tr>`;
+    });
+    const con = duenos.map(d => d.pct).filter(p => p != null);
+    filas.push(`<tr class="ms-tot"><td></td><td>Total informado</td><td></td><td style="text-align:right;white-space:nowrap;">${con.length ? mallaFmtPct(Math.round(con.reduce((a, p) => a + p, 0) * 100) / 100) : '—'}</td><td></td></tr>`);
+    socios = `<h4>Socios de la sociedad</h4><div style="overflow-x:auto;"><table><thead><tr><th style="text-align:right;">#</th><th>Socio</th><th>RUT</th><th style="text-align:right;">% participación</th><th style="text-align:right;" title="Otras sociedades clientes en que participa">Otras sociedades</th></tr></thead><tbody>${filas.join('')}</tbody></table></div>`;
+  }
+
+  const repsHtml = e.reps.length
+    ? `<h4>Representantes legales</h4><div style="font-size:13px;">${e.reps.map(r => `${escapeHtml(r.nombre || '—')} <span class="ms-mut">(${escapeHtml(mallaFmtRut(r.rut) || 'sin RUT')})</span>`).join(' &nbsp;·&nbsp; ')}</div>`
+    : '';
+
+  const filasOtras = [];
+  duenos.forEach(d => {
+    if(!d.rut) return;
+    modelo.participacionesDe(d.rut, e.clave).forEach(o => {
+      filasOtras.push(`<tr><td>${escapeHtml(mallaRecortar(d.nombre, 38))}</td><td>${mallaEnlace(o, o.nombre)}</td>` +
+        `<td class="mono" style="font-size:12px;white-space:nowrap;">${escapeHtml(mallaFmtRut(o.rut))}</td><td style="text-align:right;white-space:nowrap;">${mallaFmtPct(o.pct)}</td>` +
+        `<td>${mallaDemasSocios(modelo, o.clave, d.rut, 6)}</td></tr>`);
+    });
+  });
+  const otras = filasOtras.length
+    ? `<h4>Otras sociedades en las que participan los socios</h4><div style="overflow-x:auto;"><table><thead><tr><th>Socio</th><th>Sociedad</th><th>RUT</th><th style="text-align:right;">% del socio</th><th>Demás socios (% de participación)</th></tr></thead><tbody>${filasOtras.join('')}</tbody></table></div>`
+    : '';
+
+  const part = modelo.participacionesDe(e.rut);
+  const participa = part.length
+    ? `<h4>Sociedades en las que participa esta entidad</h4><div style="overflow-x:auto;"><table><thead><tr><th>Sociedad</th><th>RUT</th><th style="text-align:right;">% de esta entidad</th><th>Demás socios (% de participación)</th></tr></thead><tbody>${
+        part.map(o => `<tr><td>${mallaEnlace(o, o.nombre)}</td><td class="mono" style="font-size:12px;white-space:nowrap;">${escapeHtml(mallaFmtRut(o.rut))}</td><td style="text-align:right;white-space:nowrap;">${mallaFmtPct(o.pct)}</td><td>${mallaDemasSocios(modelo, o.clave, e.rut, 6)}</td></tr>`).join('')
+      }</tbody></table></div>`
+    : '';
+
+  // otras sociedades del mismo grupo (con enlace a su malla)
+  let grupoHtml = '';
+  if(e.grupo){
+    const hermanas = modelo.orden.filter(x => x.grupo === e.grupo && x.clave !== e.clave);
+    if(hermanas.length){
+      const tope = 40;
+      grupoHtml = `<h4>Otras sociedades del grupo «${escapeHtml(e.grupo)}» <span class="ms-mut" style="font-weight:400;">(${hermanas.length})</span></h4><div class="ms-hermanas" style="font-size:13px;line-height:1.9;">${
+        hermanas.slice(0, tope).map(x => `<span class="ms-link" data-clave="${escapeAttr(x.clave)}" onclick="abrirMalla(this.dataset.clave)">${escapeHtml(mallaRecortar(x.razon || '(sin nombre)', 46))}</span>`).join(' &nbsp;·&nbsp; ')
+      }${hermanas.length > tope ? ` &nbsp;·&nbsp; <span class="ms-mut">+${hermanas.length - tope} más (ver el grupo en el listado)</span>` : ''}</div>`;
+    }
+  }
+
+  const hoy = new Date();
+  const fechaEmision = `${String(hoy.getDate()).padStart(2, '0')}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${hoy.getFullYear()}`;
+  return `
+    <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+      <button class="btn secondary small" onclick="mallaVolverListado()">← Mallas Societarias</button>
+      ${mallaPila.length ? '<button class="btn secondary small" onclick="mallaAtras()">← Atrás</button>' : ''}
+      <span style="flex:1;"></span>
+      <button class="btn secondary small" onclick="mallaVerFicha()">Ver ficha del cliente</button>
+      <button class="btn small" id="mallaBotonPdf" onclick="descargarMallaPdf()">Descargar PDF</button>
+    </div>
+    <div class="ms-doc" id="mallaDoc">
+      <div class="ms-cab">
+        <img src="${LOGO_DATA_URI}" alt="">
+        <div class="ms-tit"><div class="ms-kicker">Malla societaria</div><h3 class="display">${escapeHtml(e.razon || modelo.nombre(e.rut) || '(sin nombre)')}</h3></div>
+        <div class="ms-fecha">BPO Consultores<br>Emitida el ${fechaEmision}</div>
+      </div>
+      <div class="ms-chips">${chips.join('')}</div>
+      ${avisosHtml}
+      ${mallaSvg(modelo, e)}
+      <div class="ms-leyenda">
+        <span><i style="background:#0C1A8A;border-color:#0C1A8A"></i>Esta sociedad</span>
+        <span><i style="background:#E4F3EA;border-color:#2F8F5B"></i>Cliente de BPO (clic para ver su malla)</span>
+        <span><i style="background:#EAF1FC;border-color:#4C74B8"></i>Persona natural</span>
+        <span><i style="background:#FFF3D6;border-color:#C28A00"></i>Sociedad que no es cliente</span>
+        <span class="ms-mut">Las flechas van del socio a la sociedad y muestran su % de participación.</span>
+      </div>
+      ${[socios, repsHtml, otras, participa, grupoHtml].map(s => s ? `<div class="ms-sec">${s}</div>` : '').join('')}
+      <div class="ms-pie">Documento confidencial: contiene datos personales y tributarios de clientes. La información es la registrada en la ficha del cliente${e.revisado ? ` (datos del SII al ${escapeHtml(mallaFmtFecha(e.revisado))})` : ''}; puede haber socios no informados si el SII reporta más de 9.</div>
+    </div>
+  `;
+}
+
+// ---- acciones ----
+function abrirMalla(clave){
+  if(!clave) return;
+  if(mallaSel && mallaSel !== clave) mallaPila.push(mallaSel);
+  mallaSel = clave;
+  renderApp();
+  window.scrollTo(0, 0);
+}
+function mallaAtras(){
+  mallaSel = mallaPila.pop() || null;
+  renderApp();
+  window.scrollTo(0, 0);
+}
+function mallaVolverListado(){
+  mallaSel = null;
+  mallaPila = [];
+  renderApp();
+  window.scrollTo(0, 0);
+}
+function mallaVerFicha(){
+  const e = mallaEntidadActual();
+  if(e && e.clientes.length) openClientDetail(e.clientes[0].id);
+}
+// Desde el chip de grupo de una malla: vuelve al listado filtrado por ese grupo.
+function mallaFiltrarGrupo(grupo){
+  mallaSel = null;
+  mallaPila = [];
+  mallaFiltroGrupo = grupo || '__todos__';
+  mallaFiltroEstado = 'todos';
+  searchQuery = '';
+  tablePage = 1;
+  renderApp();
+  window.scrollTo(0, 0);
+}
+function mallaSetFiltroGrupo(v){ mallaFiltroGrupo = v; tablePage = 1; renderApp(); }
+function mallaSetFiltroEstado(v){ mallaFiltroEstado = v; tablePage = 1; renderApp(); }
+
+// PDF de la malla abierta, directo con html2pdf.js (mismo mecanismo que el Resumen F-29, sin pasar por el
+// diálogo de impresión). Si la librería no carga, cae de respaldo al diálogo de impresión.
+function descargarMallaPdf(){
+  const el = document.getElementById('mallaDoc');
+  if(!el) return;
+  const boton = document.getElementById('mallaBotonPdf');
+  const textoOriginal = boton ? boton.textContent : '';
+  if(boton){ boton.textContent = 'Preparando PDF…'; boton.disabled = true; }
+  const restaurar = () => {
+    el.classList.remove('ms-exportando');
+    if(boton){ boton.textContent = textoOriginal; boton.disabled = false; }
+  };
+  asegurarHtml2pdf().then(() => {
+    const e = mallaEntidadActual();
+    const slug = (s) => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'cliente';
+    const nombreArchivo = `Malla_Societaria_${slug(e && e.razon)}.pdf`;
+    if(boton) boton.textContent = 'Generando PDF…';
+    el.classList.add('ms-exportando');
+    return html2pdf().set({
+      margin: [10, 10, 12, 10],
+      filename: nombreArchivo,
+      image: { type: 'jpeg', quality: 0.98 },
+      // windowWidth = ancho sin la barra de desplazamiento: html2pdf centra su contenedor, y con otro ancho de ventana
+      // la imagen sale corrida unos píxeles y corta el borde derecho del documento.
+      html2canvas: { scale: 2, backgroundColor: '#FFFFFF', windowWidth: document.documentElement.clientWidth, scrollX: 0, scrollY: 0 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', 'svg', 'h4', '.ms-aviso'] },
+    }).from(el).toPdf().get('pdf').then(pdf => {
+      const n = pdf.internal.getNumberOfPages();
+      const ancho = pdf.internal.pageSize.getWidth(), alto = pdf.internal.pageSize.getHeight();
+      pdf.setFontSize(7);
+      pdf.setTextColor(107, 114, 128);
+      for(let i = 1; i <= n; i++){
+        pdf.setPage(i);
+        pdf.text('BPO Consultores · Documento confidencial: contiene datos personales y tributarios de clientes', 10, alto - 5);
+        pdf.text(`Página ${i} de ${n}`, ancho - 10, alto - 5, { align: 'right' });
+      }
+    }).save().catch(() => {
+      showToast('No se pudo generar el PDF. Intenta de nuevo.');
+    }).finally(restaurar);
+  }, () => {
+    showToast('No se pudo cargar el generador de PDF; se abre el diálogo de impresión.');
+    restaurar();
+    window.print();
+  }).catch(() => {
+    showToast('No se pudo generar el PDF. Intenta de nuevo.');
+    restaurar();
+  });
 }
 
 // ==================== REMUNERACIONES (cartera separada) ====================
