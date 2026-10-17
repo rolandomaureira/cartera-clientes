@@ -3342,7 +3342,8 @@ function parseActividadesTexto(t){
     ultimo = re.lastIndex;
   }
   const resto = s.slice(ultimo).replace(/^[\s;]+/, '').trim();
-  if(resto) out.push({ codigo: '', glosa: resto });
+  // lo que queda sin código ("GLOSA UNO; GLOSA DOS") se separa por punto y coma: una actividad por glosa
+  if(resto) resto.split(';').map(x => x.trim()).filter(Boolean).forEach(g => out.push({ codigo: '', glosa: g }));
   return out;
 }
 function parseActividadesLineas(texto){
