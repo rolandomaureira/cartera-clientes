@@ -377,6 +377,30 @@
   .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
   .modal-head h3{margin:0;font-size:22px;}
 
+  /* Ficha del cliente con pestañas (Administrativa / Contable / Tributaria) */
+  .modal-card.ficha{max-width:780px;}
+  .ficha-tabs{display:flex;gap:4px;margin:6px 0 18px;border-bottom:2px solid var(--ink);flex-wrap:wrap;}
+  .ficha-tab{
+    padding:9px 18px;font-size:14px;cursor:pointer;color:#6b6a5f;font-weight:500;
+    background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;
+    font-family:'IBM Plex Sans',sans-serif;
+  }
+  .ficha-tab:hover{color:var(--ink);}
+  .ficha-tab.active{color:var(--ink);border-bottom-color:var(--teal);}
+  .ficha-sec{margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;}
+  .ficha-pane > .ficha-sec:first-child{margin-top:0;border-top:none;padding-top:0;}
+  .ficha-sec h4{margin:0 0 10px;font-size:14px;}
+  .ficha-sub{font-size:12px;font-weight:600;color:#6b6a5f;margin:0 0 6px;}
+  .ficha-nota{font-size:12px;color:#8a8879;margin-top:6px;}
+  .ficha-fila{display:flex;gap:8px;margin-bottom:6px;align-items:center;}
+  .ficha-fila input{flex:1;min-width:0;}
+  .ficha-check{flex-direction:row !important;align-items:center;gap:8px !important;}
+  .ficha-check span{text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;}
+  @media (max-width:600px){
+    .ficha-fila{flex-wrap:wrap;}
+    .ficha-tab{padding:8px 12px;}
+  }
+
   /* Login BPO Gestión — identidad de marca: azul marino del isotipo bpo
      consultores + dorado como acento (mismo dorado que ya usa el resto de
      la app para Administrador/insignias premium). */
@@ -2950,167 +2974,478 @@ function closeClientDetail(){
   renderModal();
 }
 
-function renderModal(){
-  const root = document.getElementById('modalRoot');
-  if(!root) return;
-  if(!detailClientId){ root.innerHTML = ''; return; }
-  const c = state.clientes.find(cl => cl.id === detailClientId);
-  if(!c){ root.innerHTML = ''; return; }
-  const isAdmin = currentUser.isAdmin;
-  const encargadoNombre = (state.usuarios.find(e=>e.id===c.encargadoId)||{}).name || "Sin asignar";
+// =====================================================================================
+// FICHA DEL CLIENTE CON PESTAÑAS (2026-10-18): Administrativa (solo rol Administrador), Contable y Tributaria
+// =====================================================================================
+// Las tres pestañas se dibujan juntas (las inactivas solo se ocultan con display:none), así que saveClientDetail lee
+// siempre el mismo formulario y cambiar de pestaña no pierde lo escrito. Arriba, siempre visible: razón social, RUT,
+// encargado y grupo. Debajo de las pestañas quedan los bloques que no son de una sola pestaña: Archivos y Memos y Propuestas.
+//
+// Datos nuevos del cliente (todos opcionales: un cliente antiguo se ve igual que antes):
+//   contable: {
+//     sistema: { tipo: ''|'interno'|'tercero', programa, usaLink, url, accesos: [{ id, usuario, clave }] },   // 'interno' = Softland de BPO
+//     remuneraciones: { lleva: ''|'bpo'|'cliente', encargadoId, contactos: [{ nombre, correo, telefono }] }   // contactos = quienes las llevan en el cliente
+//   }
+// Las claves de accesos[] las cifra el servidor (igual que las de Previred / Clave Única) y llegan ocultas; mientras el servidor no
+// declare que sabe cifrarlas (acción "capacidades") el campo de clave queda deshabilitado, para no dejar claves en texto plano.
+let detailFichaTab = '';
+let capacidadClavesContables = null;   // true = el servidor las cifra; false = servidor antiguo (no conoce la acción); null = aún no se sabe
+let capacidadClavesConsultando = false;
+let capacidadClavesIntentos = 0;
 
-  root.innerHTML = `
-    <div class="modal-backdrop" onclick="if(event.target===this) closeClientDetail()">
-      <div class="modal-card">
-        <div class="modal-head">
-          <h3 class="display">Detalle del cliente</h3>
-          <button class="switch-btn" onclick="closeClientDetail()">Cerrar</button>
+// Solo Administrador (rol exacto, como RR.HH.: ni Contabilidad). Contacto del cliente y montos de cobranza.
+function puedeVerFichaAdministrativa(u){
+  return !!u && esRolAdmin(u.rol);
+}
+
+function fichaTabsVisibles(){
+  const tabs = [];
+  if(puedeVerFichaAdministrativa(currentUser)) tabs.push({ key: 'administrativa', label: 'Administrativa' });
+  tabs.push({ key: 'contable', label: 'Contable' }, { key: 'tributaria', label: 'Tributaria' });
+  return tabs;
+}
+
+function fichaTabActual(){
+  const tabs = fichaTabsVisibles();
+  return tabs.some(t => t.key === detailFichaTab) ? detailFichaTab : tabs[0].key;
+}
+
+function setFichaTab(tab){
+  if(!fichaTabsVisibles().some(t => t.key === tab)) return;
+  detailFichaTab = tab;
+  document.querySelectorAll('.ficha-pane').forEach(p => { p.style.display = p.dataset.tab === tab ? 'block' : 'none'; });
+  document.querySelectorAll('.ficha-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  // "Mostrar claves" sirve para Contable y Tributaria (las que tienen claves), no para Administrativa
+  document.querySelectorAll('.js-mostrar-claves').forEach(b => { b.style.display = tab === 'administrativa' ? 'none' : 'inline-block'; });
+}
+
+// Solo http/https (nunca javascript:, data:, etc.); sin esquema se asume https.
+function urlSegura(texto){
+  let t = String(texto || '').trim();
+  if(!t) return '';
+  if(!/^[a-z][a-z0-9+.-]*:/i.test(t)) t = 'https://' + t;
+  if(!/^https?:\/\//i.test(t)) return '';
+  try{ return new URL(t).href; }catch(e){ return ''; }
+}
+
+function abrirLinkSistemaContable(){
+  const input = document.getElementById('dt_sc_url');
+  const url = urlSegura(input && input.value);
+  if(!url) return showToast('Escribe un link válido (http o https).');
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function onCambioSistemaContable(){
+  const tipo = document.getElementById('dt_sc_tipo').value;
+  document.getElementById('dt_sc_tercero').style.display = tipo === 'tercero' ? 'block' : 'none';
+  document.getElementById('dt_sc_interno').style.display = tipo === 'interno' ? 'block' : 'none';
+}
+function onCambioLinkSistemaContable(){
+  document.getElementById('dt_sc_url_wrap').style.display = document.getElementById('dt_sc_usa_link').checked ? 'flex' : 'none';
+}
+function onCambioRemuneraciones(){
+  const v = document.getElementById('dt_rem_lleva').value;
+  document.getElementById('dt_rem_bpo').style.display = v === 'bpo' ? 'block' : 'none';
+  document.getElementById('dt_rem_cliente').style.display = v === 'cliente' ? 'block' : 'none';
+}
+
+// ---- accesos al programa contable de un tercero (usuario + clave) ----
+function filaAccesoContableHtml(a){
+  a = a || {};
+  const id = a.id || uid('ac');
+  const guardada = !!a.clave;                                          // ya hay una clave guardada: arranca oculta hasta "Mostrar claves"
+  const bloqueada = capacidadClavesContables !== true && !guardada;    // clave nueva y el servidor aún no la sabe cifrar
+  return `<div class="ficha-fila fila-acceso" data-id="${escapeAttr(id)}">
+    <input type="text" class="f-usuario" placeholder="Usuario" value="${escapeAttr(a.usuario||'')}">
+    <input type="text" class="f-clave" placeholder="${guardada ? 'Oculta — clic en \'Mostrar claves\'' : (bloqueada ? 'Requiere actualizar el servidor' : 'Clave')}" value="" data-original="${escapeAttr(a.clave||'')}" ${guardada ? 'readonly' : ''} ${bloqueada ? 'disabled' : ''}>
+    <button type="button" class="btn secondary small" title="Quitar" onclick="this.parentNode.remove();">×</button>
+  </div>`;
+}
+function agregarAccesoContable(){
+  const cont = document.getElementById('dt_sc_accesos');
+  if(cont) cont.insertAdjacentHTML('beforeend', filaAccesoContableHtml({}));
+}
+function leerAccesosContables(){
+  return Array.from(document.querySelectorAll('#dt_sc_accesos .fila-acceso')).map(f => {
+    const claveEl = f.querySelector('.f-clave');
+    // oculta (readonly) = nadie la mostró ni la tocó: se reenvía el valor cifrado original tal cual
+    const clave = claveEl ? (claveEl.readOnly ? (claveEl.dataset.original || '') : claveEl.value.trim()) : '';
+    return { id: f.dataset.id, usuario: f.querySelector('.f-usuario').value.trim(), clave };
+  }).filter(a => a.usuario || a.clave);
+}
+function actualizarEstadoClavesContables(){
+  document.querySelectorAll('#dt_sc_accesos .fila-acceso .f-clave').forEach(el => {
+    const guardada = !!el.dataset.original;
+    el.disabled = capacidadClavesContables !== true && !guardada;
+    if(!guardada) el.placeholder = el.disabled ? 'Requiere actualizar el servidor' : 'Clave';
+  });
+  const nota = document.getElementById('dt_sc_nota');
+  if(!nota) return;
+  if(capacidadClavesContables === true){
+    nota.style.color = '#8a8879';
+    nota.textContent = 'Las claves se guardan cifradas en el servidor y solo se ven con «Mostrar claves».';
+  }else if(capacidadClavesContables === false){
+    nota.style.color = 'var(--danger)';
+    nota.textContent = 'Para guardar claves del sistema contable hay que actualizar el servidor (pendiente): por ahora solo se pueden anotar el usuario y el link.';
+  }else if(capacidadClavesConsultando){
+    nota.style.color = '#8a8879';
+    nota.textContent = 'Verificando que el servidor pueda guardar las claves cifradas…';
+  }else{
+    nota.style.color = 'var(--danger)';
+    nota.textContent = 'No se pudo verificar el servidor ahora (se reintenta solo; también al volver a abrir la ficha). Mientras tanto no se pueden escribir claves.';
+  }
+}
+// Pregunta una vez por sesión si el servidor ya cifra las claves del sistema contable. Un servidor antiguo no conoce la acción y contesta
+// "Falta key" (false, definitivo). Cualquier otra respuesta rara (límite de tasa, red, respuesta a medias de Google) deja la duda (null):
+// se reintenta solo un par de veces y al volver a abrir la ficha. Mientras no sea true, las claves nuevas quedan bloqueadas.
+async function verificarCapacidadClavesContables(esReintento){
+  if(!esReintento) capacidadClavesIntentos = 0;
+  if(capacidadClavesContables === null && !capacidadClavesConsultando){
+    capacidadClavesConsultando = true;
+    actualizarEstadoClavesContables();
+    let ok = null;
+    if(!BACKEND_URL){
+      ok = false;
+    }else{
+      try{
+        const res = await fetch(BACKEND_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ accion: 'capacidades', token: API_TOKEN })
+        });
+        const data = await res.json().catch(() => null);
+        if(data && data.ok && data.clavesSistemaContable === true) ok = true;
+        else if(data && data.ok === false && data.error === 'Falta key') ok = false;
+      }catch(e){
+        console.error('No se pudo consultar las capacidades del servidor:', e);
+      }
+    }
+    capacidadClavesConsultando = false;
+    capacidadClavesContables = ok;
+    if(ok === null && capacidadClavesIntentos < 2){
+      capacidadClavesIntentos++;
+      setTimeout(() => verificarCapacidadClavesContables(true), 2500);
+    }
+  }
+  actualizarEstadoClavesContables();
+}
+
+// ---- remuneraciones llevadas por el cliente: personas con correo y teléfono ----
+function filaPersonaRemHtml(p){
+  p = p || {};
+  return `<div class="ficha-fila fila-persona-rem">
+    <input type="text" class="f-nombre" placeholder="Nombre" value="${escapeAttr(p.nombre||'')}">
+    <input type="text" class="f-correo" placeholder="correo@cliente.cl" value="${escapeAttr(p.correo||'')}">
+    <input type="text" class="f-telefono" placeholder="Teléfono" value="${escapeAttr(p.telefono||'')}" style="max-width:150px;">
+    <button type="button" class="btn secondary small" title="Quitar" onclick="this.parentNode.remove();">×</button>
+  </div>`;
+}
+function agregarPersonaRem(){
+  const cont = document.getElementById('dt_rem_contactos');
+  if(cont) cont.insertAdjacentHTML('beforeend', filaPersonaRemHtml({}));
+}
+function leerPersonasRem(){
+  return Array.from(document.querySelectorAll('#dt_rem_contactos .fila-persona-rem')).map(f => ({
+    nombre: f.querySelector('.f-nombre').value.trim(),
+    correo: f.querySelector('.f-correo').value.trim(),
+    telefono: f.querySelector('.f-telefono').value.trim()
+  })).filter(p => p.nombre || p.correo || p.telefono);
+}
+// Opciones del encargado de remuneraciones: primero el equipo de Remuneraciones, luego el resto del personal.
+function opcionesEncargadoRemuneraciones(seleccionado){
+  const us = [...state.usuarios].sort((a, b) => (a.name||'').localeCompare(b.name||'', 'es'));
+  const esRem = u => /remuneraciones/i.test(u.rol || '');
+  const opt = u => `<option value="${escapeAttr(u.id)}" ${seleccionado === u.id ? 'selected' : ''}>${escapeHtml(u.name)}</option>`;
+  const equipo = us.filter(esRem), otros = us.filter(u => !esRem(u));
+  const huerfano = seleccionado && !us.some(u => u.id === seleccionado) ? `<option value="${escapeAttr(seleccionado)}" selected>(usuario que ya no existe)</option>` : '';
+  return `<option value="">Sin asignar</option>${huerfano}`
+    + (equipo.length ? `<optgroup label="Equipo de Remuneraciones">${equipo.map(opt).join('')}</optgroup>` : '')
+    + (otros.length ? `<optgroup label="Otro personal">${otros.map(opt).join('')}</optgroup>` : '');
+}
+
+// Lee la parte "contable" del formulario. Devuelve null si el cliente no tenía datos y el formulario sigue vacío (para no ensuciar el registro).
+function leerContableDelFormulario(c){
+  if(!document.getElementById('dt_sc_tipo')) return null;
+  const contable = {
+    sistema: {
+      tipo: document.getElementById('dt_sc_tipo').value,
+      programa: document.getElementById('dt_sc_programa').value.trim(),
+      usaLink: document.getElementById('dt_sc_usa_link').checked,
+      url: document.getElementById('dt_sc_url').value.trim(),
+      accesos: leerAccesosContables()
+    },
+    remuneraciones: {
+      lleva: document.getElementById('dt_rem_lleva').value,
+      encargadoId: document.getElementById('dt_rem_encargado').value || '',
+      contactos: leerPersonasRem()
+    }
+  };
+  const s = contable.sistema, r = contable.remuneraciones;
+  const vacio = !s.tipo && !s.programa && !s.usaLink && !s.url && !s.accesos.length && !r.lleva && !r.encargadoId && !r.contactos.length;
+  return (vacio && !c.contable) ? null : contable;
+}
+
+// ---- contenido de cada pestaña ----
+function fichaAdministrativaHtml(c){
+  return `
+    <div class="ficha-sec">
+      <h4>Contacto del cliente</h4>
+      <div class="onboard-grid" style="margin-bottom:0;">
+        <label>Nombre de contacto
+          <input type="text" id="dt_nombre_contacto" placeholder="Persona con quien se conversa" value="${escapeAttr(c.nombreContacto||'')}">
+        </label>
+        <label>Teléfono de contacto
+          <input type="text" id="dt_telefono_contacto" placeholder="Ej: +56 9 1234 5678" value="${escapeAttr(c.telefonoContacto||'')}">
+        </label>
+        <label style="grid-column:1 / -1;">Correo de contacto
+          <input type="text" id="dt_correo_contacto" placeholder="correo@cliente.cl" value="${escapeAttr(c.correoContacto||'')}">
+        </label>
+      </div>
+    </div>
+
+    <div class="ficha-sec">
+      <h4>Cobranza</h4>
+      <div class="onboard-grid" style="margin-bottom:12px;">
+        <label>Valor servicio mensual (UF)
+          <input type="number" id="dt_valor_mensual" placeholder="Ej: 5.5" min="0" step="0.1" value="${c.valorServicioMensual != null ? c.valorServicioMensual : ''}">
+        </label>
+        <label>Forma de pago
+          <select id="dt_forma_pago">
+            <option value="">Sin definir</option>
+            ${['Transferencia','Efectivo','Cheque','Débito automático','Otro'].map(f=>`<option value="${f}" ${c.formaPago===f?'selected':''}>${f}</option>`).join('')}
+          </select>
+        </label>
+        <label>Fecha de pago pactada
+          <input type="date" id="dt_fecha_pago" value="${escapeAttr(c.fechaPago||'')}">
+        </label>
+      </div>
+      <div style="margin-bottom:8px;">
+        <div class="ficha-sub">Historial de cobranza</div>
+        ${(c.historialCobranza||[]).slice().reverse().map(h => `
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid var(--line);">
+            <span class="mono" style="color:#8a8879;font-size:11px;min-width:76px;">${escapeHtml(h.fecha||'')}</span>
+            <span style="min-width:90px;">${h.monto != null ? formatoCLP(h.monto) : '—'}</span>
+            <span style="min-width:100px;">${escapeHtml(h.estado||'')}</span>
+            <span style="flex:1;color:#6b6a5f;">${escapeHtml(h.nota||'')}</span>
+          </div>
+        `).join('') || '<span style="font-size:13px;color:#8a8879;">Sin registros de cobranza.</span>'}
+      </div>
+      <div class="form-inline">
+        <input type="date" id="cobFecha" value="${todayISO()}" style="max-width:150px;">
+        <input type="number" id="cobMonto" placeholder="Monto" min="0" style="max-width:120px;">
+        <select id="cobEstado" style="max-width:140px;">
+          <option value="Pagado">Pagado</option>
+          <option value="Pendiente">Pendiente</option>
+          <option value="Atrasado">Atrasado</option>
+        </select>
+        <input type="text" id="cobNota" placeholder="Nota (opcional)" style="flex:1;">
+        <button type="button" class="btn secondary small" onclick="agregarCobranza('${c.id}')">Agregar registro</button>
+      </div>
+      <div class="ficha-nota" style="margin-top:0;">El historial solo permite agregar registros nuevos, no editar ni borrar los ya guardados.</div>
+    </div>
+
+    <div class="ficha-sec">
+      <h4>Servicios extraordinarios</h4>
+      <div style="margin-bottom:10px;">
+        ${(c.serviciosExtraordinarios||[]).map(s => `
+          <span class="encargado-chip">${escapeHtml(s.fecha||'—')} · ${escapeHtml(s.descripcion)} · ${s.montoUF} UF
+            <button type="button" onclick="quitarServicioExtra('${c.id}','${s.id}')" title="Eliminar">×</button>
+          </span>
+        `).join('') || '<span style="font-size:13px;color:#8a8879;">Sin servicios extraordinarios registrados.</span>'}
+      </div>
+      <div class="form-inline">
+        <input type="date" id="extraFecha" value="${todayISO()}" style="max-width:150px;">
+        <input type="text" id="extraDesc" placeholder="Descripción (ej: Término de giro)">
+        <input type="number" id="extraMonto" placeholder="UF" min="0" step="0.1" style="max-width:90px;">
+        <button type="button" class="btn secondary small" onclick="agregarServicioExtra('${c.id}')">Agregar</button>
+      </div>
+    </div>
+  `;
+}
+
+function fichaContableHtml(c){
+  const sis = (c.contable || {}).sistema || {};
+  const rem = (c.contable || {}).remuneraciones || {};
+  return `
+    <div class="ficha-sec">
+      <h4>Sistema contable</h4>
+      <div class="onboard-grid" style="margin-bottom:12px;">
+        <label>Sistema que utiliza
+          <select id="dt_sc_tipo" onchange="onCambioSistemaContable()">
+            <option value="" ${!sis.tipo?'selected':''}>Sin definir</option>
+            <option value="interno" ${sis.tipo==='interno'?'selected':''}>Interno (Softland)</option>
+            <option value="tercero" ${sis.tipo==='tercero'?'selected':''}>De un tercero (otro programa)</option>
+          </select>
+        </label>
+      </div>
+      <div id="dt_sc_interno" style="display:${sis.tipo==='interno'?'block':'none'};">
+        <div class="ficha-nota" style="margin-top:0;">La contabilidad de este cliente se lleva en el Softland de BPO.</div>
+      </div>
+      <div id="dt_sc_tercero" style="display:${sis.tipo==='tercero'?'block':'none'};">
+        <div class="onboard-grid" style="margin-bottom:12px;">
+          <label>Programa contable
+            <input type="text" id="dt_sc_programa" placeholder="Ej: Nubatic" value="${escapeAttr(sis.programa||'')}">
+          </label>
+          <label class="ficha-check">
+            <input type="checkbox" id="dt_sc_usa_link" ${sis.usaLink?'checked':''} onchange="onCambioLinkSistemaContable()" style="width:auto;">
+            <span>Se accede por link</span>
+          </label>
+          <label id="dt_sc_url_wrap" style="grid-column:1 / -1;display:${sis.usaLink?'flex':'none'};">Link de acceso
+            <div class="ficha-fila" style="margin-bottom:0;">
+              <input type="text" id="dt_sc_url" placeholder="https://…" value="${escapeAttr(sis.url||'')}">
+              <button type="button" class="btn secondary small" onclick="abrirLinkSistemaContable()">Abrir</button>
+            </div>
+          </label>
         </div>
-        <div class="onboard-grid">
-          <label>Razón social
-            <input type="text" id="dt_name" value="${escapeAttr(c.name||'')}">
+        <div class="ficha-sub">Usuarios y claves de acceso</div>
+        <div id="dt_sc_accesos">${(sis.accesos||[]).map(a => filaAccesoContableHtml(a)).join('')}</div>
+        <button type="button" class="btn secondary small" onclick="agregarAccesoContable()">+ Agregar acceso</button>
+        <div class="ficha-nota" id="dt_sc_nota"></div>
+      </div>
+    </div>
+
+    <div class="ficha-sec">
+      <h4>Remuneraciones</h4>
+      <div class="onboard-grid" style="margin-bottom:12px;">
+        <label>¿Quién lleva las remuneraciones?
+          <select id="dt_rem_lleva" onchange="onCambioRemuneraciones()">
+            <option value="" ${!rem.lleva?'selected':''}>Sin definir</option>
+            <option value="bpo" ${rem.lleva==='bpo'?'selected':''}>Las lleva BPO</option>
+            <option value="cliente" ${rem.lleva==='cliente'?'selected':''}>Las lleva el cliente (internas)</option>
+          </select>
+        </label>
+      </div>
+      <div id="dt_rem_bpo" style="display:${rem.lleva==='bpo'?'block':'none'};">
+        <div class="onboard-grid" style="margin-bottom:0;">
+          <label>Encargado de remuneraciones
+            <select id="dt_rem_encargado">${opcionesEncargadoRemuneraciones(rem.encargadoId)}</select>
           </label>
-          <label>Rut
-            <input type="text" id="dt_rut" value="${escapeAttr(c.rut||'')}">
-          </label>
-          <label>Clave
-            <input type="text" id="dt_clave" value="${escapeAttr(c.clave||'')}">
-          </label>
-          <label>Régimen tributario
-            <select id="dt_regimen" onchange="toggleDtPersonaNatural(this.value);">
-              <option value="">Selecciona un régimen</option>
-              ${REGIMENES_TRIBUTARIOS.map(r=>`<option value="${r}" ${c.regimenTributario===r?'selected':''}>${escapeHtml(r)}</option>`).join('')}
-            </select>
-          </label>
-          <label id="dt_actividad_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'flex'};">Actividad económica
-            <input type="text" id="dt_actividad" placeholder="Sin registrar" value="${escapeAttr(c.actividadEconomica||'')}">
-          </label>
-          <label id="dt_codigo_actividad_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'flex'};">Código actividad económica
-            <input type="text" id="dt_codigo_actividad" placeholder="Sin registrar" value="${escapeAttr(c.codigoActividadEconomica||'')}">
-          </label>
-          <label>Inicio de actividades
-            <input type="date" id="dt_fecha_inicio" value="${escapeAttr(c.fechaInicioActividades||'')}">
-          </label>
-          <label>Capital enterado (M$, miles de pesos)
-            <input type="number" id="dt_capital" min="0" step="1" placeholder="Sin registrar" value="${c.capitalEnterado != null ? escapeAttr(String(c.capitalEnterado)) : ''}">
-          </label>
-          <label style="grid-column:1 / -1;">Dirección
-            <input type="text" id="dt_direccion" placeholder="Sin registrar" value="${escapeAttr(c.direccion||'')}">
-          </label>
-          <label>Encargado
-            ${isAdmin ? `<select id="dt_encargado">
-              <option value="">Sin asignar</option>
-              ${state.usuarios.filter(e=>e.sucursal===c.sucursal || e.sucursal==='Ambas').map(e=>`<option value="${e.id}" ${c.encargadoId===e.id?'selected':''}>${escapeHtml(e.name)}</option>`).join('')}
-            </select>` : (() => {
-              const opciones = carterasDeUsuario(currentUser).map(id => state.usuarios.find(u=>u.id===id)).filter(Boolean);
-              if(opciones.length <= 1){
-                return `<input type="text" value="${escapeAttr(encargadoNombre)}" disabled><input type="hidden" id="dt_encargado" value="${c.encargadoId||''}">`;
-              }
-              return `<select id="dt_encargado">${opciones.map(o=>`<option value="${o.id}" ${c.encargadoId===o.id?'selected':''}>${escapeHtml(o.name)}</option>`).join('')}</select>`;
-            })()}
-          </label>
-          ${puedeVerTodasLasCarteras(currentUser) ? `<label>Grupo
-            <select id="dt_grupo">
-              <option value="" ${!c.grupo?'selected':''}>Sin grupo</option>
-              ${gruposExistentes().map(g=>`<option value="${escapeAttr(g)}" ${c.grupo===g?'selected':''}>${escapeHtml(g)}</option>`).join('')}
-              <option value="__nuevo__">+ Nuevo grupo…</option>
-            </select>
-          </label>` : ''}
-          ${isAdmin ? `<label>Valor servicio mensual (UF)
-            <input type="number" id="dt_valor_mensual" placeholder="Ej: 5.5" min="0" step="0.1" value="${c.valorServicioMensual != null ? c.valorServicioMensual : ''}">
-          </label>
-          <label style="flex-direction:row;align-items:center;gap:8px;">
-            <input type="checkbox" id="dt_renta_requerido" ${c.rentaRequerido?'checked':''} style="width:auto;">
-            <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Requiere Declaración de Renta (nómina)</span>
-          </label>
-          <label style="flex-direction:row;align-items:center;gap:8px;">
+        </div>
+      </div>
+      <div id="dt_rem_cliente" style="display:${rem.lleva==='cliente'?'block':'none'};">
+        <div class="ficha-sub">Personas que las llevan en el cliente</div>
+        <div id="dt_rem_contactos">${(rem.contactos||[]).map(p => filaPersonaRemHtml(p)).join('')}</div>
+        <button type="button" class="btn secondary small" onclick="agregarPersonaRem()">+ Agregar persona</button>
+      </div>
+    </div>
+
+    <div class="ficha-sec">
+      <h4>Previred</h4>
+      <label class="ficha-check" style="display:flex;margin-bottom:8px;">
+        <input type="checkbox" id="dt_previred_activo" onchange="document.getElementById('dt_previred_fields').style.display = this.checked ? 'flex' : 'none';" ${c.datosPrevired && c.datosPrevired.activo ? 'checked' : ''} style="width:auto;">
+        <span>Posee trabajadores (datos Previred)</span>
+      </label>
+      <div id="dt_previred_fields" class="form-inline" style="display:${c.datosPrevired && c.datosPrevired.activo ? 'flex':'none'};margin-bottom:0;">
+        <input type="text" id="dt_previred_rut" placeholder="Rut Previred" value="${escapeAttr((c.datosPrevired||{}).rut||'')}">
+        <input type="text" id="dt_previred_clave" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.datosPrevired||{}).clave||'')}" readonly>
+      </div>
+    </div>
+  `;
+}
+
+function fichaTributariaHtml(c, isAdmin){
+  const esPN = c.regimenTributario === 'Persona Natural';
+  return `
+    <div class="ficha-sec">
+      <h4>Datos tributarios</h4>
+      <div class="onboard-grid" style="margin-bottom:0;">
+        <label>Régimen tributario
+          <select id="dt_regimen" onchange="toggleDtPersonaNatural(this.value);">
+            <option value="">Selecciona un régimen</option>
+            ${REGIMENES_TRIBUTARIOS.map(r=>`<option value="${r}" ${c.regimenTributario===r?'selected':''}>${escapeHtml(r)}</option>`).join('')}
+          </select>
+        </label>
+        <label>Clave (SII)
+          <input type="text" id="dt_clave" value="${escapeAttr(c.clave||'')}">
+        </label>
+        <label id="dt_actividad_wrap" style="display:${esPN?'none':'flex'};">Actividad económica
+          <input type="text" id="dt_actividad" placeholder="Sin registrar" value="${escapeAttr(c.actividadEconomica||'')}">
+        </label>
+        <label id="dt_codigo_actividad_wrap" style="display:${esPN?'none':'flex'};">Código actividad económica
+          <input type="text" id="dt_codigo_actividad" placeholder="Sin registrar" value="${escapeAttr(c.codigoActividadEconomica||'')}">
+        </label>
+        <label>Inicio de actividades
+          <input type="date" id="dt_fecha_inicio" value="${escapeAttr(c.fechaInicioActividades||'')}">
+        </label>
+        <label>Capital enterado (M$, miles de pesos)
+          <input type="number" id="dt_capital" min="0" step="1" placeholder="Sin registrar" value="${c.capitalEnterado != null ? escapeAttr(String(c.capitalEnterado)) : ''}">
+        </label>
+        <label style="grid-column:1 / -1;">Dirección
+          <input type="text" id="dt_direccion" placeholder="Sin registrar" value="${escapeAttr(c.direccion||'')}">
+        </label>
+      </div>
+    </div>
+
+    <div id="dt_estructura_wrap" class="ficha-sec" style="display:${esPN?'none':'block'};">
+      <h4>Estructura societaria</h4>
+      <div class="ficha-sub">Representantes legales</div>
+      <div id="dt_reps_lista">${representantesDelCliente(c).map(r => filaRepresentanteHtml(r)).join('')}</div>
+      <button type="button" class="btn secondary small" onclick="agregarFilaRepresentante()">+ Agregar representante</button>
+      <div class="ficha-sub" style="margin-top:16px;">Socios y participación</div>
+      <div id="dt_socios_lista">${(c.sociosDetalle||[]).map(s => filaSocioHtml(s)).join('')}</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button type="button" class="btn secondary small" onclick="agregarFilaSocio()">+ Agregar socio</button>
+        <button type="button" class="btn secondary small" onclick="copiarSociosAMemos()">Copiar personas naturales a Memos y Propuestas</button>
+        <span id="dt_socios_total" style="font-size:12px;color:#8a8879;"></span>
+      </div>
+    </div>
+
+    <div id="dt_actividades_wrap" class="ficha-sec" style="display:${esPN?'none':'block'};">
+      <h4>Actividades económicas (SII)</h4>
+      <textarea id="dt_actividades" rows="4" placeholder="Una por línea: Descripción (código)" style="width:100%;font-size:13px;color:var(--ink);padding:10px 12px;border:1px solid var(--line);border-radius:4px;font-family:'IBM Plex Sans',sans-serif;resize:vertical;">${escapeHtml((c.actividadesEconomicas||[]).map(a => a.codigo ? `${a.glosa} (${a.codigo})` : a.glosa).join('\n'))}</textarea>
+      <div class="ficha-nota">La actividad y el código de arriba son los principales; aquí van todas las que figuran en el SII.</div>
+      ${c.siiObservacion ? `<div style="margin-top:10px;font-size:12px;color:${String(c.siiObservacion).trim().toUpperCase()==='OK' ? '#8a8879' : 'var(--danger)'};">Revisión SII${c.siiRevisado ? ` (${escapeHtml(c.siiRevisado)})` : ''}: ${escapeHtml(c.siiObservacion)}</div>` : ''}
+    </div>
+
+    <div class="ficha-sec">
+      <h4>Declaraciones</h4>
+      <label class="ficha-check" style="display:flex;">
+        <input type="checkbox" id="dt_iva_caso_especial" ${c.f29CasoEspecialMes===mesActualISO()?'checked':''} style="width:auto;">
+        <span>Incluir en Confección Iva este mes (caso especial)</span>
+      </label>
+      <div class="ficha-nota">Útil para clientes "Persona Natural", que por defecto no entran a la nómina de Iva. Se desmarca solo al pasar el mes.</div>
+      ${isAdmin ? `<label class="ficha-check" style="display:flex;margin-top:10px;">
+        <input type="checkbox" id="dt_renta_requerido" ${c.rentaRequerido?'checked':''} style="width:auto;">
+        <span>Requiere Declaración de Renta (nómina)</span>
+      </label>` : ''}
+    </div>
+
+    <div class="ficha-sec">
+      <h4>Clave Única y facturación electrónica</h4>
+      <label class="ficha-check" style="display:flex;margin-bottom:8px;">
+        <input type="checkbox" id="dt_claveunica_activo" onchange="document.getElementById('dt_claveunica_fields').style.display = this.checked ? 'flex' : 'none';" ${c.claveUnica && c.claveUnica.activo ? 'checked' : ''} style="width:auto;">
+        <span>Requiere Clave Única</span>
+      </label>
+      <div id="dt_claveunica_fields" class="form-inline" style="display:${c.claveUnica && c.claveUnica.activo ? 'flex':'none'};margin-bottom:14px;">
+        <input type="text" id="dt_claveunica_rut" placeholder="Rut" value="${escapeAttr((c.claveUnica||{}).rut||'')}">
+        <input type="text" id="dt_claveunica_clave" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.claveUnica||{}).clave||'')}" readonly>
+      </div>
+
+      <label class="ficha-check" style="display:flex;margin-bottom:8px;">
+        <input type="checkbox" id="dt_factura_activo" onchange="document.getElementById('dt_factura_fields').style.display = this.checked ? 'flex' : 'none';" ${c.datosFacturacion && c.datosFacturacion.activo ? 'checked' : ''} style="width:auto;">
+        <span>Factura (requiere certificado digital)</span>
+      </label>
+      <div id="dt_factura_fields" class="form-inline" style="display:${c.datosFacturacion && c.datosFacturacion.activo ? 'flex':'none'};flex-wrap:wrap;margin-bottom:0;">
+        <input type="text" id="dt_factura_rut" placeholder="Rut persona que factura" value="${escapeAttr((c.datosFacturacion||{}).rutFacturador||'')}">
+        <input type="text" id="dt_factura_clave" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.datosFacturacion||{}).claveFacturador||'')}" readonly>
+        <input type="text" id="dt_factura_clave_cert" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.datosFacturacion||{}).claveCertificado||'')}" readonly>
+      </div>
+    </div>
+  `;
+}
+
+// Bloques comunes (debajo de las pestañas): carpeta de archivos y datos para redactar memos y propuestas.
+function fichaArchivosHtml(c, isAdmin){
+  return `
+        ${isAdmin ? `
+        <div class="ficha-sec">
+          <label class="ficha-check" style="display:flex;">
             <input type="checkbox" id="dt_es_premium" ${c.esPremium?'checked':''} style="width:auto;">
-            <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Cliente premium (habilita carpeta "Informes Premium")</span>
-          </label>` : ''}
-        </div>
-        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
-          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;">
-            <input type="checkbox" id="dt_iva_caso_especial" ${c.f29CasoEspecialMes===mesActualISO()?'checked':''} style="width:auto;">
-            <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Incluir en Confección Iva este mes (caso especial)</span>
+            <span>Cliente premium (habilita carpeta "Informes Premium")</span>
           </label>
-          <div style="font-size:12px;color:#8a8879;margin-top:4px;">Útil para clientes "Persona Natural", que por defecto no entran a la nómina de Iva. Se desmarca solo al pasar el mes.</div>
-        </div>
-
-        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
-          <h4 style="margin:0 0 10px;font-size:14px;">Contacto</h4>
-          <div class="onboard-grid" style="margin-bottom:0;">
-            <label>Nombre de contacto
-              <input type="text" id="dt_nombre_contacto" placeholder="Persona con quien se conversa" value="${escapeAttr(c.nombreContacto||'')}">
-            </label>
-            <label>Teléfono de contacto
-              <input type="text" id="dt_telefono_contacto" placeholder="Ej: +56 9 1234 5678" value="${escapeAttr(c.telefonoContacto||'')}">
-            </label>
-            <label style="grid-column:1 / -1;">Correo de contacto
-              <input type="text" id="dt_correo_contacto" placeholder="correo@cliente.cl" value="${escapeAttr(c.correoContacto||'')}">
-            </label>
-          </div>
-        </div>
-
-        <div id="dt_estructura_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'block'};margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
-          <h4 style="margin:0 0 10px;font-size:14px;">Estructura societaria</h4>
-          <div style="font-size:12px;font-weight:600;color:#6b6a5f;margin-bottom:6px;">Representantes legales</div>
-          <div id="dt_reps_lista">${representantesDelCliente(c).map(r => filaRepresentanteHtml(r)).join('')}</div>
-          <button type="button" class="btn secondary small" onclick="agregarFilaRepresentante()">+ Agregar representante</button>
-          <div style="font-size:12px;font-weight:600;color:#6b6a5f;margin:16px 0 6px;">Socios</div>
-          <div id="dt_socios_lista">${(c.sociosDetalle||[]).map(s => filaSocioHtml(s)).join('')}</div>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <button type="button" class="btn secondary small" onclick="agregarFilaSocio()">+ Agregar socio</button>
-            <button type="button" class="btn secondary small" onclick="copiarSociosAMemos()">Copiar personas naturales a Memos y Propuestas</button>
-            <span id="dt_socios_total" style="font-size:12px;color:#8a8879;"></span>
-          </div>
-        </div>
-
-        <div id="dt_actividades_wrap" style="display:${c.regimenTributario==='Persona Natural'?'none':'block'};margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
-          <h4 style="margin:0 0 10px;font-size:14px;">Actividades económicas (SII)</h4>
-          <textarea id="dt_actividades" rows="4" placeholder="Una por línea: Descripción (código)" style="width:100%;font-size:13px;color:var(--ink);padding:10px 12px;border:1px solid var(--line);border-radius:4px;font-family:'IBM Plex Sans',sans-serif;resize:vertical;">${escapeHtml((c.actividadesEconomicas||[]).map(a => a.codigo ? `${a.glosa} (${a.codigo})` : a.glosa).join('\n'))}</textarea>
-          <div style="font-size:11px;color:#8a8879;margin-top:4px;">La actividad y el código de arriba son los principales; aquí van todas las que figuran en el SII.</div>
-        </div>
-        ${c.siiObservacion ? `<div style="margin:-8px 0 20px;font-size:12px;color:${String(c.siiObservacion).trim().toUpperCase()==='OK' ? '#8a8879' : 'var(--danger)'};">Revisión SII${c.siiRevisado ? ` (${escapeHtml(c.siiRevisado)})` : ''}: ${escapeHtml(c.siiObservacion)}</div>` : ''}
-
-        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
-          <h4 style="margin:0 0 10px;font-size:14px;">Otros datos relevantes</h4>
-
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
-            <button type="button" class="btn secondary small" id="btnMostrarClaves" onclick="mostrarCredencialesCliente('${c.id}')">Mostrar claves</button>
-            <span id="mostrarClavesEstado" style="font-size:12px;color:#8a8879;">Las claves de Previred, Clave Única y Facturación están ocultas por defecto. Haz clic para verlas solo cuando las necesites.</span>
-          </div>
-
-          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;margin-bottom:8px;">
-            <input type="checkbox" id="dt_previred_activo" onchange="document.getElementById('dt_previred_fields').style.display = this.checked ? 'flex' : 'none';" ${c.datosPrevired && c.datosPrevired.activo ? 'checked' : ''} style="width:auto;">
-            <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Posee trabajadores (datos Previred)</span>
-          </label>
-          <div id="dt_previred_fields" class="form-inline" style="display:${c.datosPrevired && c.datosPrevired.activo ? 'flex':'none'};margin-bottom:14px;">
-            <input type="text" id="dt_previred_rut" placeholder="Rut Previred" value="${escapeAttr((c.datosPrevired||{}).rut||'')}">
-            <input type="text" id="dt_previred_clave" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.datosPrevired||{}).clave||'')}" readonly>
-          </div>
-
-          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;margin-bottom:8px;">
-            <input type="checkbox" id="dt_claveunica_activo" onchange="document.getElementById('dt_claveunica_fields').style.display = this.checked ? 'flex' : 'none';" ${c.claveUnica && c.claveUnica.activo ? 'checked' : ''} style="width:auto;">
-            <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Requiere Clave Única</span>
-          </label>
-          <div id="dt_claveunica_fields" class="form-inline" style="display:${c.claveUnica && c.claveUnica.activo ? 'flex':'none'};margin-bottom:14px;">
-            <input type="text" id="dt_claveunica_rut" placeholder="Rut" value="${escapeAttr((c.claveUnica||{}).rut||'')}">
-            <input type="text" id="dt_claveunica_clave" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.claveUnica||{}).clave||'')}" readonly>
-          </div>
-
-          <label style="flex-direction:row;align-items:center;gap:8px;display:flex;margin-bottom:8px;">
-            <input type="checkbox" id="dt_factura_activo" onchange="document.getElementById('dt_factura_fields').style.display = this.checked ? 'flex' : 'none';" ${c.datosFacturacion && c.datosFacturacion.activo ? 'checked' : ''} style="width:auto;">
-            <span style="text-transform:none;font-size:14px;color:var(--ink);letter-spacing:normal;font-weight:400;">Factura (requiere certificado digital)</span>
-          </label>
-          <div id="dt_factura_fields" class="form-inline" style="display:${c.datosFacturacion && c.datosFacturacion.activo ? 'flex':'none'};flex-wrap:wrap;">
-            <input type="text" id="dt_factura_rut" placeholder="Rut persona que factura" value="${escapeAttr((c.datosFacturacion||{}).rutFacturador||'')}">
-            <input type="text" id="dt_factura_clave" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.datosFacturacion||{}).claveFacturador||'')}" readonly>
-            <input type="text" id="dt_factura_clave_cert" placeholder="Oculta — clic en 'Mostrar claves'" value="" data-original="${escapeAttr((c.datosFacturacion||{}).claveCertificado||'')}" readonly>
-          </div>
-        </div>
-
-        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
-          <h4 style="margin:0 0 10px;font-size:14px;">Archivos</h4>
+        </div>` : ''}
+        <div class="ficha-sec">
+          <h4>Archivos</h4>
           ${(() => {
             const categoriasVisibles = CATEGORIAS_ARCHIVO.filter(cat => cat !== 'Informes Premium' || c.esPremium);
             if(!categoriasVisibles.includes(detailArchivoCategoria)) detailArchivoCategoria = 'General';
@@ -3151,73 +3486,19 @@ function renderModal(){
                 <option value="permanente">Permanente</option>
                 <option value="temporal">Temporal (1 mes)</option>
               </select>
-              <button class="btn secondary small" id="dt_archivo_btn" onclick="subirArchivoCliente('${c.id}')">Subir a "${escapeHtml(detailArchivoCategoria)}"</button>
+              <button type="button" class="btn secondary small" id="dt_archivo_btn" onclick="subirArchivoCliente('${c.id}')">Subir a "${escapeHtml(detailArchivoCategoria)}"</button>
             </div>
             <div style="font-size:11px;color:#8a8879;margin-top:6px;">Máximo 5 MB por archivo. Se guarda en Google Drive y queda visible para todos los roles. Los temporales se eliminan solos al mes de subidos.</div>
             ` : `<div style="font-size:12px;color:#8a8879;">Solo Administrador o Contabilidad pueden subir a esta carpeta.</div>`}
             `;
           })()}
-        </div>
+        </div>`;
+}
 
-        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
-          <h4 style="margin:0 0 10px;font-size:14px;">Ficha de Cobranza</h4>
-          <div class="onboard-grid" style="margin-bottom:12px;">
-            <label>Forma de pago
-              <select id="dt_forma_pago">
-                <option value="">Sin definir</option>
-                ${['Transferencia','Efectivo','Cheque','Débito automático','Otro'].map(f=>`<option value="${f}" ${c.formaPago===f?'selected':''}>${f}</option>`).join('')}
-              </select>
-            </label>
-            <label>Fecha de pago pactada
-              <input type="date" id="dt_fecha_pago" value="${escapeAttr(c.fechaPago||'')}">
-            </label>
-          </div>
-          <div style="margin-bottom:8px;">
-            <div style="font-size:12px;font-weight:600;color:#6b6a5f;margin-bottom:6px;">Historial de cobranza</div>
-            ${(c.historialCobranza||[]).slice().reverse().map(h => `
-              <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid var(--line);">
-                <span class="mono" style="color:#8a8879;font-size:11px;min-width:76px;">${escapeHtml(h.fecha||'')}</span>
-                <span style="min-width:90px;">${h.monto != null ? formatoCLP(h.monto) : '—'}</span>
-                <span style="min-width:100px;">${escapeHtml(h.estado||'')}</span>
-                <span style="flex:1;color:#6b6a5f;">${escapeHtml(h.nota||'')}</span>
-              </div>
-            `).join('') || '<span style="font-size:13px;color:#8a8879;">Sin registros de cobranza.</span>'}
-          </div>
-          <div class="form-inline">
-            <input type="date" id="cobFecha" value="${todayISO()}" style="max-width:150px;">
-            <input type="number" id="cobMonto" placeholder="Monto" min="0" style="max-width:120px;">
-            <select id="cobEstado" style="max-width:140px;">
-              <option value="Pagado">Pagado</option>
-              <option value="Pendiente">Pendiente</option>
-              <option value="Atrasado">Atrasado</option>
-            </select>
-            <input type="text" id="cobNota" placeholder="Nota (opcional)" style="flex:1;">
-            <button class="btn secondary small" onclick="agregarCobranza('${c.id}')">Agregar registro</button>
-          </div>
-          <div style="font-size:11px;color:#8a8879;margin-top:6px;">El historial solo permite agregar registros nuevos, no editar ni borrar los ya guardados.</div>
-        </div>
-
-        ${isAdmin ? `
-        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
-          <h4 style="margin:0 0 10px;font-size:14px;">Servicios extraordinarios</h4>
-          <div style="margin-bottom:10px;">
-            ${(c.serviciosExtraordinarios||[]).map(s => `
-              <span class="encargado-chip">${escapeHtml(s.fecha||'—')} · ${escapeHtml(s.descripcion)} · ${s.montoUF} UF
-                <button onclick="quitarServicioExtra('${c.id}','${s.id}')" title="Eliminar">×</button>
-              </span>
-            `).join('') || '<span style="font-size:13px;color:#8a8879;">Sin servicios extraordinarios registrados.</span>'}
-          </div>
-          <div class="form-inline">
-            <input type="date" id="extraFecha" value="${todayISO()}" style="max-width:150px;">
-            <input type="text" id="extraDesc" placeholder="Descripción (ej: Término de giro)">
-            <input type="number" id="extraMonto" placeholder="UF" min="0" step="0.1" style="max-width:90px;">
-            <button class="btn secondary small" onclick="agregarServicioExtra('${c.id}')">Agregar</button>
-          </div>
-        </div>
-        ` : ''}
-
-        <div style="margin-top:10px;margin-bottom:20px;border-top:1px solid var(--line);padding-top:16px;">
-          <h4 style="margin:0 0 10px;font-size:14px;">Memos y Propuestas</h4>
+function fichaMemosHtml(c){
+  return `
+        <div class="ficha-sec">
+          <h4>Memos y Propuestas</h4>
           <div class="hint" style="margin:-6px 0 10px;font-size:11px;color:#8a8879;">Se usan al redactar memos y propuestas para este cliente (ver Memos y Propuestas en el nav) — no afectan el resto de la ficha.</div>
           <div class="onboard-grid" style="margin-bottom:12px;">
             <label style="grid-column:1 / -1;">Saludo (vacío = se genera uno automático)
@@ -3230,7 +3511,68 @@ function renderModal(){
               <textarea id="dt_socios_doc" rows="4" placeholder="Joaquín Puig">${escapeHtml((c.socios||[]).join('\n'))}</textarea>
             </label>
           </div>
+        </div>`;
+}
+
+function renderModal(){
+  const root = document.getElementById('modalRoot');
+  if(!root) return;
+  if(!detailClientId){ root.innerHTML = ''; return; }
+  const c = state.clientes.find(cl => cl.id === detailClientId);
+  if(!c){ root.innerHTML = ''; return; }
+  const isAdmin = currentUser.isAdmin;
+  const encargadoNombre = (state.usuarios.find(e=>e.id===c.encargadoId)||{}).name || "Sin asignar";
+  const tabs = fichaTabsVisibles();
+  const tabActual = fichaTabActual();
+  const panes = {
+    administrativa: puedeVerFichaAdministrativa(currentUser) ? fichaAdministrativaHtml(c) : '',
+    contable: fichaContableHtml(c),
+    tributaria: fichaTributariaHtml(c, isAdmin)
+  };
+
+  root.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this) closeClientDetail()">
+      <div class="modal-card ficha">
+        <div class="modal-head">
+          <h3 class="display">Detalle del cliente</h3>
+          <button class="switch-btn" onclick="closeClientDetail()">Cerrar</button>
         </div>
+        <div class="onboard-grid" style="margin-bottom:6px;">
+          <label>Razón social
+            <input type="text" id="dt_name" value="${escapeAttr(c.name||'')}">
+          </label>
+          <label>Rut
+            <input type="text" id="dt_rut" value="${escapeAttr(c.rut||'')}">
+          </label>
+          <label>Encargado
+            ${isAdmin ? `<select id="dt_encargado">
+              <option value="">Sin asignar</option>
+              ${state.usuarios.filter(e=>e.sucursal===c.sucursal || e.sucursal==='Ambas').map(e=>`<option value="${e.id}" ${c.encargadoId===e.id?'selected':''}>${escapeHtml(e.name)}</option>`).join('')}
+            </select>` : (() => {
+              const opciones = carterasDeUsuario(currentUser).map(id => state.usuarios.find(u=>u.id===id)).filter(Boolean);
+              if(opciones.length <= 1){
+                return `<input type="text" value="${escapeAttr(encargadoNombre)}" disabled><input type="hidden" id="dt_encargado" value="${c.encargadoId||''}">`;
+              }
+              return `<select id="dt_encargado">${opciones.map(o=>`<option value="${o.id}" ${c.encargadoId===o.id?'selected':''}>${escapeHtml(o.name)}</option>`).join('')}</select>`;
+            })()}
+          </label>
+          ${puedeVerTodasLasCarteras(currentUser) ? `<label>Grupo
+            <select id="dt_grupo">
+              <option value="" ${!c.grupo?'selected':''}>Sin grupo</option>
+              ${gruposExistentes().map(g=>`<option value="${escapeAttr(g)}" ${c.grupo===g?'selected':''}>${escapeHtml(g)}</option>`).join('')}
+              <option value="__nuevo__">+ Nuevo grupo…</option>
+            </select>
+          </label>` : ''}
+        </div>
+
+        <div class="ficha-tabs" role="tablist">
+          ${tabs.map(t => `<button type="button" role="tab" class="ficha-tab ${t.key===tabActual?'active':''}" data-tab="${t.key}" onclick="setFichaTab('${t.key}')">${t.label}</button>`).join('')}
+          <button type="button" class="btn secondary small js-mostrar-claves" style="margin-left:auto;align-self:center;margin-bottom:4px;display:${tabActual==='administrativa'?'none':'inline-block'};" onclick="mostrarCredencialesCliente('${c.id}')" title="Las claves están ocultas por defecto: haz clic para verlas solo cuando las necesites.">Mostrar claves</button>
+        </div>
+        ${tabs.map(t => `<div class="ficha-pane" data-tab="${t.key}" style="display:${t.key===tabActual?'block':'none'};">${panes[t.key]}</div>`).join('')}
+
+        ${fichaArchivosHtml(c, isAdmin)}
+        ${fichaMemosHtml(c)}
 
         <div style="display:flex;gap:10px;">
           <button class="btn secondary" onclick="closeClientDetail()">Cancelar</button>
@@ -3240,6 +3582,7 @@ function renderModal(){
     </div>
   `;
   recalcularTotalSocios();
+  verificarCapacidadClavesContables();
 }
 
 // =====================================================================================
@@ -4029,12 +4372,12 @@ function mesActualISO(){
 // lectura. Si no se pincha este botón, esos campos se guardan intactos
 // (ver valorClaveOculta) sin exponer ni tocar la clave real.
 async function mostrarCredencialesCliente(id){
-  const btn = document.getElementById('btnMostrarClaves');
-  const estado = document.getElementById('mostrarClavesEstado');
-  if(btn){ btn.disabled = true; btn.textContent = 'Cargando…'; }
+  // Un solo botón "Mostrar claves" (junto a las pestañas): destapa las claves de Contable y de Tributaria.
+  const botones = Array.from(document.querySelectorAll('.js-mostrar-claves'));
+  botones.forEach(b => { b.disabled = true; b.textContent = 'Cargando…'; });
   const datos = await obtenerCredencialesClienteBackend(id);
   if(!datos){
-    if(btn){ btn.disabled = false; btn.textContent = 'Mostrar claves'; }
+    botones.forEach(b => { b.disabled = false; b.textContent = 'Mostrar claves'; });
     showToast('No se pudieron obtener las claves. Intenta de nuevo.');
     return;
   }
@@ -4047,8 +4390,16 @@ async function mostrarCredencialesCliente(id){
     const el = document.getElementById(elId);
     if(el){ el.value = valor; el.readOnly = false; }
   });
-  if(btn) btn.remove();
-  if(estado) estado.textContent = 'Claves mostradas.';
+  // claves de los accesos al programa contable de un tercero: cada fila se reconoce por su id
+  const accesos = (((datos.contable||{}).sistema||{}).accesos) || [];
+  const filas = Array.from(document.querySelectorAll('#dt_sc_accesos .fila-acceso'));
+  accesos.forEach(a => {
+    const fila = filas.find(f => f.dataset.id === a.id);
+    const el = fila && fila.querySelector('.f-clave');
+    if(el){ el.value = a.clave || ''; el.readOnly = false; el.disabled = false; }
+  });
+  botones.forEach(b => b.remove());
+  showToast('Claves mostradas.');
 }
 
 // Para los campos de clave que empiezan ocultos (readonly, value=""): si
@@ -4094,6 +4445,9 @@ async function saveClientDetail(id){
     claveFacturador: valorClaveOculta('dt_factura_clave'),
     claveCertificado: valorClaveOculta('dt_factura_clave_cert')
   };
+  // Pestaña Contable (sistema contable y remuneraciones)
+  const contable = leerContableDelFormulario(c);
+  if(contable) c.contable = contable;
   const encargadoIdAnterior = c.encargadoId;
   const encSel = document.getElementById('dt_encargado');
   if(currentUser.isAdmin || (encSel && encSel.tagName === 'SELECT')){
@@ -4108,23 +4462,26 @@ async function saveClientDetail(id){
       c.grupo = grupoSel.value || null;
     }
   }
-  const valorInput = document.getElementById('dt_valor_mensual');
-  if(valorInput){
-    const v = parseFloat(valorInput.value);
-    c.valorServicioMensual = isNaN(v) ? null : v;
-  }
   const rentaCheck = document.getElementById('dt_renta_requerido');
   if(rentaCheck) c.rentaRequerido = rentaCheck.checked;
   const premiumCheck = document.getElementById('dt_es_premium');
   if(premiumCheck) c.esPremium = premiumCheck.checked;
-  c.telefonoContacto = document.getElementById('dt_telefono_contacto').value.trim();
-  c.correoContacto = document.getElementById('dt_correo_contacto').value.trim();
-  c.formaPago = document.getElementById('dt_forma_pago').value;
-  c.fechaPago = document.getElementById('dt_fecha_pago').value || null;
+  // Pestaña Administrativa (solo Administrador): si no se dibujó, contacto y cobranza quedan como estaban
+  if(document.getElementById('dt_nombre_contacto')){
+    c.nombreContacto = document.getElementById('dt_nombre_contacto').value.trim();
+    c.telefonoContacto = document.getElementById('dt_telefono_contacto').value.trim();
+    c.correoContacto = document.getElementById('dt_correo_contacto').value.trim();
+    c.formaPago = document.getElementById('dt_forma_pago').value;
+    c.fechaPago = document.getElementById('dt_fecha_pago').value || null;
+    const valorInput = document.getElementById('dt_valor_mensual');
+    if(valorInput){
+      const v = parseFloat(valorInput.value);
+      c.valorServicioMensual = isNaN(v) ? null : v;
+    }
+  }
   c.saludo = document.getElementById('dt_saludo_doc').value.trim();
   c.sociedades = document.getElementById('dt_sociedades_doc').value.split('\n').map(s=>s.trim()).filter(Boolean);
   c.socios = document.getElementById('dt_socios_doc').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  c.nombreContacto = document.getElementById('dt_nombre_contacto').value.trim();
   c.fechaInicioActividades = document.getElementById('dt_fecha_inicio').value || '';
   const capitalInput = document.getElementById('dt_capital');
   const capitalNum = capitalInput ? parseFloat(capitalInput.value) : NaN;
