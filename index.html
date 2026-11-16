@@ -401,6 +401,28 @@
     .ficha-tab{padding:8px 12px;}
   }
 
+  /* Pendientes TAX (solo rol TAX) */
+  .pt-filtros{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px;}
+  .pt-fl{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:#6b6a5f;margin-bottom:4px;}
+  .pt-sub{font-size:12px;color:#6b6a5f;margin-top:3px;}
+  .pt-ultima{font-size:12px;color:#6b6a5f;margin-top:4px;white-space:normal;}
+  .pt-sin-enc{color:#8a8879;font-style:italic;}
+  .pt-meta{font-size:12px;color:#8a8879;margin:-8px 0 14px;}
+  .pt-area{
+    width:100%;box-sizing:border-box;font-family:'IBM Plex Sans',sans-serif;font-size:14px;line-height:1.4;
+    color:var(--ink);padding:10px 12px;border:1px solid var(--line);border-radius:4px;resize:vertical;
+    text-transform:none;letter-spacing:normal;font-weight:400;
+  }
+  .pt-obs{max-height:240px;overflow-y:auto;margin-top:12px;}
+  .pt-coment{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:8px;background:var(--paper-2);}
+  .pt-coment-meta{font-size:11px;color:#6b6a5f;margin-bottom:3px;}
+  .pt-coment-txt{font-size:13px;white-space:pre-wrap;word-break:break-word;}
+  /* Botones del formulario siempre a la vista, aunque el historial de observaciones lo alargue (el modal-card tiene padding 28px). */
+  .pt-pie{
+    display:flex;gap:10px;align-items:center;position:sticky;bottom:-28px;background:var(--white);
+    margin:8px -28px -28px;padding:14px 28px;border-top:1px solid var(--line);
+  }
+
   /* Login BPO Gestión — identidad de marca: azul marino del isotipo bpo
      consultores + dorado como acento (mismo dorado que ya usa el resto de
      la app para Administrador/insignias premium). */
@@ -1337,7 +1359,8 @@ const COLECCIONES_ESTADO = ['usuarios', 'obligaciones', 'reuniones', 'auditoria'
 const ID_POR_COLECCION_MERGE = {
   clientes: true, usuarios: true, requerimientos: true, obligaciones: true,
   reuniones: true, trabajosEspeciales: true, estimacionesF29: true, propuestas: true,
-  clientesRemuneraciones: true, rrhhFichas: true, documentosTrabajo: true, notificaciones: true
+  clientesRemuneraciones: true, rrhhFichas: true, documentosTrabajo: true, notificaciones: true,
+  tareasTax: true
 };
 
 // Copia de cada colección tal como sabemos que está guardada en el backend
@@ -1467,6 +1490,8 @@ async function loadState(){
   state.propuestas = [];
   // Mismo motivo: obtenerDocumentosTrabajoBackend también necesita currentUser.
   state.documentosTrabajo = [];
+  // Solo el rol TAX la descarga (ver obtenerTareasTaxBackend); para el resto queda vacía.
+  state.tareasTax = [];
 
   try{
     const config = valores.config ? JSON.parse(valores.config) : null;
@@ -1768,6 +1793,7 @@ function showToast(msg){
 
 function goToGate(){
   flushPendingSaves();
+  detenerRefrescoPendientesTax();
   searchDebouncer.cancel();
   clearBulkSelections();
   detenerPollingNotificaciones();
@@ -1900,6 +1926,8 @@ const CARGA_INICIAL_USUARIO = [
   { clave: 'rrhhFichas',         fetch: obtenerRRHHFichasBackend },
   { clave: 'propuestas',         fetch: obtenerPropuestasBackend },
   { clave: 'documentosTrabajo',  fetch: obtenerDocumentosTrabajoBackend },
+  // Solo el rol TAX la descarga; los demás roles reciben [] sin pedir nada (ver obtenerTareasTaxBackend).
+  { clave: 'tareasTax',          fetch: obtenerTareasTaxBackend },
 ];
 
 // Nombres legibles para el banner de "no se pudo cargar" — mismas 7 claves
@@ -1908,7 +1936,7 @@ const NOMBRE_COLECCION_LEGIBLE = {
   notificaciones: 'Notificaciones', requerimientos: 'Requerimientos',
   trabajosEspeciales: 'Trabajos Especiales', clientes: 'Clientes',
   rrhhFichas: 'RR.HH.', propuestas: 'Propuestas',
-  documentosTrabajo: 'Documentos de Trabajo',
+  documentosTrabajo: 'Documentos de Trabajo', tareasTax: 'Pendientes TAX',
 };
 
 async function enterAsUsuario(id){
@@ -1925,6 +1953,7 @@ async function enterAsUsuario(id){
   showWhoami();
   renderApp();
   iniciarPollingNotificaciones();
+  iniciarRefrescoPendientesTax();
   coleccionesConErrorDeCarga.clear();
   // Todas se guardan por fusión (ID_POR_COLECCION_MERGE) con el subconjunto
   // que el servidor ya filtró para este usuario: la base de comparación
@@ -2069,6 +2098,7 @@ function construirGruposNav(){
       { key:'gestion', label:'Gestión', icon: NAV_ICONS.list, tabs: [
         {tab:'inicio', label:'Inicio'},
         {tab:'requerimientos', label:'Requerimientos'},
+        ...(esRolTax(currentUser.rol) ? [{tab:'pendientes-tax', label:'Pendientes TAX'}] : []),
       ]},
       { key:'cartera', label:'Cartera', icon: NAV_ICONS.folder, tabs: [
         {tab:'cartera', label:'Cartera de Clientes'},
@@ -2196,6 +2226,7 @@ function setTab(tab){
   inicioReqExpandido = false;
   if(tab === 'mallas-societarias'){ mallaSel = null; mallaPila = []; mallaFiltroGrupo = '__todos__'; mallaFiltroEstado = 'todos'; }
   if(tab === 'requerimientos') marcarRequerimientosLeidos();
+  if(tab === 'pendientes-tax') refrescarPendientesTax();
   if(TAB_A_TIPOS_NOTIF[tab]) marcarNotificacionesLeidasPorTipo(TAB_A_TIPOS_NOTIF[tab]);
   renderApp();
 }
@@ -6957,6 +6988,707 @@ async function removeRequerimiento(id){
   showToast('Requerimiento eliminado.');
 }
 
+/* ---------------- PENDIENTES TAX (solo rol TAX) ---------------- */
+// Tablero compartido del equipo TAX, dentro de Gestión: sus cuatro integrantes ven y editan la misma lista. Cada pendiente tiene
+// título, empresa y oficina, importancia (Baja/Media/Alta), encargado (quién lo está gestionando), estado y un hilo de
+// observaciones de avance con autor y fecha. No confundir con la pestaña "Tareas" (checklist mensual por cliente).
+//
+// Vive en su propia llave del KV ('tareasTax'), guardada por fusión por id como el resto de las colecciones, y solo se descarga
+// para el rol TAX (ver obtenerTareasTaxBackend): Administrador, Contabilidad y los demás roles ni la ven en la navegación ni la
+// cargan. La restricción es de pantalla y de carga, igual que en las demás listas internas del KV: el servidor todavía no filtra
+// esta llave por rol.
+const PEND_TAX_PRIORIDADES = ['Alta', 'Media', 'Baja'];
+const PEND_TAX_PRIORIDAD_CLASE = { 'Alta': 'chip-red', 'Media': 'chip-amber', 'Baja': 'chip-teal' };
+const PEND_TAX_ESTADOS = ['Pendiente', 'En curso', 'Terminada'];
+const PEND_TAX_ESTADO_CLASE = { 'Pendiente': 'chip-slate', 'En curso': 'chip-blue', 'Terminada': 'chip-green' };
+// Mismos valores que clientes[].sucursal ('Concepcion' va sin tilde en los datos; solo la etiqueta lleva tilde).
+const PEND_TAX_OFICINAS = [{ valor: 'Concepcion', etiqueta: 'Concepción' }, { valor: 'Temuco', etiqueta: 'Temuco' }];
+const PEND_TAX_REFRESCO_MS = 30000;
+// Campos que la persona edita en el formulario: al guardar solo se aplican los que ella cambió.
+const PEND_TAX_CAMPOS = ['titulo', 'descripcion', 'empresa', 'clienteId', 'oficina', 'prioridad', 'encargadoId', 'estado'];
+
+let pendTaxFiltro = { estado: 'abiertas', encargado: 'todos', prioridad: 'todas', oficina: 'todas' };
+let pendTaxBusqueda = '';
+let pendTaxModal = null;             // null | { modo: 'nuevo' } | { modo: 'editar', id, original }
+let pendTaxEmpresasMapa = new Map(); // "Nombre · RUT" -> id de cliente (sugerencias del formulario)
+let pendTaxRefrescando = false;      // hay una lectura periódica en curso
+let pendTaxSecuencia = 0;            // número de la última lectura pedida (una lectura más vieja que otra ya pedida se descarta)
+let pendTaxVistaPendiente = false;   // llegaron cambios de otra persona que todavía no se dibujaron
+let pendTaxOcupado = false;          // hay un cambio guardándose
+let pendTaxCambios = 0;              // cuántos cambios se han pedido (para descartar lecturas que quedaron viejas)
+let pendTaxCola = Promise.resolve(); // los cambios se hacen de a uno
+let pendTaxTimer = null;
+
+function esRolTax(rol){ return rol === 'TAX'; }
+function puedeVerPendientesTax(u){ return !!u && esRolTax(u.rol); }
+
+// Los ids se meten dentro de onclick="f('…')": se escapan para el texto JS y para el atributo HTML (sin recortarlos: el id tiene que
+// seguir siendo el mismo), así una fila escrita a mano con comillas en el id no puede ejecutar nada.
+function pendTaxIdJs(id){
+  return escapeAttr(String(id == null ? '' : id).replace(/[\\']/g, '\\$&').replace(/[\r\n\u2028\u2029]/g, ' '));
+}
+
+function pendTaxEstadoDe(t){ return PEND_TAX_ESTADOS.includes(t.estado) ? t.estado : 'Pendiente'; }
+function pendTaxPrioridadDe(t){ return PEND_TAX_PRIORIDADES.includes(t.prioridad) ? t.prioridad : 'Media'; }
+function pendTaxEstadoClass(estado){ return estadoPillClass(PEND_TAX_ESTADO_CLASE, estado, 'Pendiente'); }
+
+function pendTaxEtiquetaOficina(valor){
+  const o = PEND_TAX_OFICINAS.find(x => x.valor === valor);
+  return o ? o.etiqueta : (valor || '');
+}
+
+// Integrantes del equipo TAX: los únicos que pueden asumir un pendiente.
+function pendTaxEquipo(){
+  return (state.usuarios || []).filter(u => esRolTax(u.rol)).sort((a,b) => (a.name || '').localeCompare(b.name || '', 'es'));
+}
+
+function pendTaxNombreEncargado(t){
+  return t.encargadoId ? (nombreDeUsuario(t.encargadoId) || 'Usuario eliminado') : '';
+}
+
+function pendTaxFechaCorta(ms){
+  return ms ? new Date(ms).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+}
+
+// Empresa que se muestra: si el pendiente quedó ligado a un cliente de la cartera, el nombre actual de ese cliente.
+function pendTaxEmpresaDe(t){
+  const cli = t.clienteId ? (state.clientes || []).find(c => c.id === t.clienteId) : null;
+  return { cli, nombre: cli ? cli.name : (t.empresa || '') };
+}
+
+// Lee la lista completa de pendientes. Devuelve { ok, lista }; ok=false si la carga falló (red, límite de solicitudes o respuesta
+// ilegible), para no confundir "no se pudo cargar" con "todavía no hay pendientes" y no guardar encima de lo que no se vio. Una
+// lista vacía cuando acá ya había pendientes se confirma con una segunda lectura: el guardado del servidor borra y vuelve a agregar
+// la fila de la llave, y una lectura justo en medio la vería como inexistente.
+async function leerTareasTaxBackend(){
+  if(!BACKEND_URL) return { ok: true, lista: (state && state.tareasTax) || [] };
+  let sospechosa = false;
+  for(let intento = 1; intento <= 3; intento++){
+    try{
+      const res = await fetch(`${BACKEND_URL}?keys=tareasTax&token=${encodeURIComponent(API_TOKEN)}`, { cache: 'no-store' });
+      const data = await res.json();
+      if(data && data.__rateLimited__) return { ok: false, lista: [] };
+      const raw = data && data.tareasTax;
+      const lista = raw ? JSON.parse(raw) : [];
+      if(Array.isArray(lista)){
+        const habiaDatos = !!(state && state.tareasTax && state.tareasTax.length);
+        if(!lista.length && habiaDatos && !sospechosa){
+          sospechosa = true;
+          await new Promise(r => setTimeout(r, 700));
+          continue;
+        }
+        return { ok: true, lista };
+      }
+    }catch(e){
+      console.error('No se pudieron leer los pendientes TAX:', e);
+    }
+    if(intento < 3) await new Promise(r => setTimeout(r, 700));
+  }
+  return { ok: false, lista: [] };
+}
+
+// Solo el rol TAX descarga la lista; los demás roles reciben [] sin pedir nada al servidor.
+async function obtenerTareasTaxBackend(usuarioId){
+  if(!BACKEND_URL || !currentUser || !puedeVerPendientesTax(currentUser)) return [];
+  const r = await leerTareasTaxBackend();
+  if(!r.ok){ coleccionesConErrorDeCarga.add('tareasTax'); return []; }
+  coleccionesConErrorDeCarga.delete('tareasTax');
+  return r.lista;
+}
+
+// Trae lo último que guardaron las demás personas del equipo. No toca la pantalla si la persona está escribiendo o tiene abierto el
+// formulario de un pendiente (se dibuja en la próxima vuelta), y descarta la lectura si mientras tanto se pidió o hizo un cambio:
+// esa lectura ya quedó vieja y pisaría el cambio recién hecho. Una lectura pedida a propósito (forzarPantalla: botón Actualizar) no se
+// descarta porque justo haya otra en curso; entre dos lecturas gana siempre la pedida más tarde. Devuelve true (al día), false (falló)
+// o null (no se hizo, o quedó reemplazada por otra más nueva).
+async function refrescarPendientesTax(forzarPantalla){
+  if(!currentUser || !puedeVerPendientesTax(currentUser) || !BACKEND_URL) return null;
+  if(pendTaxRefrescando && !forzarPantalla) return null; // la vuelta anterior todavía no termina
+  pendTaxRefrescando = true;
+  const miLectura = ++pendTaxSecuencia;
+  const cambiosAlPedir = pendTaxCambios;
+  try{
+    const r = await leerTareasTaxBackend();
+    if(miLectura !== pendTaxSecuencia) return null; // ya se pidió otra lectura más nueva: ésta no cuenta
+    if(!r.ok){ coleccionesConErrorDeCarga.add('tareasTax'); renderErrorCargaBanner(); return false; }
+    coleccionesConErrorDeCarga.delete('tareasTax');
+    renderErrorCargaBanner();
+    if(pendTaxOcupado || cambiosAlPedir !== pendTaxCambios) return true; // lectura vieja: la próxima vuelta la trae al día
+    if(JSON.stringify(r.lista) !== JSON.stringify(state.tareasTax)) pendTaxVistaPendiente = true;
+    state.tareasTax = r.lista;
+    actualizarBaseSnapshot('tareasTax', r.lista);
+    const enFormulario = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName);
+    if(pendTaxVistaPendiente && activeTab === 'pendientes-tax' && !pendTaxModal && (forzarPantalla || !enFormulario)){
+      pendTaxVistaPendiente = false;
+      renderApp();
+    }
+    return true;
+  }finally{
+    if(miLectura === pendTaxSecuencia) pendTaxRefrescando = false;
+  }
+}
+
+function iniciarRefrescoPendientesTax(){
+  if(pendTaxTimer || !currentUser || !puedeVerPendientesTax(currentUser)) return;
+  pendTaxTimer = setInterval(() => {
+    if(activeTab === 'pendientes-tax' && !document.hidden) refrescarPendientesTax();
+  }, PEND_TAX_REFRESCO_MS);
+}
+
+function detenerRefrescoPendientesTax(){
+  if(pendTaxTimer){ clearInterval(pendTaxTimer); pendTaxTimer = null; }
+}
+
+// Los navegadores frenan los timers de las pestañas en segundo plano: al volver se lee de inmediato.
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden && currentUser && puedeVerPendientesTax(currentUser) && activeTab === 'pendientes-tax') refrescarPendientesTax();
+});
+
+// Todo cambio (crear, editar, tomar, comentar, borrar) sigue los mismos pasos, de a uno por vez: (1) leer lo último del servidor,
+// (2) aplicar SOLO el cambio de esta persona sobre esa copia y (3) guardar. Así, si dos integrantes tocan el mismo pendiente casi a
+// la vez (uno comenta y el otro cambia el encargado), no se pisan: el guardado manda el registro completo, y partir de una copia
+// vieja borraría lo que la otra persona acababa de guardar. `aplicar(lista)` modifica la lista recién leída; si devuelve false no se
+// guarda nada (y ella avisa el motivo). Resuelve true solo cuando el servidor confirmó el guardado.
+function pendTaxAplicarCambio(aplicar){
+  pendTaxCambios++;
+  const tarea = pendTaxCola.then(async () => {
+    pendTaxOcupado = true;
+    try{
+      if(!BACKEND_URL) return aplicar(state.tareasTax) !== false;
+      const r = await leerTareasTaxBackend();
+      if(!r.ok){ showToast('No se pudo leer la lista de pendientes. Intenta de nuevo.'); return false; }
+      state.tareasTax = r.lista;
+      actualizarBaseSnapshot('tareasTax', r.lista);
+      if(aplicar(state.tareasTax) === false) return false;
+      const { cambios, eliminados } = calcularDiffColeccion('tareasTax', state.tareasTax);
+      if(!cambios.length && !eliminados.length) return true;
+      const enviado = JSON.parse(JSON.stringify(state.tareasTax));
+      const ok = await kvMergeColeccion('tareasTax', cambios, eliminados);
+      if(!ok){
+        // Lo que se ve tiene que ser lo que quedó guardado: se vuelve a la copia leída del servidor.
+        state.tareasTax = JSON.parse(JSON.stringify(baseSnapshots.tareasTax));
+        showToast('No se pudo guardar el pendiente. Intenta de nuevo.');
+        return false;
+      }
+      baseSnapshots.tareasTax = enviado;
+      registrarAuditoria('tareasTax');
+      return true;
+    }catch(e){
+      console.error('Falló el guardado de pendientes TAX:', e);
+      if(baseSnapshots.tareasTax) state.tareasTax = JSON.parse(JSON.stringify(baseSnapshots.tareasTax));
+      showToast('No se pudo guardar el pendiente. Intenta de nuevo.');
+      return false;
+    }finally{
+      pendTaxOcupado = false;
+    }
+  });
+  pendTaxCola = tarea.catch(() => false);
+  return tarea;
+}
+
+function pendTaxNuevoComentario(texto){
+  return { id: uid('cm'), autorId: currentUser.id, autor: currentUser.name, fecha: Date.now(), texto };
+}
+
+// Cambia el estado dejando la fecha en que se terminó (solo mientras esté Terminada).
+function pendTaxPonerEstado(t, estado){
+  if(pendTaxEstadoDe(t) === estado) return;
+  t.estado = estado;
+  t.terminadaEn = estado === 'Terminada' ? Date.now() : null;
+}
+
+/* --- Lista --- */
+function pendTaxFiltrar(lista, sinEstado){
+  const f = pendTaxFiltro;
+  const q = (pendTaxBusqueda || '').trim().toLowerCase();
+  return lista.filter(t => {
+    if(f.encargado === 'sin' ? !!t.encargadoId : (f.encargado !== 'todos' && t.encargadoId !== f.encargado)) return false;
+    if(f.prioridad !== 'todas' && pendTaxPrioridadDe(t) !== f.prioridad) return false;
+    if(f.oficina !== 'todas' && t.oficina !== f.oficina) return false;
+    if(!sinEstado){
+      if(f.estado === 'abiertas' && pendTaxEstadoDe(t) === 'Terminada') return false;
+      if(PEND_TAX_ESTADOS.includes(f.estado) && pendTaxEstadoDe(t) !== f.estado) return false;
+    }
+    if(q){
+      const texto = [t.titulo, t.descripcion, pendTaxEmpresaDe(t).nombre, pendTaxNombreEncargado(t)]
+        .concat((t.comentarios || []).map(c => c.texto)).join(' ').toLowerCase();
+      if(!texto.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function pendTaxOrdenar(lista){
+  return lista.slice().sort((a, b) => {
+    const ta = pendTaxEstadoDe(a) === 'Terminada', tb = pendTaxEstadoDe(b) === 'Terminada';
+    if(ta !== tb) return ta ? 1 : -1; // las terminadas, al final
+    if(ta) return (b.terminadaEn || b.actualizadoEn || 0) - (a.terminadaEn || a.actualizadoEn || 0); // la terminada más reciente primero
+    const dp = PEND_TAX_PRIORIDADES.indexOf(pendTaxPrioridadDe(a)) - PEND_TAX_PRIORIDADES.indexOf(pendTaxPrioridadDe(b)); // Alta, Media, Baja
+    if(dp) return dp;
+    return (a.creadoEn || 0) - (b.creadoEn || 0); // a igual importancia, el más antiguo primero
+  });
+}
+
+function pendTaxFilaHtml(t){
+  const id = pendTaxIdJs(t.id);
+  const estado = pendTaxEstadoDe(t);
+  const emp = pendTaxEmpresaDe(t);
+  const empresaHtml = emp.nombre
+    ? (emp.cli ? `<span class="client-clickable" onclick="openClientDetail('${pendTaxIdJs(emp.cli.id)}')">${escapeHtml(emp.nombre)}</span>` : escapeHtml(emp.nombre))
+    : '';
+  const oficinaHtml = t.oficina ? escapeHtml('Oficina ' + pendTaxEtiquetaOficina(t.oficina)) : '';
+  const lineaEmpresa = [empresaHtml, oficinaHtml].filter(Boolean).join(' – ');
+  const coms = t.comentarios || [];
+  const ult = coms.length ? coms[coms.length - 1] : null;
+  const ultTexto = ult ? String(ult.texto || '').replace(/\s+/g, ' ') : '';
+  const encargado = pendTaxNombreEncargado(t);
+  const celdaEncargado = encargado
+    ? `<span style="font-weight:500;">${escapeHtml(encargado)}</span>${t.encargadoId === currentUser.id ? ' <span class="pt-sub" style="display:inline;">(tú)</span>' : ''}`
+    : `<span class="pt-sin-enc">Sin asignar</span>${estado !== 'Terminada' ? ` <button class="btn secondary small" style="margin-left:6px;" onclick="pendTaxTomar('${id}', this)">Tomar</button>` : ''}`;
+  return `
+    <tr>
+      <td><span class="estado-pill ${PEND_TAX_PRIORIDAD_CLASE[pendTaxPrioridadDe(t)]}">${pendTaxPrioridadDe(t)}</span></td>
+      <td style="max-width:520px;">
+        <div class="client-name client-clickable" onclick="pendTaxAbrir('${id}')">${escapeHtml(t.titulo || '(sin título)')}</div>
+        ${lineaEmpresa ? `<div class="pt-sub">${lineaEmpresa}</div>` : ''}
+        ${ult ? `<div class="pt-ultima">Última observación (${escapeHtml(ult.autor || '—')}, ${pendTaxFechaCorta(ult.fecha)}): ${escapeHtml(ultTexto.length > 140 ? ultTexto.slice(0, 140) + '…' : ultTexto)}${coms.length > 1 ? ` · ${coms.length} observaciones` : ''}</div>` : ''}
+      </td>
+      <td>${celdaEncargado}</td>
+      <td>
+        <select class="${pendTaxEstadoClass(estado)}" onchange="this.className = pendTaxEstadoClass(this.value); pendTaxCambiarEstado('${id}', this.value, this)">
+          ${PEND_TAX_ESTADOS.map(e => `<option value="${e}" ${estado === e ? 'selected' : ''}>${e}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        ${pendTaxFechaCorta(t.actualizadoEn || t.creadoEn)}
+        ${t.creadoPor ? `<div class="pt-sub">Creado por ${escapeHtml(t.creadoPor)}${t.creadoEn ? ' · ' + pendTaxFechaCorta(t.creadoEn) : ''}</div>` : ''}
+      </td>
+      <td style="text-align:right;white-space:nowrap;"><button class="btn secondary small" onclick="pendTaxAbrir('${id}')">Editar</button></td>
+    </tr>
+  `;
+}
+
+function pendientesTaxContent(){
+  if(!puedeVerPendientesTax(currentUser)){
+    return `<div class="empty-state"><div class="display">No disponible</div><div>Esta sección es exclusiva del rol TAX.</div></div>`;
+  }
+  const todas = state.tareasTax || [];
+  const visibles = pendTaxOrdenar(pendTaxFiltrar(todas, false));
+  const paraConteo = pendTaxFiltrar(todas, true);
+  const cuantas = fn => paraConteo.filter(fn).length;
+  const abiertas = todas.filter(t => pendTaxEstadoDe(t) !== 'Terminada').length;
+  const chip = (valor, etiqueta, n) => `
+    <button onclick="pendTaxSetFiltro('estado','${valor}')" class="filter-chip ${pendTaxFiltro.estado === valor ? 'active' : ''}">${etiqueta} <span class="count">${n}</span></button>
+  `;
+  const opcion = (valor, etiqueta, actual) => `<option value="${escapeAttr(valor)}" ${actual === valor ? 'selected' : ''}>${escapeHtml(etiqueta)}</option>`;
+  const f = pendTaxFiltro;
+  const hayFiltros = f.estado !== 'abiertas' || f.encargado !== 'todos' || f.prioridad !== 'todas' || f.oficina !== 'todas' || !!pendTaxBusqueda;
+
+  return `
+    <div>
+      <div class="main-head">
+        <div>
+          <h2 class="display">Pendientes TAX</h2>
+          <div class="meta">Tareas y pendientes del equipo TAX: todos ven y editan la misma lista. ${abiertas} abierto${abiertas === 1 ? '' : 's'} · ${todas.length - abiertas} terminado${todas.length - abiertas === 1 ? '' : 's'}.</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn secondary small" onclick="pendTaxActualizarAhora()">Actualizar</button>
+          <button class="btn" onclick="pendTaxNuevo()">+ Nuevo pendiente</button>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        ${chip('abiertas', 'Abiertos', cuantas(t => pendTaxEstadoDe(t) !== 'Terminada'))}
+        ${chip('Pendiente', 'Pendientes', cuantas(t => pendTaxEstadoDe(t) === 'Pendiente'))}
+        ${chip('En curso', 'En curso', cuantas(t => pendTaxEstadoDe(t) === 'En curso'))}
+        ${chip('Terminada', 'Terminados', cuantas(t => pendTaxEstadoDe(t) === 'Terminada'))}
+        ${chip('todas', 'Todos', paraConteo.length)}
+      </div>
+
+      <div class="pt-filtros">
+        <div>
+          <label class="pt-fl">Encargado</label>
+          <select onchange="pendTaxSetFiltro('encargado', this.value)">
+            ${opcion('todos', 'Todos', f.encargado)}
+            ${opcion('sin', 'Sin asignar', f.encargado)}
+            ${pendTaxEquipo().map(u => opcion(u.id, u.name + (u.id === currentUser.id ? ' (yo)' : ''), f.encargado)).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="pt-fl">Importancia</label>
+          <select onchange="pendTaxSetFiltro('prioridad', this.value)">
+            ${opcion('todas', 'Todas', f.prioridad)}
+            ${PEND_TAX_PRIORIDADES.map(p => opcion(p, p, f.prioridad)).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="pt-fl">Oficina</label>
+          <select onchange="pendTaxSetFiltro('oficina', this.value)">
+            ${opcion('todas', 'Todas', f.oficina)}
+            ${PEND_TAX_OFICINAS.map(o => opcion(o.valor, o.etiqueta, f.oficina)).join('')}
+          </select>
+        </div>
+        <div style="flex:1;min-width:220px;">
+          <label class="pt-fl">Buscar</label>
+          <input type="text" id="pendTaxBuscador" placeholder="Pendiente, empresa u observación…" value="${escapeAttr(pendTaxBusqueda)}" oninput="pendTaxBuscar(this.value)" style="width:100%;box-sizing:border-box;">
+        </div>
+        ${hayFiltros ? `<button class="btn ghost small" onclick="pendTaxLimpiarFiltros()">Limpiar filtros</button>` : ''}
+      </div>
+
+      <div style="overflow-x:auto;">
+      <table style="min-width:980px;">
+        <thead>
+          <tr>
+            <th>Importancia</th>
+            <th>Pendiente</th>
+            <th>Encargado</th>
+            <th>Estado</th>
+            <th>Actualizado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${visibles.length ? visibles.map(pendTaxFilaHtml).join('') : `<tr><td colspan="6" style="text-align:center;color:#8a8879;padding:40px 20px;">${todas.length ? 'No hay pendientes que coincidan con los filtros seleccionados.' : 'Todavía no hay pendientes. Crea el primero con «Nuevo pendiente».'}</td></tr>`}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  `;
+}
+
+function pendTaxSetFiltro(campo, valor){
+  pendTaxFiltro[campo] = valor;
+  renderApp();
+}
+
+function pendTaxLimpiarFiltros(){
+  pendTaxFiltro = { estado: 'abiertas', encargado: 'todos', prioridad: 'todas', oficina: 'todas' };
+  pendTaxBusqueda = '';
+  renderApp();
+}
+
+// Mismo criterio que searchDebouncer: nada se redibuja mientras la persona escribe.
+const pendTaxBusquedaDebouncer = makeDebouncer((v) => {
+  pendTaxBusqueda = v;
+  renderApp();
+  const box = document.getElementById('pendTaxBuscador');
+  if(box){ box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+}, 300);
+function pendTaxBuscar(v){
+  pendTaxBusquedaDebouncer.run(v);
+}
+
+async function pendTaxActualizarAhora(){
+  showToast('Actualizando…');
+  const ok = await refrescarPendientesTax(true);
+  if(ok === false) showToast('No se pudo actualizar la lista. Intenta de nuevo.');
+  else if(ok) showToast('Lista actualizada.');
+}
+
+/* --- Cambios rápidos desde la lista --- */
+// El botón / selector que se tocó queda bloqueado mientras se guarda (el servidor puede tardar varios segundos); al terminar la
+// lista se vuelve a dibujar completa.
+async function pendTaxTomar(id, boton){
+  if(boton){ boton.disabled = true; boton.textContent = 'Guardando…'; }
+  showToast('Guardando…');
+  const ok = await pendTaxAplicarCambio(lista => {
+    const t = lista.find(x => x.id === id);
+    if(!t){ showToast('Ese pendiente ya no existe.'); return false; }
+    if(t.encargadoId && t.encargadoId !== currentUser.id){
+      showToast(`${nombreDeUsuario(t.encargadoId) || 'Otra persona'} ya está a cargo de este pendiente.`);
+      return false;
+    }
+    t.encargadoId = currentUser.id;
+    t.actualizadoEn = Date.now();
+  });
+  renderApp();
+  if(ok) showToast('Ahora estás a cargo de este pendiente.');
+}
+
+async function pendTaxCambiarEstado(id, estado, selector){
+  if(!PEND_TAX_ESTADOS.includes(estado)) return;
+  if(selector) selector.disabled = true;
+  showToast('Guardando…');
+  const ok = await pendTaxAplicarCambio(lista => {
+    const t = lista.find(x => x.id === id);
+    if(!t){ showToast('Ese pendiente ya no existe.'); return false; }
+    pendTaxPonerEstado(t, estado);
+    t.actualizadoEn = Date.now();
+  });
+  renderApp();
+  if(ok) showToast('Estado actualizado.');
+}
+
+async function pendTaxEliminar(id){
+  if(!confirm('¿Eliminar este pendiente? Se pierden también sus observaciones. Esta acción no se puede deshacer.')) return;
+  showToast('Eliminando…');
+  const ok = await pendTaxAplicarCambio(lista => {
+    const i = lista.findIndex(x => x.id === id);
+    if(i < 0){ showToast('Ese pendiente ya no existe.'); return false; }
+    lista.splice(i, 1);
+  });
+  if(ok || !(state.tareasTax || []).some(x => x.id === id)){
+    pendTaxModal = null;
+    renderPendTaxModal();
+  }
+  renderApp();
+  if(ok) showToast('Pendiente eliminado.');
+}
+
+/* --- Formulario (nuevo / editar) con su hilo de observaciones --- */
+function pendTaxNuevo(){
+  pendTaxModal = { modo: 'nuevo' };
+  renderPendTaxModal();
+}
+
+function pendTaxAbrir(id){
+  const t = (state.tareasTax || []).find(x => x.id === id);
+  if(!t) return;
+  const original = JSON.parse(JSON.stringify(t));
+  const emp = pendTaxEmpresaDe(t);
+  if(emp.cli) original.empresa = emp.cli.name; // lo que muestra el formulario: el nombre actual del cliente
+  pendTaxModal = { modo: 'editar', id, original };
+  renderPendTaxModal();
+}
+
+function pendTaxCerrar(){
+  pendTaxModal = null;
+  renderPendTaxModal();
+}
+
+function pendTaxObservacionesHtml(t){
+  const lista = (t.comentarios || []).slice().reverse(); // la más reciente arriba
+  if(!lista.length) return '<div class="ficha-nota">Todavía no hay observaciones.</div>';
+  return lista.map(c => `
+    <div class="pt-coment">
+      <div class="pt-coment-meta"><b>${escapeHtml(c.autor || nombreDeUsuario(c.autorId) || '—')}</b> · ${escapeHtml(formatoFechaHoraNotif(c.fecha))}</div>
+      <div class="pt-coment-txt">${escapeHtml(c.texto)}</div>
+    </div>
+  `).join('');
+}
+
+// Redibuja solo el historial (no el formulario): lo que la persona ya escribió en los demás campos no se pierde.
+function pendTaxPintarObservaciones(id){
+  const t = (state.tareasTax || []).find(x => x.id === id);
+  if(!t) return;
+  const caja = document.getElementById('ptListaObs');
+  if(caja) caja.innerHTML = pendTaxObservacionesHtml(t);
+  const contador = document.getElementById('ptContadorObs');
+  if(contador) contador.textContent = (t.comentarios || []).length;
+}
+
+function renderPendTaxModal(){
+  const root = document.getElementById('modalRoot');
+  if(!root) return;
+  if(!pendTaxModal){ root.innerHTML = ''; return; }
+  const esNuevo = pendTaxModal.modo === 'nuevo';
+  const vivo = esNuevo ? null : (state.tareasTax || []).find(x => x.id === pendTaxModal.id);
+  if(!esNuevo && !vivo){ pendTaxModal = null; root.innerHTML = ''; return; }
+  const t = esNuevo
+    ? { titulo: '', descripcion: '', empresa: '', clienteId: '', oficina: '', prioridad: 'Media', encargadoId: '', estado: 'Pendiente' }
+    : pendTaxModal.original;
+
+  // Sugerencias de empresa: la cartera completa (el rol TAX la ve entera). Al elegir una se liga el pendiente a ese cliente y se
+  // propone su oficina; también se puede escribir un nombre que no esté en la cartera.
+  pendTaxEmpresasMapa = new Map();
+  const sugerencias = (state.clientes || []).map(c => {
+    const etiqueta = c.name + (c.rut ? ' · ' + c.rut : '');
+    pendTaxEmpresasMapa.set(etiqueta, c.id);
+    return `<option value="${escapeAttr(etiqueta)}"${c.sucursal ? ` label="Oficina ${escapeAttr(pendTaxEtiquetaOficina(c.sucursal))}"` : ''}></option>`;
+  }).join('');
+
+  const equipo = pendTaxEquipo();
+  const enEquipo = new Set(equipo.map(u => u.id));
+  const opcionesEncargado = [`<option value="">Sin asignar</option>`]
+    .concat(equipo.map(u => `<option value="${escapeAttr(u.id)}" ${t.encargadoId === u.id ? 'selected' : ''}>${escapeHtml(u.name)}${u.id === currentUser.id ? ' (yo)' : ''}</option>`));
+  // Si quien está a cargo ya no tiene el rol TAX se lo sigue ofreciendo: editar otra cosa no debe dejar el pendiente sin encargado.
+  if(t.encargadoId && !enEquipo.has(t.encargadoId)){
+    opcionesEncargado.push(`<option value="${escapeAttr(t.encargadoId)}" selected>${escapeHtml(nombreDeUsuario(t.encargadoId) || 'Usuario eliminado')}</option>`);
+  }
+  const opcionesOficina = [`<option value="">Sin oficina</option>`]
+    .concat(PEND_TAX_OFICINAS.map(o => `<option value="${o.valor}" ${t.oficina === o.valor ? 'selected' : ''}>${o.etiqueta}</option>`));
+  const opcionesPrioridad = PEND_TAX_PRIORIDADES.map(p => `<option value="${p}" ${pendTaxPrioridadDe(t) === p ? 'selected' : ''}>${p}</option>`);
+  const opcionesEstado = PEND_TAX_ESTADOS.map(e => `<option value="${e}" ${pendTaxEstadoDe(t) === e ? 'selected' : ''}>${e}</option>`);
+
+  root.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this) pendTaxCerrar()">
+      <div class="modal-card ficha">
+        <div class="modal-head">
+          <h3 class="display">${esNuevo ? 'Nuevo pendiente' : 'Editar pendiente'}</h3>
+          <button class="switch-btn" onclick="pendTaxCerrar()">Cerrar</button>
+        </div>
+        ${esNuevo ? '' : `<div class="pt-meta">${vivo.creadoPor ? `Creado por ${escapeHtml(vivo.creadoPor)}${vivo.creadoEn ? ' el ' + escapeHtml(pendTaxFechaCorta(vivo.creadoEn)) : ''} · ` : ''}Última actualización: ${escapeHtml(formatoFechaHoraNotif(vivo.actualizadoEn || vivo.creadoEn))}</div>`}
+        <div class="onboard-grid">
+          <label style="grid-column:1/-1;">Qué hay que hacer *
+            <input type="text" id="ptTitulo" maxlength="200" value="${escapeAttr(t.titulo)}" placeholder="Ej: Responder oficio del SII por el F29 de agosto">
+          </label>
+          <label style="grid-column:1/-1;">Detalle (opcional)
+            <textarea id="ptDescripcion" class="pt-area" rows="3" maxlength="2000" placeholder="Contexto, documentos a pedir, plazos…">${escapeHtml(t.descripcion || '')}</textarea>
+          </label>
+          <label>Empresa
+            <input type="text" id="ptEmpresa" list="ptEmpresasList" autocomplete="off" maxlength="200" value="${escapeAttr(t.empresa || '')}" placeholder="Busca en la cartera o escribe el nombre" oninput="pendTaxEmpresaCambio()" onchange="pendTaxEmpresaCambio()">
+            <datalist id="ptEmpresasList">${sugerencias}</datalist>
+          </label>
+          <input type="hidden" id="ptClienteId" value="${escapeAttr(t.clienteId || '')}">
+          <label>Oficina de la empresa
+            <select id="ptOficina">${opcionesOficina.join('')}</select>
+          </label>
+          <label>Importancia
+            <select id="ptPrioridad">${opcionesPrioridad.join('')}</select>
+          </label>
+          <label>Encargado
+            <select id="ptEncargado">${opcionesEncargado.join('')}</select>
+          </label>
+          ${esNuevo ? '' : `<label>Estado
+            <select id="ptEstado">${opcionesEstado.join('')}</select>
+          </label>`}
+        </div>
+
+        <div class="ficha-sec">
+          <h4>Observaciones y avances${esNuevo ? '' : ` (<span id="ptContadorObs">${(vivo.comentarios || []).length}</span>)`}</h4>
+          <textarea id="ptObservacion" class="pt-area" rows="3" maxlength="2000" placeholder="${esNuevo ? 'Observación inicial (opcional): queda como la primera del historial.' : 'Anota un avance o lo que queda por hacer…'}"></textarea>
+          ${esNuevo ? '' : `
+            <div style="margin-top:8px;"><button class="btn secondary small" id="ptObsBtn" onclick="pendTaxAgregarObservacion()">Agregar observación</button></div>
+            <div class="pt-obs" id="ptListaObs">${pendTaxObservacionesHtml(vivo)}</div>
+          `}
+        </div>
+
+        <div class="pt-pie">
+          ${esNuevo ? '' : `<button class="btn danger" onclick="pendTaxEliminar('${pendTaxIdJs(pendTaxModal.id)}')">Eliminar</button>`}
+          <span style="flex:1;"></span>
+          <button class="btn secondary" onclick="pendTaxCerrar()">Cancelar</button>
+          <button class="btn" id="ptGuardarBtn" onclick="pendTaxGuardarModal()">${esNuevo ? 'Crear pendiente' : 'Guardar cambios'}</button>
+        </div>
+      </div>
+    </div>
+  `;
+  if(esNuevo) setTimeout(() => { const el = document.getElementById('ptTitulo'); if(el) el.focus(); }, 0);
+}
+
+// Al elegir una empresa de las sugerencias ("Nombre · RUT") queda ligada al cliente y se propone su oficina; si el texto se
+// cambia a mano, el vínculo se suelta.
+function pendTaxEmpresaCambio(){
+  const campo = document.getElementById('ptEmpresa');
+  const oculto = document.getElementById('ptClienteId');
+  if(!campo || !oculto) return;
+  const idElegido = pendTaxEmpresasMapa.get(campo.value);
+  if(idElegido){
+    const c = (state.clientes || []).find(x => x.id === idElegido);
+    if(c){
+      campo.value = c.name;
+      oculto.value = c.id;
+      const oficina = document.getElementById('ptOficina');
+      if(oficina && PEND_TAX_OFICINAS.some(o => o.valor === c.sucursal)) oficina.value = c.sucursal;
+      return;
+    }
+  }
+  const ligado = oculto.value ? (state.clientes || []).find(x => x.id === oculto.value) : null;
+  if(!ligado || ligado.name !== campo.value.trim()) oculto.value = '';
+}
+
+function pendTaxLeerFormulario(){
+  const val = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  return {
+    titulo: val('ptTitulo').trim().slice(0, 200),
+    descripcion: val('ptDescripcion').trim().slice(0, 2000),
+    empresa: val('ptEmpresa').trim().slice(0, 200),
+    clienteId: val('ptClienteId'),
+    oficina: val('ptOficina'),
+    prioridad: val('ptPrioridad'),
+    encargadoId: val('ptEncargado'),
+    estado: val('ptEstado'),
+    observacion: val('ptObservacion').trim().slice(0, 2000)
+  };
+}
+
+// Solo los campos que esta persona cambió respecto de lo que vio al abrir el formulario: lo demás se deja como esté en el servidor,
+// por si otra persona lo cambió mientras tanto. Empresa y cliente ligado viajan juntos.
+function pendTaxCambiosDelFormulario(original, v){
+  const cambios = {};
+  PEND_TAX_CAMPOS.forEach(k => {
+    if(k === 'estado' && !v.estado) return; // el formulario de un pendiente nuevo no tiene estado
+    if((original[k] || '') !== (v[k] || '')) cambios[k] = v[k];
+  });
+  if('empresa' in cambios || 'clienteId' in cambios){ cambios.empresa = v.empresa; cambios.clienteId = v.clienteId; }
+  return cambios;
+}
+
+async function pendTaxGuardarModal(){
+  if(!pendTaxModal) return;
+  const v = pendTaxLeerFormulario();
+  if(!v.titulo){ showToast('Escribe qué hay que hacer (el título del pendiente).'); return; }
+  const esNuevo = pendTaxModal.modo === 'nuevo';
+  const id = pendTaxModal.id;
+  const cambios = esNuevo ? null : pendTaxCambiosDelFormulario(pendTaxModal.original, v);
+  if(!esNuevo && !Object.keys(cambios).length && !v.observacion){
+    pendTaxCerrar();
+    showToast('No había cambios que guardar.');
+    return;
+  }
+  const boton = document.getElementById('ptGuardarBtn');
+  if(boton){ boton.disabled = true; boton.textContent = 'Guardando…'; }
+  const ahora = Date.now();
+  const ok = await pendTaxAplicarCambio(lista => {
+    if(esNuevo){
+      lista.push({
+        id: uid('tt'), titulo: v.titulo, descripcion: v.descripcion, empresa: v.empresa, clienteId: v.clienteId, oficina: v.oficina,
+        prioridad: PEND_TAX_PRIORIDADES.includes(v.prioridad) ? v.prioridad : 'Media', encargadoId: v.encargadoId,
+        estado: 'Pendiente', terminadaEn: null,
+        comentarios: v.observacion ? [pendTaxNuevoComentario(v.observacion)] : [],
+        creadoPorId: currentUser.id, creadoPor: currentUser.name, creadoEn: ahora, actualizadoEn: ahora
+      });
+      return true;
+    }
+    const t = lista.find(x => x.id === id);
+    if(!t){ showToast('Otra persona eliminó este pendiente.'); return false; }
+    Object.keys(cambios).forEach(k => { if(k !== 'estado') t[k] = cambios[k]; });
+    if('estado' in cambios && PEND_TAX_ESTADOS.includes(cambios.estado)) pendTaxPonerEstado(t, cambios.estado);
+    if(v.observacion){
+      t.comentarios = t.comentarios || [];
+      t.comentarios.push(pendTaxNuevoComentario(v.observacion));
+    }
+    t.actualizadoEn = ahora;
+    return true;
+  });
+  if(ok){
+    pendTaxModal = null;
+    renderPendTaxModal();
+    renderApp();
+    showToast(esNuevo ? 'Pendiente creado.' : 'Pendiente actualizado.');
+  }else{
+    const b = document.getElementById('ptGuardarBtn');
+    if(b){ b.disabled = false; b.textContent = esNuevo ? 'Crear pendiente' : 'Guardar cambios'; }
+  }
+}
+
+async function pendTaxAgregarObservacion(){
+  if(!pendTaxModal || pendTaxModal.modo !== 'editar') return;
+  const campo = document.getElementById('ptObservacion');
+  const texto = campo ? campo.value.trim().slice(0, 2000) : '';
+  if(!texto){ showToast('Escribe la observación antes de agregarla.'); return; }
+  const id = pendTaxModal.id;
+  const boton = document.getElementById('ptObsBtn');
+  if(boton){ boton.disabled = true; boton.textContent = 'Guardando…'; }
+  const comentario = pendTaxNuevoComentario(texto);
+  const ok = await pendTaxAplicarCambio(lista => {
+    const t = lista.find(x => x.id === id);
+    if(!t){ showToast('Otra persona eliminó este pendiente.'); return false; }
+    t.comentarios = t.comentarios || [];
+    t.comentarios.push(comentario);
+    t.actualizadoEn = comentario.fecha;
+    return true;
+  });
+  const b = document.getElementById('ptObsBtn');
+  if(b){ b.disabled = false; b.textContent = 'Agregar observación'; }
+  if(ok){
+    const c = document.getElementById('ptObservacion');
+    if(c) c.value = '';
+    pendTaxPintarObservaciones(id);
+    renderApp();
+    showToast('Observación agregada.');
+  }
+}
+
 function formatoCLP(n){
   return Math.round(n).toLocaleString('es-CL');
 }
@@ -11568,6 +12300,7 @@ const ETIQUETA_COLECCION = {
   trabajosEspeciales: 'Trabajos Especiales',
   config: 'Configuración (plantillas)',
   credenciales: 'Credenciales (clave de un usuario)',
+  tareasTax: 'Pendientes TAX',
 };
 
 function actividadContent(){
@@ -12087,6 +12820,7 @@ function encargadoLayout(){
 
   const content = activeTab === 'inicio' ? inicioContent()
     : activeTab === 'requerimientos' ? requerimientosContent()
+    : activeTab === 'pendientes-tax' ? pendientesTaxContent()
     : activeTab === 'obligaciones' ? obligacionesContent(verTodo)
     : activeTab === 'f29' ? estimacionF29Content(verTodo)
     : activeTab === 'tareas' ? tareasContent(verTodo, false)
