@@ -2015,9 +2015,73 @@ function showWhoami(){
   renderPushBanner();
 }
 
+/* ---------------- CRITERIO DE ROLES (2026-11-15, definido por Rolando) ----------------
+   Administrador ve todo; Contabilidad se limita a lo contable; Encargado y Asistente conservan sus funciones; TAX solo funciones de
+   TAX; todos ven Mallas Societarias. Esta tabla es la ÚNICA fuente de qué pestañas puede abrir cada rol: construirGruposNav() oculta
+   las que no le tocan, setTab() y renderApp() no dejan abrir una que no le corresponde (un botón, una notificación o una pestaña que
+   quedó guardada), y cada layout dibuja lo que su rol puede ver. Es control de pantalla, como el resto de la app: el servidor sigue
+   entregando por rol y cartera lo mismo que antes. Para cambiar el acceso de un rol basta editar la línea de la pestaña.
+   Siglas: ADM Administrador · CON Contabilidad · TAX · ENC Encargado · ASI Asistente · REM Encargado/Asistente Remuneraciones.
+   Encargado, Asistente y Remuneraciones conservan todo lo que ya alcanzaban (incluidas las pestañas a las que llegan por una
+   notificación o por las tarjetas de Inicio aunque no estén en su menú). */
+const ACCESO_TABS = {
+  'inicio': 'ADM CON TAX ENC ASI REM',
+  'requerimientos': 'ADM CON TAX ENC ASI REM',
+  'pendientes-tax': 'ADM TAX',
+  'trabajos-especiales': 'ADM CON TAX ENC ASI REM',
+  'agenda-eduardo': 'ADM',
+  'cartera': 'ADM CON TAX ENC ASI REM',
+  'obligaciones': 'ADM CON TAX ENC ASI REM',
+  'f29': 'ADM CON TAX ENC ASI REM',
+  'tareas': 'ADM CON ENC ASI REM', // la checklist mensual es contable: TAX no la usa
+  'archivos': 'ADM CON TAX ENC ASI REM',
+  'facturacion': 'ADM',
+  'cobranza': 'ADM',
+  'mallas-societarias': 'ADM CON TAX ENC ASI REM', // todos los roles (cada uno ve las empresas de las carteras que le llegan)
+  'incorporar': 'ADM',
+  'dashboard': 'ADM',
+  'usuarios': 'ADM',
+  'actividad': 'ADM',
+  'cartera-remuneraciones': 'ADM REM',
+  'trabajos-especiales-remuneraciones': 'ADM REM',
+  'facturacion-remuneraciones': 'ADM REM',
+  'documentos-trabajo': 'ADM',
+  'documentos-trabajo-editor': 'ADM',
+  'documentos-trabajo-clientes': 'ADM',
+  'documentos-trabajo-config': 'ADM',
+  'reporte-semanal': 'ADM CON',
+  'derivar-cartera': 'ADM CON',
+  'configuracion': 'ADM', // crea perfiles y cambia roles: no es una función contable
+  'rrhh': 'ADM',
+};
+
+function claveRolAcceso(rol){
+  if(esRolAdmin(rol)) return 'ADM';
+  if(esRolContabilidad(rol)) return 'CON';
+  if(rol === 'TAX') return 'TAX';
+  if(esRolAsistente(rol)) return 'ASI';
+  if(esRolEncargadoRemuneraciones(rol) || esRolAsistenteRemuneraciones(rol)) return 'REM';
+  return 'ENC';
+}
+
+// Una pestaña que no figura en la tabla (por ejemplo, una futura) no se bloquea; las que figuran se rigen solo por la tabla.
+function puedeVerTab(tab, u){
+  u = u || currentUser;
+  const roles = ACCESO_TABS[tab];
+  if(!roles || !u) return true;
+  return roles.split(' ').includes(claveRolAcceso(u.rol));
+}
+
+// Deja en cada grupo del menú solo las pestañas que el rol puede abrir (y quita los grupos que quedan vacíos).
+function filtrarGruposPorAcceso_(grupos){
+  return grupos.map(g => Object.assign({}, g, { tabs: g.tabs.filter(t => puedeVerTab(t.tab)) })).filter(g => g.tabs.length);
+}
+
 /* ---------------- MAIN APP ---------------- */
 function renderApp(){
   const app = document.getElementById('app');
+  // Criterio de roles (ver ACCESO_TABS): una pestaña que este rol no puede abrir vuelve a Inicio.
+  if(!puedeVerTab(activeTab)){ activeTab = 'inicio'; navGrupoPreview = null; }
   if(esRolContabilidad(currentUser.rol)){
     // Contabilidad tiene isAdmin=true (acceso total, ver enterAsUsuario), pero
     // se sigue enrutando por su propio layout en vez del de Administrador:
@@ -2080,13 +2144,17 @@ function construirGruposNav(){
   // Se resuelve antes que cualquier otra cosa para que NUNCA caigan en los
   // grupos de abajo, pensados para Encargado/Asistente/TAX contables.
   if(esRolEncargadoRemuneraciones(currentUser.rol) || esRolAsistenteRemuneraciones(currentUser.rol)){
-    return [
+    // Todos los roles ven Mallas Societarias (criterio de roles, ver ACCESO_TABS): estos la ven con las empresas de las carteras que les llegan.
+    return filtrarGruposPorAcceso_([
       { key:'remuneraciones', label:'Remuneraciones', icon: NAV_ICONS.folder, tabs: [
         {tab:'cartera-remuneraciones', label:'Cartera de Remuneraciones'},
         {tab:'trabajos-especiales-remuneraciones', label:'Trabajos Especiales'},
         {tab:'facturacion-remuneraciones', label:'Facturación'},
       ]},
-    ];
+      { key:'clientes', label:'Clientes', icon: NAV_ICONS.folder, tabs: [
+        {tab:'mallas-societarias', label:'Mallas Societarias'},
+      ]},
+    ]);
   }
   if(!currentUser.isAdmin){
     // Encargado, Asistente y TAX: mismas secciones de siempre (Facturación,
@@ -2106,6 +2174,7 @@ function construirGruposNav(){
         {tab:'f29', label:'F-29'},
         {tab:'tareas', label:'Tareas'},
         {tab:'archivos', label:'Archivos'},
+        {tab:'mallas-societarias', label:'Mallas Societarias'},
         ...(puedeVerTodasLasCarteras(currentUser) ? [{tab:'trabajos-especiales', label:'Trabajos Especiales'}] : []),
       ]},
     ];
@@ -2125,6 +2194,7 @@ function construirGruposNav(){
       { key:'gestion', label:'Gestión', icon: NAV_ICONS.list, tabs: [
         {tab:'inicio', label:'Inicio'},
         {tab:'requerimientos', label:'Requerimientos'},
+        {tab:'pendientes-tax', label:'Pendientes TAX'},
         {tab:'trabajos-especiales', label:'Trabajos Especiales'},
         {tab:'agenda-eduardo', label:'Agenda de Eduardo'},
       ]},
@@ -2156,9 +2226,10 @@ function construirGruposNav(){
     ]});
   }
 
-  // Contabilidad tiene acceso total (todo lo de Administrador, arriba) más
-  // sus propias herramientas de seguimiento semanal.
-  if(esRolContabilidad(currentUser.rol)){
+  // Herramientas de seguimiento de Contabilidad (Reporte Semanal, Derivar
+  // Cartera). El Administrador ve todo, así que también las tiene; qué pestañas
+  // de este grupo abre cada rol lo decide ACCESO_TABS.
+  if(esRolContabilidad(currentUser.rol) || esRolAdmin(currentUser.rol)){
     grupos.push({ key:'administracion', label:'Administración', icon: NAV_ICONS.gear, tabs: [
       {tab:'reporte-semanal', label:'Reporte Semanal'},
       {tab:'derivar-cartera', label:'Derivar Cartera'},
@@ -2178,7 +2249,7 @@ function construirGruposNav(){
     ]});
   }
 
-  return grupos;
+  return filtrarGruposPorAcceso_(grupos);
 }
 
 function sectionNav(){
@@ -2216,6 +2287,7 @@ const TAB_A_TIPOS_NOTIF = {
 };
 
 function setTab(tab){
+  if(!puedeVerTab(tab)){ showToast('Esa sección no está disponible para tu rol.'); return; }
   flushPendingSaves();
   searchDebouncer.cancel();
   clearBulkSelections();
@@ -2351,6 +2423,14 @@ function adminLayout(){
           ? agendaEduardoContent()
           : activeTab === 'mallas-societarias'
           ? mallasSocietariasContent()
+          : activeTab === 'pendientes-tax'
+          ? pendientesTaxContent()
+          : activeTab === 'reporte-semanal'
+          ? reporteSemanalContent()
+          : activeTab === 'derivar-cartera'
+          ? derivarCarteraTabContent()
+          : activeTab === 'configuracion'
+          ? configuracionContent()
           : activeTab === 'rrhh'
           ? rrhhContent()
           : adminMainContent(unassigned)}
@@ -2359,11 +2439,11 @@ function adminLayout(){
   `;
 }
 
-// Rol Contabilidad: acceso total (misma persona que configura la app). Tiene
-// todo lo que ve un Administrador (Facturación, Incorporar Clientes,
-// Dashboard, Usuarios y Roles, editar la plantilla de Tareas, etc.) más sus
-// herramientas propias de seguimiento (Reporte Semanal, Derivar Cartera,
-// Configuración).
+// Rol Contabilidad: desde el criterio de roles del 2026-11-15 se limita a lo
+// contable (ver ACCESO_TABS): Cartera, Obligaciones, F-29, Tareas, Archivos,
+// Mallas, Requerimientos, Trabajos Especiales y sus herramientas de
+// seguimiento (Reporte Semanal, Derivar Cartera). Este layout sigue sabiendo
+// dibujar todas las pestañas: quienes filtran son el menú, setTab() y renderApp().
 function contabilidadLayout(){
   const unassigned = clientesEnSucursalActiva().filter(c => !c.encargadoId || !state.usuarios.find(u=>u.id===c.encargadoId));
   return `
@@ -2514,7 +2594,7 @@ function toggleObPersonaNatural(regimen){
 }
 
 async function submitIncorporarCliente(isAdmin){
-  if(!currentUser.isAdmin) return showToast('Solo un administrador puede agregar clientes.');
+  if(!esRolAdmin(currentUser.rol)) return showToast('Solo un administrador puede agregar clientes.');
   const name = document.getElementById('ob_name').value.trim();
   const rut = document.getElementById('ob_rut').value.trim();
   const clave = document.getElementById('ob_clave').value.trim();
@@ -2566,7 +2646,7 @@ function adminMainContent(unassigned){
   // suma el rol Contabilidad (además del Administrador, que ya podía);
   // Contabilidad también puede reasignar el encargado de cada cliente,
   // pero no crear clientes nuevos.
-  const puedeAgregarCliente = currentUser.isAdmin;
+  const puedeAgregarCliente = esRolAdmin(currentUser.rol);
   const puedeEliminarCliente = currentUser.isAdmin || esRolContabilidad(currentUser.rol);
 
   return `
@@ -2579,7 +2659,7 @@ function adminMainContent(unassigned){
       </div>
       <input type="text" id="searchBox" placeholder="Buscar por nombre o RUT…" value="${escapeHtml(searchQuery||'')}" oninput="onSearch(this.value)" style="min-width:240px;">
       <button class="btn secondary" onclick="exportarCarteraCSV()">Exportar CSV</button>
-      ${currentUser.isAdmin ? '<button class="btn secondary" onclick="abrirImportarCaracteristicas()">Importar características (Excel)</button>' : ''}
+      ${esRolAdmin(currentUser.rol) ? '<button class="btn secondary" onclick="abrirImportarCaracteristicas()">Importar características (Excel)</button>' : ''}
     </div>
 
     ${puedeAgregarCliente ? `
@@ -4187,7 +4267,7 @@ function importRootEl(){
   return r;
 }
 function abrirImportarCaracteristicas(){
-  if(!currentUser || !currentUser.isAdmin){ showToast('Solo un administrador puede importar datos.'); return; }
+  if(!currentUser || !esRolAdmin(currentUser.rol)){ showToast('Solo un administrador puede importar datos.'); return; }
   impCarac = { fase: 'inicio' };
   renderImportarCaracteristicas();
 }
@@ -4308,7 +4388,7 @@ async function verificarGuardadoImportacion(items, nuevos){
 async function aplicarImportacionCaracteristicas(){
   const s = impCarac;
   if(!s || s.fase !== 'listo') return;
-  if(!currentUser || !currentUser.isAdmin){ showToast('Solo un administrador puede importar datos.'); return; }
+  if(!currentUser || !esRolAdmin(currentUser.rol)){ showToast('Solo un administrador puede importar datos.'); return; }
   const marcada = id => { const el = document.getElementById(id); return !!(el && el.checked && !el.disabled); };
   const permitidas = new Set(['regimen', 'grupo', 'representantes', 'socios', 'actividades', 'inicio', 'direccion', 'capital', 'obs']);
   if(marcada('imp_op_claves')){ permitidas.add('claveVacia'); permitidas.add('claveUnicaVacia'); }
@@ -5088,7 +5168,7 @@ function clientTable(list, permitirEliminar){
 
 /* ---------------- REQUERIMIENTOS (Tailwind) ---------------- */
 const REQ_TIPOS = ['Contable', 'Impuestos (TAX)', 'Administrativo'];
-// ---------------- REPORTE SEMANAL (solo rol Contabilidad) ----------------
+// ---------------- REPORTE SEMANAL (Contabilidad; el Administrador también lo ve) ----------------
 let reporteSemanaLunes = null; // ISO del lunes de la semana que se está viendo
 
 function semanaActualLunes(){
@@ -5109,8 +5189,8 @@ function cambiarSemanaReporte(delta){
 // "Descargar PDF" usa window.print() (el usuario elige "Guardar como PDF"
 // en el diálogo de impresión) — no depende de ninguna librería externa.
 function reporteSemanalContent(){
-  if(!esRolContabilidad(currentUser.rol)){
-    return `<div class="empty-state"><div class="display">No disponible</div><div>Esta sección es exclusiva del rol Contabilidad.</div></div>`;
+  if(!esRolContabilidad(currentUser.rol) && !esRolAdmin(currentUser.rol)){
+    return `<div class="empty-state"><div class="display">No disponible</div><div>Esta sección es exclusiva de Contabilidad y del Administrador.</div></div>`;
   }
   if(!reporteSemanaLunes) reporteSemanaLunes = semanaActualLunes();
   const lunes = reporteSemanaLunes;
@@ -6287,10 +6367,11 @@ function inicioContent(){
     return plantillaTareas.some(t => !registro[t]);
   }).length;
 
-  // Tarjeta 3 del panel: Facturación pendiente (Admin/Contabilidad) o el
-  // total de cartera visible (Encargado/Asistente/TAX) — nunca ambas a la vez.
+  // Tarjeta 3 del panel: Facturación pendiente (solo quien ve la pestaña
+  // Facturación: el Administrador) o el total de cartera visible
+  // (Contabilidad/Encargado/Asistente/TAX) — nunca ambas a la vez.
   let tileCarteraOFactura;
-  if(currentUser.isAdmin){
+  if(puedeVerTab('facturacion')){
     const mesActual = new Date().toISOString().slice(0,7);
     const facPendientes = state.clientes.filter(c => facturaDisplay(c, mesActual).estado === 'Pendiente');
     tileCarteraOFactura = { accion:"setTab('facturacion')", icon:'trend', color:'purple',
@@ -6314,7 +6395,7 @@ function inicioContent(){
     tileCarteraOFactura,
     { accion:"setTab('obligaciones')", icon:'calendar', color:'amber', label:'Obligaciones Tributarias', valor:obPendientes.length,
       nota: obVencidas.length ? `${obVencidas.length} vencida${obVencidas.length===1?'':'s'}` : 'ninguna vencida', alerta:obVencidas.length>0 },
-    { accion:"setTab('tareas')", icon:'badge', color:'green', label:'Tareas mensuales incompletas', valor:tareasIncompletas, nota:`de ${misClientes.length} clientes, este mes` },
+    ...(puedeVerTab('tareas') ? [{ accion:"setTab('tareas')", icon:'badge', color:'green', label:'Tareas mensuales incompletas', valor:tareasIncompletas, nota:`de ${misClientes.length} clientes, este mes` }] : []),
   ];
   const statTileHtml = t => `
     <div class="stat cursor-pointer hover:border-[var(--teal-dark)] transition-colors" onclick="${t.accion}">
@@ -6994,8 +7075,8 @@ async function removeRequerimiento(id){
 // observaciones de avance con autor y fecha. No confundir con la pestaña "Tareas" (checklist mensual por cliente).
 //
 // Vive en su propia llave del KV ('tareasTax'), guardada por fusión por id como el resto de las colecciones, y solo se descarga
-// para el rol TAX (ver obtenerTareasTaxBackend): Administrador, Contabilidad y los demás roles ni la ven en la navegación ni la
-// cargan. La restricción es de pantalla y de carga, igual que en las demás listas internas del KV: el servidor todavía no filtra
+// para el equipo TAX y el Administrador (ver obtenerTareasTaxBackend): Contabilidad y los demás roles ni la ven en la navegación ni
+// la cargan. La restricción es de pantalla y de carga, igual que en las demás listas internas del KV: el servidor todavía no filtra
 // esta llave por rol.
 const PEND_TAX_PRIORIDADES = ['Alta', 'Media', 'Baja'];
 const PEND_TAX_PRIORIDAD_CLASE = { 'Alta': 'chip-red', 'Media': 'chip-amber', 'Baja': 'chip-teal' };
@@ -7020,7 +7101,9 @@ let pendTaxCola = Promise.resolve(); // los cambios se hacen de a uno
 let pendTaxTimer = null;
 
 function esRolTax(rol){ return rol === 'TAX'; }
-function puedeVerPendientesTax(u){ return !!u && esRolTax(u.rol); }
+// Ven la sección el equipo TAX y el Administrador (criterio de roles: el Administrador ve todo); solo el equipo TAX puede tomar un pendiente.
+function puedeVerPendientesTax(u){ return !!u && (esRolTax(u.rol) || esRolAdmin(u.rol)); }
+function puedeTomarPendientesTax(u){ return !!u && esRolTax(u.rol); }
 
 // Los ids se meten dentro de onclick="f('…')": se escapan para el texto JS y para el atributo HTML (sin recortarlos: el id tiene que
 // seguir siendo el mismo), así una fila escrita a mano con comillas en el id no puede ejecutar nada.
@@ -7244,7 +7327,7 @@ function pendTaxFilaHtml(t){
   const encargado = pendTaxNombreEncargado(t);
   const celdaEncargado = encargado
     ? `<span style="font-weight:500;">${escapeHtml(encargado)}</span>${t.encargadoId === currentUser.id ? ' <span class="pt-sub" style="display:inline;">(tú)</span>' : ''}`
-    : `<span class="pt-sin-enc">Sin asignar</span>${estado !== 'Terminada' ? ` <button class="btn secondary small" style="margin-left:6px;" onclick="pendTaxTomar('${id}', this)">Tomar</button>` : ''}`;
+    : `<span class="pt-sin-enc">Sin asignar</span>${estado !== 'Terminada' && puedeTomarPendientesTax(currentUser) ? ` <button class="btn secondary small" style="margin-left:6px;" onclick="pendTaxTomar('${id}', this)">Tomar</button>` : ''}`;
   return `
     <tr>
       <td><span class="estado-pill ${PEND_TAX_PRIORIDAD_CLASE[pendTaxPrioridadDe(t)]}">${pendTaxPrioridadDe(t)}</span></td>
@@ -7270,7 +7353,7 @@ function pendTaxFilaHtml(t){
 
 function pendientesTaxContent(){
   if(!puedeVerPendientesTax(currentUser)){
-    return `<div class="empty-state"><div class="display">No disponible</div><div>Esta sección es exclusiva del rol TAX.</div></div>`;
+    return `<div class="empty-state"><div class="display">No disponible</div><div>Esta sección es exclusiva del equipo TAX y del Administrador.</div></div>`;
   }
   const todas = state.tareasTax || [];
   const visibles = pendTaxOrdenar(pendTaxFiltrar(todas, false));
@@ -7389,6 +7472,7 @@ async function pendTaxActualizarAhora(){
 // El botón / selector que se tocó queda bloqueado mientras se guarda (el servidor puede tardar varios segundos); al terminar la
 // lista se vuelve a dibujar completa.
 async function pendTaxTomar(id, boton){
+  if(!puedeTomarPendientesTax(currentUser)){ showToast('Solo el equipo TAX puede tomar un pendiente.'); return; }
   if(boton){ boton.disabled = true; boton.textContent = 'Guardando…'; }
   showToast('Guardando…');
   const ok = await pendTaxAplicarCambio(lista => {
@@ -12587,7 +12671,7 @@ async function editarEmail(id, label){
 function setFolder(id){ flushPendingSaves(); searchDebouncer.cancel(); clearBulkSelections(); activeFolder = id; searchQuery=''; tablePage = 1; renderApp(); }
 
 async function addClient(){
-  if(!currentUser.isAdmin) return showToast('Solo un administrador puede agregar clientes.');
+  if(!esRolAdmin(currentUser.rol)) return showToast('Solo un administrador puede agregar clientes.');
   const name = document.getElementById('newClientName').value.trim();
   const rut = document.getElementById('newClientRut').value.trim();
   const clave = document.getElementById('newClientClave').value.trim();
@@ -12821,6 +12905,7 @@ function encargadoLayout(){
   const content = activeTab === 'inicio' ? inicioContent()
     : activeTab === 'requerimientos' ? requerimientosContent()
     : activeTab === 'pendientes-tax' ? pendientesTaxContent()
+    : activeTab === 'mallas-societarias' ? mallasSocietariasContent()
     : activeTab === 'obligaciones' ? obligacionesContent(verTodo)
     : activeTab === 'f29' ? estimacionF29Content(verTodo)
     : activeTab === 'tareas' ? tareasContent(verTodo, false)
